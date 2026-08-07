@@ -1,0 +1,14 @@
+{
+  "name": "OnBozor Agro Marketplace",
+  "short_name": "OnBozor",
+  "description": "O'zbekistondagi agro marketplace",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#111827",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
