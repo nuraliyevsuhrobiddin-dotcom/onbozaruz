@@ -347,6 +347,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       toggleFollowSeller: (sellerId, sellerName = 'Fermer') =>
         set((state) => {
+          if (state.currentUser?.id === sellerId) return state;
           const isFollowing = state.followedSellerIds.includes(sellerId);
           const nextFollowed = isFollowing
             ? state.followedSellerIds.filter((id) => id !== sellerId)

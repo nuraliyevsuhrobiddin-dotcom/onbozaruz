@@ -44,11 +44,13 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
     likedPostIds,
     savedPostIds,
     followedSellerIds,
+    currentUser,
   } = useAgroStore();
 
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
   const isFollowing = followedSellerIds.includes(post.sellerId);
+  const isOwnPost = currentUser?.id === post.sellerId;
 
   // Play/pause based on active slide
   useEffect(() => {
@@ -252,7 +254,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
               </div>
             </div>
 
-            <motion.button
+            {!isOwnPost && <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -265,7 +267,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
               }`}
             >
               {isFollowing ? '✓ Obuna' : '+ Obuna'}
-            </motion.button>
+            </motion.button>}
           </div>
 
           {/* Row 2: Post Title (if present) */}

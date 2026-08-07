@@ -27,11 +27,13 @@ export const PostCard: React.FC<PostCardProps> = ({ post, allPosts, index = 0 })
     savedPostIds,
     followedSellerIds,
     openVideoViewer,
+    currentUser,
   } = useAgroStore();
 
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
   const isFollowing = followedSellerIds.includes(post.sellerId);
+  const isOwnPost = currentUser?.id === post.sellerId;
 
   const handleMediaClick = () => {
     const postIdx = allPosts.findIndex((p) => p.id === post.id);
@@ -53,7 +55,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, allPosts, index = 0 })
         date={post.date}
         categoryName={post.categoryName}
         isFollowing={isFollowing}
-        onToggleFollow={() => toggleFollowSeller(post.sellerId, post.sellerName)}
+        onToggleFollow={isOwnPost ? undefined : () => toggleFollowSeller(post.sellerId, post.sellerName)}
         onMoreClick={() => setProductDetail(post)}
       />
 
