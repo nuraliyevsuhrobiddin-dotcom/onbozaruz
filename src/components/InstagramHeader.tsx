@@ -1,0 +1,38 @@
+import React from 'react';
+import { Heart, MessageCircle } from 'lucide-react';
+import { useAgroStore } from '../store/useAgroStore';
+
+export const InstagramHeader: React.FC = () => {
+  const { setNotificationsOpen, setContactSellerData } = useAgroStore();
+
+  return (
+    <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200/80 h-14 flex items-center justify-center px-4 select-none shadow-sm">
+      <div className="w-full max-w-xl flex items-center justify-center gap-4">
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="OnBozor" className="w-8 h-8 rounded-[10px] object-cover shadow-sm" />
+        </div>
+
+        <div className="flex-1 text-center">
+          <span className="font-extrabold text-lg tracking-tight text-[#111111]">OnBozor</span>
+        </div>
+
+        <div className="flex items-center gap-2 absolute right-4">
+          <button
+            onClick={() => setNotificationsOpen(true)}
+            className="relative p-2 rounded-full text-[#111111] hover:bg-slate-100 transition-colors"
+          >
+            <Heart className="w-5 h-5 stroke-[1.75]" />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#E53935] rounded-full" />
+          </button>
+
+          <button
+            onClick={() => setContactSellerData({ name: 'Direct Chat', phone: '+998 90 123 45 67' })}
+            className="p-2 rounded-full text-[#111111] hover:bg-slate-100 transition-colors"
+          >
+            <MessageCircle className="w-5 h-5 stroke-[1.75]" />
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+};
