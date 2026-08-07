@@ -3,7 +3,7 @@ import { Heart, MessageCircle } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 
 export const InstagramHeader: React.FC = () => {
-  const { setNotificationsOpen, setContactSellerData } = useAgroStore();
+  const { setNotificationsOpen, showToast } = useAgroStore();
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200/80 h-14 flex items-center justify-center px-4 select-none shadow-sm">
@@ -26,7 +26,9 @@ export const InstagramHeader: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setContactSellerData({ name: 'Direct Chat', phone: '+998 90 123 45 67' })}
+            onClick={() => showToast("Direct Chat tez kunda ishga tushadi")}
+            aria-label="Direct Chat"
+            title="Tez kunda ishga tushadi"
             className="p-2 rounded-full text-[#111111] hover:bg-slate-100 transition-colors"
           >
             <MessageCircle className="w-5 h-5 stroke-[1.75]" />
