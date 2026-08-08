@@ -84,8 +84,9 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
   }, [globalMuted, isActive]);
 
   useEffect(() => {
+    const video = videoRef.current;
     return () => {
-      videoRef.current?.pause();
+      video?.pause();
     };
   }, []);
 
