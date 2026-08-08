@@ -24,6 +24,7 @@ import { EditListingModal } from './components/EditListingModal';
 import { AuthView } from './views/AuthView';
 import { AuthCallbackView } from './views/AuthCallbackView';
 import { subscribeToAuthState } from './api/authClient';
+import { InstallAppPrompt } from './components/InstallAppPrompt';
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -171,7 +172,7 @@ export default function App() {
       <div className="flex-1 w-full lg:pl-[80px] flex justify-center">
         <div className="w-full max-w-[1100px] flex justify-center gap-5 px-2 sm:px-4 py-3 lg:py-5">
           {/* Main Feed / Content View */}
-          <main className="flex-1 min-w-0 max-w-[600px] pb-32 lg:pb-10">
+          <main className="flex-1 min-w-0 max-w-[600px] mobile-content-bottom lg:pb-10">
             <AnimatePresence mode="wait">
               {activeTab === 'home' && (
                 <motion.div
@@ -251,6 +252,8 @@ export default function App() {
 
       {/* Fullscreen Video Reels Viewer */}
       <VideoReelsViewer />
+
+      <InstallAppPrompt />
 
       {/* Category Explorer Modal */}
       <CategoryExplorerModal

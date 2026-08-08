@@ -64,7 +64,7 @@ export const HomeFeedView: React.FC = () => {
       />
 
       {/* 2. Category Filter & Region Filter Sticky Container */}
-      <div className="sticky top-0 lg:top-2 z-20 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 space-y-2">
+      <div className="sticky mobile-sticky-offset lg:top-2 z-20 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 space-y-2">
         <CategoryFilter
           selectedCategory={selectedCategory}
           onSelectCategory={(catId) => setSelectedCategory(catId)}

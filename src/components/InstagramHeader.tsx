@@ -6,7 +6,7 @@ export const InstagramHeader: React.FC = () => {
   const { setNotificationsOpen, showToast } = useAgroStore();
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200/80 h-14 flex items-center justify-center px-4 select-none shadow-sm">
+    <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200/80 mobile-safe-header flex items-center justify-center px-4 select-none shadow-sm">
       <div className="w-full max-w-xl flex items-center justify-center gap-4">
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="OnBozor" className="w-8 h-8 rounded-[10px] object-cover shadow-sm" />

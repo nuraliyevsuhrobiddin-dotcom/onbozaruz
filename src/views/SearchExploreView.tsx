@@ -164,7 +164,7 @@ export const SearchExploreView: React.FC = () => {
 
       {/* Instagram Explore Masonry Grid */}
       {filteredPosts.length > 0 ? (
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
           {filteredPosts.map((post, idx) => {
             // Instagram-style: every 3rd item is large (spans 2 rows)
             const isLarge = (idx % 6 === 0) || (idx % 6 === 5);

@@ -341,7 +341,7 @@ export const MarketShopView: React.FC = () => {
         )}
 
         {cartCount > 0 && (
-          <div className="fixed left-0 right-0 bottom-0 z-40 bg-white border-t border-slate-200 p-3">
+        <div className="mobile-fixed-action-bar fixed left-0 right-0 z-40 bg-white border-t border-slate-200 p-3">
             <div className="max-w-xl mx-auto space-y-2">
               <div className="flex items-center justify-between text-xs"><span className="text-slate-500">Mahsulotlar</span><b>{formatMoney(subtotal)}</b></div>
               <div className="flex items-center justify-between text-xs"><span className="text-slate-500">Yetkazib berish</span><b>{deliveryFee ? formatMoney(deliveryFee) : 'Bepul'}</b></div>
@@ -381,7 +381,7 @@ export const MarketShopView: React.FC = () => {
         </div>
       </section>
 
-      <div className="sticky top-0 lg:top-2 z-20 bg-[#F8FAFC]/95 backdrop-blur-md py-2 space-y-2">
+      <div className="sticky mobile-sticky-offset lg:top-2 z-20 bg-[#F8FAFC]/95 backdrop-blur-md py-2 space-y-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -478,7 +478,7 @@ export const MarketShopView: React.FC = () => {
       )}
 
       {cartCount > 0 && (
-        <div className="fixed left-0 right-0 bottom-0 z-40 bg-white border-t border-slate-200 p-3">
+        <div className="mobile-fixed-action-bar fixed left-0 right-0 z-40 bg-white border-t border-slate-200 p-3">
           <div className="max-w-[780px] mx-auto flex items-center gap-3">
             <button onClick={() => setIsCartOpen(true)} className="relative w-12 h-12 rounded-[16px] bg-[#111827] text-white flex items-center justify-center shrink-0">
               <ShoppingCart className="w-5 h-5" />

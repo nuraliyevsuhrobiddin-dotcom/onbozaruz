@@ -26,7 +26,40 @@
     overscroll-behavior-y: contain;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-width: 320px;
   }
+}
+
+/* Mobile browser chrome / iOS safe-area helpers. */
+.mobile-safe-header {
+  height: calc(3.5rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+
+.mobile-safe-bottom-nav {
+  height: calc(4rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-content-bottom {
+  padding-bottom: calc(8rem + env(safe-area-inset-bottom));
+}
+
+.mobile-fixed-action-bar {
+  bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+
+.mobile-modal-shell {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-sticky-offset {
+  top: calc(3.5rem + env(safe-area-inset-top));
+}
+
+.mobile-install-prompt {
+  bottom: calc(4.75rem + env(safe-area-inset-bottom));
 }
 
 /* Custom subtle scrollbar */

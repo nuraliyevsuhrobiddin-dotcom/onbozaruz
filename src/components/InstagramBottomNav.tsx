@@ -8,7 +8,7 @@ export const InstagramBottomNav: React.FC = () => {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/80 h-16 select-none"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/80 mobile-safe-bottom-nav select-none"
       style={{ boxShadow: '0 -4px 20px rgba(17,17,17,0.06)' }}
     >
       <div className="h-full max-w-xl mx-auto flex items-center justify-around px-2">

@@ -132,7 +132,7 @@ export const CreatePostModal: React.FC = () => {
             exit={{ opacity: 0, scale: 0.97, y: 10 }}
             transition={{ duration: 0.2 }}
             className="fixed z-[300] flex flex-col bg-white
-              inset-0
+              inset-0 mobile-modal-shell
               lg:inset-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2
               lg:w-[480px] lg:max-h-[88vh] lg:rounded-[24px] lg:shadow-2xl lg:overflow-hidden"
             style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
