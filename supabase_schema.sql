@@ -380,5 +380,34 @@ $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 GRANT EXECUTE ON FUNCTION public.increment_post_views(UUID) TO anon, authenticated;
 
 -- =====================================================================
+-- 8. COMMENTS COUNT SYNCHRONIZATION
+-- Izoh qo'shilganda postdagi comments_count avtomatik yangilanadi.
+-- Frontend boshqa foydalanuvchining postini UPDATE qilmaydi; RLS buzilmaydi.
+-- =====================================================================
+CREATE OR REPLACE FUNCTION public.increment_post_comments()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.posts
+  SET comments_count = comments_count + 1,
+      updated_at = NOW()
+  WHERE id = NEW.post_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_comment_created ON public.comments;
+CREATE TRIGGER on_comment_created
+  AFTER INSERT ON public.comments
+  FOR EACH ROW EXECUTE FUNCTION public.increment_post_comments();
+
+-- Trigger o'rnatilishidan oldin yozilgan izohlar uchun sonlarni bir marta tiklash.
+UPDATE public.posts AS p
+SET comments_count = (
+  SELECT COUNT(*)::INTEGER
+  FROM public.comments AS c
+  WHERE c.post_id = p.id
+);
+
+-- =====================================================================
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!
 -- =====================================================================
