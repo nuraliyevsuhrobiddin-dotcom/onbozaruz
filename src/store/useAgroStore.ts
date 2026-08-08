@@ -385,7 +385,6 @@ export const useAgroStore = create<AgroStoreState>()(
           type: newPost.type,
           mediaUrl: newPost.mediaUrl,
           posterUrl: newPost.posterUrl,
-          date: newPost.date,
           condition: newPost.condition,
         };
 

@@ -83,7 +83,7 @@ export interface Order {
   date: string;
 }
 
-export type CreatePostInput = Omit<Post, 'id' | 'likesCount' | 'commentsCount' | 'viewsCount' | 'isLiked' | 'isSaved'>;
+export type CreatePostInput = Omit<Post, 'id' | 'likesCount' | 'commentsCount' | 'viewsCount' | 'isLiked' | 'isSaved' | 'date'>;
 export type CreateProductInput = Omit<Product, 'id' | 'rating' | 'reviewsCount'>;
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile';

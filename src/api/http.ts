@@ -132,6 +132,22 @@ function mapObjectKeys(value: unknown, mapper: (key: string) => string): unknown
   );
 }
 
+function normalizeApiDates(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeApiDates);
+  if (!value || typeof value !== 'object') return value;
+
+  const row = value as Record<string, unknown>;
+  const normalized = Object.fromEntries(
+    Object.entries(row).map(([key, nested]) => [key, normalizeApiDates(nested)])
+  );
+
+  // The database uses date_display while the UI domain model uses date.
+  if (normalized.date === undefined && normalized.dateDisplay !== undefined) {
+    normalized.date = normalized.dateDisplay;
+  }
+  return normalized;
+}
+
 async function requestSupabase(
   method: HttpMethod,
   path: string,
@@ -185,7 +201,7 @@ async function requestSupabase(
   if (method === 'DELETE') return id ? { id } : {};
 
   const payload = await response.json();
-  const normalized = mapObjectKeys(payload, toCamelCase);
+  const normalized = normalizeApiDates(mapObjectKeys(payload, toCamelCase));
   if (Array.isArray(normalized) && id) return normalized[0];
   if (Array.isArray(normalized) && (method === 'POST' || method === 'PATCH')) return normalized[0];
   return normalized;

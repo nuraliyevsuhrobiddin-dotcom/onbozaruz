@@ -66,6 +66,7 @@ export const mockServer = {
         viewsCount: 0,
         isLiked: false,
         isSaved: false,
+        date: 'Hozirgina',
       };
       return mockDb.posts.insert(post);
     });
