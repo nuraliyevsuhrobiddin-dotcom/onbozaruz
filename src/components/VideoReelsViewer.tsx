@@ -379,25 +379,28 @@ export const VideoReelsViewer: React.FC = () => {
 
   const handleScroll = useCallback(() => {
     if (isScrolling.current || !containerRef.current) return;
-    const viewportHeight = containerRef.current.clientHeight || window.innerHeight;
-    const idx = Math.round(containerRef.current.scrollTop / viewportHeight);
-    setCurrentIndex(idx);
-  }, []);
+    const viewportHeight = containerRef.current.getBoundingClientRect().height || window.innerHeight;
+    const idx = Math.max(0, Math.min(Math.round(containerRef.current.scrollTop / viewportHeight), liveVideoPosts.length - 1));
+    if (idx !== currentIndex) {
+      setCurrentIndex(idx);
+    }
+  }, [currentIndex, liveVideoPosts.length]);
 
   const scrollToIndex = useCallback((idx: number) => {
     const el = containerRef.current;
     if (!el) return;
     const clamped = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
+    if (clamped === currentIndex) return;
     isScrolling.current = true;
-    const viewportHeight = el.clientHeight || window.innerHeight;
+    const viewportHeight = el.getBoundingClientRect().height || window.innerHeight;
     el.scrollTo({ top: clamped * viewportHeight, behavior: 'smooth' });
     setCurrentIndex(clamped);
     if (wheelTimeout.current) window.clearTimeout(wheelTimeout.current);
     wheelTimeout.current = window.setTimeout(() => {
       isScrolling.current = false;
       wheelTimeout.current = null;
-    }, 600);
-  }, [liveVideoPosts.length]);
+    }, 800);
+  }, [currentIndex, liveVideoPosts.length]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -418,14 +421,15 @@ export const VideoReelsViewer: React.FC = () => {
   }, [closeVideoViewer, currentIndex, scrollToIndex, liveVideoPosts.length]);
 
   const handleWheelNav = (e: React.WheelEvent) => {
+    if (isScrolling.current) return;
     const now = Date.now();
-    if (now - lastWheelTime.current < 300) return;
+    if (now - lastWheelTime.current < 500) return;
     lastWheelTime.current = now;
     const delta = e.deltaY;
-    if (delta > 20) {
+    if (delta > 80) {
       const next = Math.min(currentIndex + 1, liveVideoPosts.length - 1);
       if (next !== currentIndex) scrollToIndex(next);
-    } else if (delta < -20) {
+    } else if (delta < -80) {
       const prev = Math.max(currentIndex - 1, 0);
       if (prev !== currentIndex) scrollToIndex(prev);
     }
