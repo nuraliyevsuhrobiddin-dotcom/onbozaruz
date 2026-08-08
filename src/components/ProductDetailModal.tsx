@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from './ui/Modal';
 import { useAgroStore } from '../store/useAgroStore';
-import { CheckCircle2, PhoneCall, MapPin, Edit3, Trash2 } from 'lucide-react';
+import { CheckCircle2, PhoneCall, MapPin, Edit3, Trash2, Play } from 'lucide-react';
 
 export const ProductDetailModal: React.FC = () => {
-  const { productDetail, setProductDetail, setEditModalItem, deletePost, deleteProduct, currentUser } = useAgroStore();
+  const { productDetail, setProductDetail, setEditModalItem, deletePost, deleteProduct, currentUser, openVideoViewer } = useAgroStore();
   const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
@@ -27,6 +27,7 @@ export const ProductDetailModal: React.FC = () => {
   const ownerId = 'sellerId' in productDetail ? productDetail.sellerId : productDetail.submittedBy;
   const isMyPost = Boolean(currentUser?.id && ownerId === currentUser.id);
   const telegram = ('telegram' in productDetail ? productDetail.telegram : undefined)?.replace(/^@/, '').replace(/\s+/g, '');
+  const isVideoPost = 'mediaUrl' in productDetail && productDetail.type === 'video';
 
   return (
     <Modal
@@ -132,6 +133,21 @@ export const ProductDetailModal: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          {isVideoPost && (
+            <button
+              type="button"
+              onClick={() => {
+                const videoPost = productDetail as typeof productDetail & { mediaUrl: string };
+                setProductDetail(null);
+                openVideoViewer([videoPost], 0);
+              }}
+              className="w-11 h-10 rounded-[16px] bg-[#111827] text-white flex items-center justify-center shadow-sm hover:bg-black transition-colors shrink-0"
+              title="Reels ko'rish"
+              aria-label="Reels ko'rish"
+            >
+              <Play className="w-4 h-4 fill-current" />
+            </button>
+          )}
           <a
             href={`tel:${phone.replace(/\s+/g, '')}`}
             className="flex-1 py-2.5 rounded-[16px] bg-[#E53935] text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:bg-red-600 transition-colors"
