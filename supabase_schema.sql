@@ -253,7 +253,10 @@ CREATE POLICY "Tasdiqlangan mahsulotlarni barcha ko'radi" ON public.products FOR
 );
 DROP POLICY IF EXISTS "Mahsulot qo'shish" ON public.products;
 CREATE POLICY "Mahsulot qo'shish" ON public.products FOR INSERT WITH CHECK (
-  auth.uid() IS NOT NULL AND submitted_by = auth.uid()::text
+  EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND is_admin = true
+  )
 );
 DROP POLICY IF EXISTS "Mahsulotni o'chirish yoki yangilash" ON public.products;
 CREATE POLICY "Mahsulotni o'chirish yoki yangilash" ON public.products FOR UPDATE USING (

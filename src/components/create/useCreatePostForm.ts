@@ -26,7 +26,7 @@ export type Step = 1 | 2 | 3 | 4;
 const DEFAULT_REGION = REGIONS[1] || 'Toshkent sh.';
 
 export function useCreatePostForm() {
-  const { isCreateModalOpen, setCreateModalOpen, addPost, addProduct, showToast, setActiveTab, currentUser } =
+  const { isCreateModalOpen, setCreateModalOpen, addPost, showToast, setActiveTab, currentUser } =
     useAgroStore();
   const [step, setStep] = useState<Step>(1);
   const [selectedMediaUrl, setSelectedMediaUrl] = useState('');
@@ -349,25 +349,6 @@ export function useCreatePostForm() {
         condition: data.condition?.trim(),
         });
 
-      // Video uchun yaratilgan poster Market kartasida muqova sifatida ishlaydi.
-      await addProduct({
-        id: `prod-${now}`,
-        sellerId: currentUser.id,
-        submittedBy: currentUser.id,
-        title: data.title.trim(),
-        seller: sellerName,
-        verified: false,
-        category: data.category,
-        price: data.price.trim(),
-        numericPrice,
-        image: mediaType === 'video' ? posterUrl || '/logo.png' : mediaUrl,
-        images: mediaType === 'video' && posterUrl ? [posterUrl] : undefined,
-        rating: 0,
-        reviewsCount: 0,
-        minOrder: data.minOrder.trim(),
-        location,
-      });
-
         clearDraft();
         setIsPublishing(false);
         showToast("E'lon muvaffaqiyatli nashr qilindi!");
@@ -401,7 +382,6 @@ export function useCreatePostForm() {
     },
     [
       addPost,
-      addProduct,
       currentUser,
       mediaType,
       mediaContentType,

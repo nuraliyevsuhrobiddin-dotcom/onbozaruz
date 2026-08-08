@@ -455,6 +455,10 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       addProduct: async (newProduct) => {
+        if (!get().isAdminUser) {
+          throw new Error('Market mahsulotini faqat admin qo\'sha oladi');
+        }
+
         const input: CreateProductInput = {
           title: newProduct.title,
           sellerId: newProduct.sellerId,
