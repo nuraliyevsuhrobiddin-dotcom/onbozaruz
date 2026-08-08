@@ -28,6 +28,7 @@ import {
 import { useAgroStore } from '../store/useAgroStore';
 import type { Product } from '../api/types';
 import { CATEGORIES, REGIONS } from '../data/mockAgroData';
+import { uploadListingMedia } from '../api/authClient';
 
 
 const sortOptions = [
@@ -76,6 +77,7 @@ export const MarketShopView: React.FC = () => {
   const [sortBy, setSortBy] = useState('popular');
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
   const [checkoutForm, setCheckoutForm] = useState({ name: '', phone: '', address: '' });
   const [form, setForm] = useState({
     title: '',
@@ -171,6 +173,15 @@ export const MarketShopView: React.FC = () => {
       .filter(Boolean);
 
     try {
+      const uploadedImageUrls = currentUser
+        ? await Promise.all(selectedImageFiles.map((file, index) => uploadListingMedia(
+            URL.createObjectURL(file),
+            `${currentUser.id}/market-${Date.now()}-${index}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '-')}`,
+            file.type || 'image/jpeg'
+          )))
+        : [];
+      const allImageUrls = [...uploadedImageUrls, ...imageUrls];
+
       await addProduct({
       id: `contract-prod-${Date.now()}`,
       sellerId: currentUser?.id,
@@ -183,8 +194,8 @@ export const MarketShopView: React.FC = () => {
       category: form.category,
       price: form.price,
       numericPrice: Number(form.numericPrice),
-      image: imageUrls[0] || form.image || 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
-      images: imageUrls.length > 0 ? imageUrls : undefined,
+      image: allImageUrls[0] || form.image || 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
+      images: allImageUrls.length > 0 ? allImageUrls : undefined,
       rating: 5,
       reviewsCount: 0,
       minOrder: form.minOrder || '1 dona',
@@ -198,6 +209,7 @@ export const MarketShopView: React.FC = () => {
     }
 
     setForm((prev) => ({ ...prev, title: '', price: '', numericPrice: '', image: '', imagesText: '', discount: '' }));
+    setSelectedImageFiles([]);
     setIsAdminMode(false);
   };
 
@@ -272,7 +284,13 @@ export const MarketShopView: React.FC = () => {
             <input value={form.minOrder} onChange={(e) => setForm({ ...form, minOrder: e.target.value })} placeholder="Min buyurtma" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
             <input value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} placeholder="Belgi: Aksiya, Shartnoma..." className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
           </div>
-          <textarea value={form.imagesText} onChange={(e) => setForm({ ...form, imagesText: e.target.value })} rows={3} placeholder="Rasmlar URL: har qatorda bitta rasm havolasi" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30" />
+          <label className="block rounded-[16px] border border-dashed border-slate-300 bg-slate-50 p-3 cursor-pointer hover:border-[#E53935] transition-colors">
+            <span className="block text-[12px] font-black text-slate-700">Bir nechta rasm yuklash</span>
+            <span className="block mt-1 text-[10px] text-slate-400">JPG, PNG yoki WebP — bir nechta tanlash mumkin</span>
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(event) => setSelectedImageFiles(Array.from(event.target.files || []))} />
+            {selectedImageFiles.length > 0 && <span className="block mt-2 text-[11px] font-black text-emerald-700">{selectedImageFiles.length} ta rasm tanlandi</span>}
+          </label>
+          <textarea value={form.imagesText} onChange={(e) => setForm({ ...form, imagesText: e.target.value })} rows={2} placeholder="Yoki rasmlar URL manzilini kiriting (har qatorda bitta)" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30" />
           <button className="w-full py-3 rounded-[16px] bg-[#E53935] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm">
             <PackagePlus className="w-4 h-4" /> Marketga joylash
           </button>
