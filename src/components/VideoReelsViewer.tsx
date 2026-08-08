@@ -65,17 +65,29 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
     }
   }, [isActive]);
 
-  // Sync mute
+  // Sync mute and ensure only the visible slide can play audio.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     video.muted = globalMuted;
-    if (!globalMuted) {
+    if (!isActive) {
+      video.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    if (!globalMuted && isActive) {
       video.volume = 1;
       video.play().then(() => setIsPlaying(true)).catch(() => {});
     }
-  }, [globalMuted]);
+  }, [globalMuted, isActive]);
+
+  useEffect(() => {
+    return () => {
+      videoRef.current?.pause();
+    };
+  }, []);
 
   const handleTap = useCallback(() => {
     const video = videoRef.current;
