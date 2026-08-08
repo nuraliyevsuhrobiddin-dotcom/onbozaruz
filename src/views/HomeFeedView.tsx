@@ -61,7 +61,7 @@ export const HomeFeedView: React.FC = () => {
       />
 
       {/* 2. Region Filter Sticky Container */}
-      <div className="sticky mobile-sticky-offset lg:top-2 z-30 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60">
+      <div className="sticky self-start w-full mobile-sticky-offset lg:top-2 z-50 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60 [transform:translateZ(0)]">
         <RegionFilter
           selectedRegion={selectedRegion}
           onSelectRegion={(reg) => setSelectedRegion(reg)}
