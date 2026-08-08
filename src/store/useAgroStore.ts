@@ -365,7 +365,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       addPost: async (newPost) => {
         const input: CreatePostInput = {
-          userId: newPost.sellerId,
+          userId: newPost.userId || newPost.sellerId,
           sellerId: newPost.sellerId,
           sellerName: newPost.sellerName,
           sellerAvatar: newPost.sellerAvatar,

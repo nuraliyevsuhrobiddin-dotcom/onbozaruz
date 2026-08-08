@@ -305,22 +305,22 @@ export function useCreatePostForm() {
         showToast("E'lon uchun akkaunt va media fayl kerak");
         return;
       }
-      const mediaUrl = await uploadListingMedia(
-        selectedMediaUrl,
-        `${currentUser.id}/${now}-media.${mediaContentType.split('/')[1] || 'bin'}`,
-        mediaContentType
-      );
-      const posterUrl = selectedPosterUrl
-        ? await uploadListingMedia(selectedPosterUrl, `${currentUser.id}/${now}-poster.jpg`, 'image/jpeg')
-        : undefined;
-      const location = data.location.toLowerCase().includes(selectedRegion.toLowerCase())
-        ? data.location.trim()
-        : `${data.location.trim()}, ${selectedRegion}`;
-      const sellerName = currentUser.businessName?.trim() || currentUser.name.trim() || currentUser.handle;
-
       setIsPublishing(true);
 
       try {
+        const mediaUrl = await uploadListingMedia(
+          selectedMediaUrl,
+          `${currentUser.id}/${now}-media.${mediaContentType.split('/')[1] || 'bin'}`,
+          mediaContentType
+        );
+        const posterUrl = selectedPosterUrl
+          ? await uploadListingMedia(selectedPosterUrl, `${currentUser.id}/${now}-poster.jpg`, 'image/jpeg')
+          : undefined;
+        const location = data.location.toLowerCase().includes(selectedRegion.toLowerCase())
+          ? data.location.trim()
+          : `${data.location.trim()}, ${selectedRegion}`;
+        const sellerName = currentUser.businessName?.trim() || currentUser.name.trim() || currentUser.handle;
+
         await addPost({
         id: `post-${now}`,
         sellerId: currentUser.id,
@@ -388,9 +388,14 @@ export function useCreatePostForm() {
         setMediaType('image');
         setMediaContentType('image/jpeg');
         setSelectedRegion(DEFAULT_REGION);
-      } catch {
+      } catch (error: unknown) {
         setIsPublishing(false);
-        showToast("E'lon saqlanmadi. Internet aloqasi va server sozlamalarini tekshirib qayta urinib ko'ring.");
+        const message = error instanceof Error ? error.message : '';
+        showToast(
+          message
+            ? `E'lon saqlanmadi: ${message}`
+            : "E'lon saqlanmadi. Internet aloqasi va server sozlamalarini tekshirib qayta urinib ko'ring."
+        );
       }
     },
     [
