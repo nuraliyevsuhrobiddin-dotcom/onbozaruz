@@ -64,7 +64,7 @@ export const HomeFeedView: React.FC = () => {
       />
 
       {/* 2. Filters Container */}
-      <div className="relative self-start w-full lg:sticky lg:top-20 z-50 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
+      <div className="relative self-start w-full z-50 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
         <div className="space-y-2">
           <CategoryFilter
             selectedCategory={selectedCategory}

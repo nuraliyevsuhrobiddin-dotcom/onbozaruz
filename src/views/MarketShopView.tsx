@@ -399,7 +399,7 @@ export const MarketShopView: React.FC = () => {
         </div>
       </section>
 
-      <div className="relative self-start w-full lg:sticky lg:top-20 z-50 -mx-3 px-3 bg-[#F8FAFC]/95 backdrop-blur-md py-2 space-y-2 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
+      <div className="relative self-start w-full z-50 -mx-3 px-3 bg-[#F8FAFC]/95 backdrop-blur-md py-2 space-y-2 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
