@@ -170,9 +170,9 @@ export default function App() {
 
       {/* в”Ђв”Ђ Main Layout Area (Shifted right by sidebar width 80px) в”Ђв”Ђ */}
       <div className="flex-1 w-full lg:pl-[80px] flex justify-center">
-        <div className="w-full max-w-[1100px] flex justify-center gap-5 px-2 sm:px-4 py-3 lg:py-5">
+        <div className="w-full max-w-[1100px] flex justify-center gap-5 px-0 sm:px-4 py-1.5 sm:py-3 lg:py-5">
           {/* Main Feed / Content View */}
-          <main className="flex-1 min-w-0 max-w-[600px] mobile-content-bottom lg:pb-10">
+          <main className="flex-1 min-w-0 max-w-[600px] px-0 sm:px-0 mobile-content-bottom lg:pb-10">
             <AnimatePresence mode="wait">
               {activeTab === 'home' && (
                 <motion.div

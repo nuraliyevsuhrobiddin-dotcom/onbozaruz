@@ -48,7 +48,7 @@ export const HomeFeedView: React.FC = () => {
   const dedupedPosts = Array.from(new Map(filteredPosts.map((p) => [p.id, p])).values());
 
   return (
-    <div className="w-full max-w-[680px] mx-auto px-2 sm:px-4 py-2 space-y-3.5">
+    <div className="w-full max-w-[680px] mx-auto px-0 sm:px-4 py-1.5 sm:py-2 space-y-2.5 sm:space-y-3.5">
       {/* 1. Obunalar (Fermerlar Yangi E'lonlari) StoryBar */}
       <StoryBar
         farmers={farmers}

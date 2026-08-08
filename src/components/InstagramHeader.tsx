@@ -7,12 +7,12 @@ export const InstagramHeader: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200/80 mobile-safe-header flex items-center justify-center px-4 select-none shadow-sm">
-      <div className="w-full max-w-xl flex items-center justify-center gap-4">
+      <div className="w-full max-w-xl flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="OnBozor" className="w-8 h-8 rounded-[10px] object-cover shadow-sm" />
         </div>
 
-        <div className="flex-1 text-center">
+        <div className="flex-1 text-left">
           <span className="font-extrabold text-lg tracking-tight text-[#111111]">OnBozor</span>
         </div>
 

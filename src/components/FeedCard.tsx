@@ -104,7 +104,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.06, ease: 'easeOut' }}
-      className="w-full max-w-[650px] bg-white rounded-[20px] border border-slate-200/80 overflow-hidden mb-6 select-none shadow-md hover:shadow-lg transition-shadow duration-200"
+      className="w-full max-w-[650px] bg-white rounded-none sm:rounded-[20px] border-y border-slate-200/80 sm:border overflow-hidden mb-3 sm:mb-6 select-none shadow-sm sm:shadow-md hover:shadow-lg transition-shadow duration-200"
     >
       {/* ── Post Header ── */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 relative">
