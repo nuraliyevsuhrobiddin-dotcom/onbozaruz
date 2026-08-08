@@ -273,16 +273,13 @@ export const useAgroStore = create<AgroStoreState>()(
 
         if (state.currentUser && isSupabaseConfigured) {
           const userId = state.currentUser.id;
-          const currentLikes = state.posts.find((post) => post.id === postId)?.likesCount ?? 0;
-          const nextLikesCount = Math.max(0, currentLikes + (isLiked ? -1 : 1));
           const likePromise = isLiked
             ? userInteractionsRepository.removeLikedPost(userId, postId)
             : userInteractionsRepository.addLikedPost(userId, postId);
-          const postPromise = postsRepository.update(postId, {
-            likesCount: nextLikesCount,
-          });
 
-          Promise.all([likePromise, postPromise]).catch(() => {
+          // likes_count boshqa foydalanuvchining postini UPDATE qilishni talab qiladi
+          // va RLS buni ataylab taqiqlaydi. Like holati liked_posts orqali saqlanadi.
+          likePromise.catch(() => {
             set((currentState) => {
               const restoreLikedIds = isLiked
                 ? [...currentState.likedPostIds, postId]
