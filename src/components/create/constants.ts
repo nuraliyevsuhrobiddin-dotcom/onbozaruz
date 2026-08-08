@@ -19,8 +19,9 @@ export const CONDITION_QUICK = [
   'Kam ishlangan',
 ] as const;
 
-/** Media fayl uchun ruxsat etilgan maksimal hajm (MB) */
-export const MEDIA_MAX_SIZE_MB = 25;
+/** Media fayl uchun ruxsat etilgan maksimal hajm (MB). */
+// Supabase Storage loyihasidagi File size limit ham kamida 100 MB bo'lishi kerak.
+export const MEDIA_MAX_SIZE_MB = 100;
 
 /** Ruxsat etilgan media turlari */
 export const ACCEPTED_MEDIA_TYPES = 'image/*,video/*';

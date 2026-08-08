@@ -89,7 +89,11 @@ export async function uploadListingMedia(
     upsert: false,
     cacheControl: '31536000',
   });
-  if (error) throw new Error(`Media yuklanmadi: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Media yuklanmadi: ${error.message}. Supabase Storage File size limitini tekshiring.`
+    );
+  }
   return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
 }
 
