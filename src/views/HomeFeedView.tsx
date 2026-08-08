@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAgroStore } from '../store/useAgroStore';
 import { StoryBar, FarmerStory } from '../components/home/StoryBar';
-import { CategoryFilter } from '../components/home/CategoryFilter';
 import { RegionFilter } from '../components/home/RegionFilter';
 import { FeedCard } from '../components/FeedCard';
 import { LoadingSkeleton } from '../components/home/LoadingSkeleton';
@@ -9,7 +8,6 @@ import { EmptyState } from '../components/home/EmptyState';
 
 export const HomeFeedView: React.FC = () => {
   const { posts, followedSellerIds } = useAgroStore();
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,11 +35,10 @@ export const HomeFeedView: React.FC = () => {
   );
 
   const filteredPosts = posts.filter((p) => {
-    const matchesCat = selectedCategory === 'all' || p.category === selectedCategory;
     const matchesRegion =
       selectedRegion === 'all' || p.location.includes(selectedRegion);
     const matchesSeller = !selectedSeller || p.sellerId === selectedSeller;
-    return matchesCat && matchesRegion && matchesSeller;
+    return matchesRegion && matchesSeller;
   });
 
   // Deduplicate posts by id to prevent accidental double renders
@@ -63,12 +60,8 @@ export const HomeFeedView: React.FC = () => {
         }}
       />
 
-      {/* 2. Category Filter & Region Filter Sticky Container */}
-      <div className="lg:sticky lg:top-2 z-20 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 space-y-2">
-        <CategoryFilter
-          selectedCategory={selectedCategory}
-          onSelectCategory={(catId) => setSelectedCategory(catId)}
-        />
+      {/* 2. Region Filter Sticky Container */}
+      <div className="lg:sticky lg:top-2 z-20 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4">
         <RegionFilter
           selectedRegion={selectedRegion}
           onSelectRegion={(reg) => setSelectedRegion(reg)}
@@ -100,7 +93,6 @@ export const HomeFeedView: React.FC = () => {
       ) : (
         <EmptyState
           onReset={() => {
-            setSelectedCategory('all');
             setSelectedRegion('all');
             setSelectedSeller(null);
           }}
