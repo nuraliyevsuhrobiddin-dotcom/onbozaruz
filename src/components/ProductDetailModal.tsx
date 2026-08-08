@@ -1,16 +1,24 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal } from './ui/Modal';
 import { useAgroStore } from '../store/useAgroStore';
 import { CheckCircle2, PhoneCall, MapPin, Edit3, Trash2 } from 'lucide-react';
 
 export const ProductDetailModal: React.FC = () => {
   const { productDetail, setProductDetail, setEditModalItem, deletePost, deleteProduct, currentUser } = useAgroStore();
+  const [activeImage, setActiveImage] = useState(0);
+
+  useEffect(() => {
+    setActiveImage(0);
+  }, [productDetail?.id]);
 
   if (!productDetail) return null;
 
   const title = 'title' in productDetail ? productDetail.title : '';
   const price = 'price' in productDetail ? productDetail.price : '';
   const image = 'image' in productDetail ? productDetail.image : productDetail.mediaUrl;
+  const galleryImages = 'images' in productDetail
+    ? [productDetail.image, ...(productDetail.images || [])].filter((url, index, urls) => url && urls.indexOf(url) === index)
+    : [image];
   const seller = 'seller' in productDetail ? productDetail.seller : productDetail.sellerName;
   const location = productDetail.location;
   const minOrder = productDetail.minOrder;
@@ -56,8 +64,39 @@ export const ProductDetailModal: React.FC = () => {
         )}
 
         <div className="aspect-square rounded-[20px] overflow-hidden bg-slate-100 border border-slate-200">
-          <img src={image} alt={title} className="w-full h-full object-cover" />
+          <img
+            src={galleryImages[activeImage] || '/logo.png'}
+            alt={title}
+            onError={(event) => {
+              event.currentTarget.onerror = null;
+              event.currentTarget.src = '/logo.png';
+            }}
+            className="w-full h-full object-cover"
+          />
         </div>
+
+        {galleryImages.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar">
+            {galleryImages.map((galleryImage, index) => (
+              <button
+                key={`${galleryImage}-${index}`}
+                type="button"
+                onClick={() => setActiveImage(index)}
+                className={`w-14 h-14 shrink-0 rounded-[12px] overflow-hidden border-2 ${activeImage === index ? 'border-[#E53935]' : 'border-transparent'}`}
+              >
+                <img
+                  src={galleryImage}
+                  alt=""
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = '/logo.png';
+                  }}
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
