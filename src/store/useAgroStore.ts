@@ -364,6 +364,12 @@ export const useAgroStore = create<AgroStoreState>()(
 
       toggleFollowSeller: (sellerId, sellerName = 'Fermer') =>
         set((state) => {
+          if (!state.isAuthenticated) {
+            return {
+              isAuthPromptOpen: true,
+              toastMessage: "Obuna bo'lish uchun avval tizimga kiring",
+            };
+          }
           if (state.currentUser?.id === sellerId) return state;
           const isFollowing = state.followedSellerIds.includes(sellerId);
           const nextFollowed = isFollowing

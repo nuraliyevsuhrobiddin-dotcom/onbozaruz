@@ -4,7 +4,7 @@ import { useAgroStore } from '../store/useAgroStore';
 import { CheckCircle2, PhoneCall, MapPin, Edit3, Trash2, Play } from 'lucide-react';
 
 export const ProductDetailModal: React.FC = () => {
-  const { productDetail, setProductDetail, setEditModalItem, deletePost, deleteProduct, currentUser, openVideoViewer } = useAgroStore();
+  const { productDetail, setProductDetail, setEditModalItem, deletePost, deleteProduct, currentUser, openVideoViewer, isAdminUser } = useAgroStore();
   const [activeImage, setActiveImage] = useState(0);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const ProductDetailModal: React.FC = () => {
   const phone = 'phone' in productDetail ? productDetail.phone : '+998 90 123 45 67';
 
   const ownerId = 'sellerId' in productDetail ? productDetail.sellerId : productDetail.submittedBy;
-  const isMyPost = Boolean(currentUser?.id && ownerId === currentUser.id);
+  const canManage = Boolean(isAdminUser || (currentUser?.id && ownerId === currentUser.id));
   const telegram = ('telegram' in productDetail ? productDetail.telegram : undefined)?.replace(/^@/, '').replace(/\s+/g, '');
   const isVideoPost = 'mediaUrl' in productDetail && productDetail.type === 'video';
 
@@ -36,7 +36,7 @@ export const ProductDetailModal: React.FC = () => {
       title="Mahsulot tafsilotlari"
     >
       <div className="space-y-4">
-        {isMyPost && (
+        {canManage && (
           <div className="flex items-center gap-2 p-2 bg-amber-50/60 rounded-[16px] border border-amber-200/80">
             <span className="text-[11px] font-bold text-amber-800 px-2 shrink-0">Boshqarish:</span>
             <button
@@ -122,13 +122,22 @@ export const ProductDetailModal: React.FC = () => {
             </a>
           </div>
 
-          <div className="bg-slate-50 rounded-[16px] p-3 border border-slate-100 mt-2 space-y-1">
+          <div className="bg-slate-50 rounded-[16px] p-3 border border-slate-100 mt-2 space-y-2">
             <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
               Mahsulot Haqida
             </span>
-            <p className="text-xs text-slate-700 leading-relaxed font-medium">
-              Sifatli fermer mahsuloti. Birinchi qo'l yetkazib beriladi va kafolatlangan! Minimum buyurtma: <span className="font-bold text-[#111827]">{minOrder}</span>.
-            </p>
+            {description ? (
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">{description}</p>
+            ) : (
+              <p className="text-xs text-slate-700 leading-relaxed font-medium">Sifatli fermer mahsuloti. Birinchi qo'l yetkazib beriladi va kafolatlangan!</p>
+            )}
+            {features && (
+              <div className="rounded-[14px] bg-white p-3 border border-slate-200">
+                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Xususiyatlar</span>
+                <p className="mt-2 text-xs text-slate-700 leading-relaxed whitespace-pre-line">{features}</p>
+              </div>
+            )}
+            <p className="text-xs text-slate-700 leading-relaxed font-medium">Minimum buyurtma: <span className="font-bold text-[#111827]">{minOrder}</span>.</p>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Volume2, VolumeX, Play } from 'lucide-react';
+import { Volume2, VolumeX, Play, AlertTriangle } from 'lucide-react';
 
 interface VideoPlayerProps {
   src: string;
@@ -18,6 +18,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   // In-feed Autoplay using IntersectionObserver
   useEffect(() => {
@@ -41,7 +42,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    setHasError(false);
+  }, [src, poster]);
+
   const togglePlay = useCallback(() => {
+    if (hasError) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -51,7 +57,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     } else {
       video.play().then(() => setIsPlaying(true)).catch(() => {});
     }
-  }, [isPlaying]);
+  }, [isPlaying, hasError]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -84,11 +90,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         muted={isMuted}
         playsInline
         preload="metadata"
+        onError={() => setHasError(true)}
         className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       />
 
+      {hasError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-center px-4">
+          <div className="space-y-2">
+            <AlertTriangle className="mx-auto w-10 h-10 text-red-400" />
+            <p className="text-sm font-bold">Video yuklanmadi</p>
+            <p className="text-[11px] text-slate-200">Iltimos internet aloqasini tekshirib qayta urinib ko‘ring.</p>
+          </div>
+        </div>
+      )}
+
       {/* Paused indicator */}
-      {!isPlaying && (
+      {!isPlaying && !hasError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-14 h-14 rounded-full bg-black/50 flex items-center justify-center">
             <Play className="w-7 h-7 text-white fill-white translate-x-0.5" />

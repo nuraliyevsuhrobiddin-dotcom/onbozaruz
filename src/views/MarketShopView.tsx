@@ -68,6 +68,8 @@ export const MarketShopView: React.FC = () => {
     clearCart,
     approveProduct,
     rejectProduct,
+    setProductDetail,
+    setEditModalItem,
     isAdminUser,
     currentUser,
   } = useAgroStore();
@@ -88,6 +90,8 @@ export const MarketShopView: React.FC = () => {
     minOrder: '1 dona',
     location: REGIONS[1],
     image: '',
+    description: '',
+    features: '',
     imagesText: '',
     discount: '',
   });
@@ -196,6 +200,8 @@ export const MarketShopView: React.FC = () => {
       numericPrice: Number(form.numericPrice),
       image: allImageUrls[0] || form.image || 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
       images: allImageUrls.length > 0 ? allImageUrls : undefined,
+      description: form.description || undefined,
+      features: form.features || undefined,
       rating: 5,
       reviewsCount: 0,
       minOrder: form.minOrder || '1 dona',
@@ -208,7 +214,7 @@ export const MarketShopView: React.FC = () => {
       return;
     }
 
-    setForm((prev) => ({ ...prev, title: '', price: '', numericPrice: '', image: '', imagesText: '', discount: '' }));
+    setForm((prev) => ({ ...prev, title: '', price: '', numericPrice: '', image: '', description: '', features: '', imagesText: '', discount: '' }));
     setSelectedImageFiles([]);
     setIsAdminMode(false);
   };
@@ -284,6 +290,9 @@ export const MarketShopView: React.FC = () => {
             <input value={form.minOrder} onChange={(e) => setForm({ ...form, minOrder: e.target.value })} placeholder="Min buyurtma" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
             <input value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} placeholder="Belgi: Aksiya, Shartnoma..." className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
           </div>
+          <input value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="Asosiy rasm URL" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
+          <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Mahsulot tavsifi" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30" />
+          <textarea value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} rows={3} placeholder="Xususiyatlar va afzalliklar" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30" />
           <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3 cursor-pointer hover:border-[#E53935] transition-colors">
             <span className="block text-[12px] font-black text-slate-700">Bir nechta rasm yuklash</span>
             <span className="block mt-1 text-[10px] text-slate-400">JPG, PNG yoki WebP — bir nechta tanlash mumkin</span>
@@ -444,13 +453,32 @@ export const MarketShopView: React.FC = () => {
             const meta = getPartnerMeta(product.category);
             const PartnerIcon = meta.icon;
             const inCart = cart[product.id]?.quantity || 0;
+            const canEdit = isAdminUser || currentUser?.id === product.sellerId || currentUser?.id === product.submittedBy;
             return (
-              <motion.div key={product.id} whileTap={{ scale: 0.98 }} className="group bg-white rounded-[18px] border border-slate-200/80 overflow-hidden text-left shadow-sm hover:shadow-md transition-all">
+              <motion.div
+                key={product.id}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setProductDetail(product)}
+                className="group bg-white rounded-[18px] border border-slate-200/80 overflow-hidden text-left shadow-sm hover:shadow-md transition-all cursor-pointer"
+              >
                 <div className="block w-full text-left">
                   <div className="relative aspect-square bg-slate-100 overflow-hidden">
                     <img src={getProductImage(product)} alt={product.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     <span className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-black ${meta.tone}`}><PartnerIcon className="inline w-3 h-3 mr-1" />{meta.label}</span>
                     {product.discount && <span className="absolute left-2 bottom-2 rounded-full bg-[#E53935] px-2 py-1 text-[10px] font-black text-white">{product.discount}</span>}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setEditModalItem(product);
+                        }}
+                        className="absolute right-2 top-2 rounded-full bg-white/90 p-2 shadow-md text-slate-700 hover:bg-white transition-colors"
+                        aria-label="Tahrirlash"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   <div className="p-2.5 pb-2 space-y-1.5">
                     <div className="flex items-center justify-between gap-1">
@@ -469,12 +497,12 @@ export const MarketShopView: React.FC = () => {
                 <div className="px-2.5 pb-2.5">
                   {inCart > 0 ? (
                     <div className="flex items-center rounded-[14px] bg-slate-100 p-1">
-                      <button onClick={() => updateQuantity(product.id, inCart - 1)} className="w-8 h-8 rounded-[12px] bg-white flex items-center justify-center"><Minus className="w-3.5 h-3.5" /></button>
+                      <button onClick={(event) => { event.stopPropagation(); updateQuantity(product.id, inCart - 1); }} className="w-8 h-8 rounded-[12px] bg-white flex items-center justify-center"><Minus className="w-3.5 h-3.5" /></button>
                       <span className="flex-1 text-center text-xs font-black">{inCart} ta</span>
-                      <button onClick={() => updateQuantity(product.id, inCart + 1)} className="w-8 h-8 rounded-[12px] bg-white flex items-center justify-center"><Plus className="w-3.5 h-3.5" /></button>
+                      <button onClick={(event) => { event.stopPropagation(); updateQuantity(product.id, inCart + 1); }} className="w-8 h-8 rounded-[12px] bg-white flex items-center justify-center"><Plus className="w-3.5 h-3.5" /></button>
                     </div>
                   ) : (
-                    <button onClick={() => addToCart(product)} className="w-full py-2.5 rounded-[14px] bg-[#E53935] text-white text-xs font-black flex items-center justify-center gap-1.5">
+                    <button onClick={(event) => { event.stopPropagation(); addToCart(product); }} className="w-full py-2.5 rounded-[14px] bg-[#E53935] text-white text-xs font-black flex items-center justify-center gap-1.5">
                       <ShoppingCart className="w-3.5 h-3.5" /> Savatga
                     </button>
                   )}

@@ -14,6 +14,9 @@ export const EditListingModal: React.FC = () => {
   const [location, setLocation] = useState('');
   const [minOrder, setMinOrder] = useState('');
   const [phone, setPhone] = useState('');
+  const [image, setImage] = useState('');
+  const [description, setDescription] = useState('');
+  const [features, setFeatures] = useState('');
 
   useEffect(() => {
     if (editModalItem) {
@@ -23,8 +26,9 @@ export const EditListingModal: React.FC = () => {
       setCategory(editModalItem.category || CATEGORIES[1]?.id || 'fruits');
       setLocation(editModalItem.location || REGIONS[1] || 'Farg\'ona');
       setMinOrder(editModalItem.minOrder || '1 dona');
-      setPhone('phone' in editModalItem ? editModalItem.phone || '' : '');
-    }
+      setPhone('phone' in editModalItem ? editModalItem.phone || '' : '');      setImage('image' in editModalItem ? editModalItem.image || '' : '');
+      setDescription('description' in editModalItem ? editModalItem.description || '' : '');
+      setFeatures('features' in editModalItem ? editModalItem.features || '' : '');    }
   }, [editModalItem]);
 
   if (!editModalItem) return null;
@@ -59,6 +63,9 @@ export const EditListingModal: React.FC = () => {
         category,
         location,
         minOrder,
+        image: image.trim() || undefined,
+        description: description.trim() || undefined,
+        features: features.trim() || undefined,
       });
     }
     setEditModalItem(null);
@@ -167,6 +174,41 @@ export const EditListingModal: React.FC = () => {
             </select>
           </label>
         </div>
+
+        {!isPost && (
+          <>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-bold text-slate-700">Rasm URL</span>
+              <input
+                type="text"
+                value={image}
+                onChange={(e) => setImage(e.target.value)}
+                placeholder="Mahsulot rasm URL"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-bold text-slate-700">Tavsif</span>
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Mahsulot haqida batafsil ma'lumot"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-xs font-bold text-slate-700">Xususiyatlar</span>
+              <textarea
+                rows={3}
+                value={features}
+                onChange={(e) => setFeatures(e.target.value)}
+                placeholder="Mahsulotning asosiy afzalliklari"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
+              />
+            </label>
+          </>
+        )}
 
         {/* Min Buyurtma */}
         <label className="block space-y-1.5">
