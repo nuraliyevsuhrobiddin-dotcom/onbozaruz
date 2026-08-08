@@ -255,6 +255,10 @@ export const useAgroStore = create<AgroStoreState>()(
 
       toggleLikePost: (postId) => {
         const state = get();
+        if (isSupabaseConfigured && !state.currentUser) {
+          set({ toastMessage: 'Layk bosish uchun tizimga kiring' });
+          return;
+        }
         const isLiked = state.likedPostIds.includes(postId);
         const nextLikedIds = isLiked
           ? state.likedPostIds.filter((id) => id !== postId)

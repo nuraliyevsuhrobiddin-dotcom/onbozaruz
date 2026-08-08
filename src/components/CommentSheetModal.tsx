@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
 import { Send, Heart, MessageCircle } from 'lucide-react';
+import { commentsRepository } from '../api/repositories/commentsRepository';
+import { isSupabaseConfigured } from '../api/authClient';
 
 type CommentItem = {
-  id: number;
+  id: string | number;
   user: string;
   text: string;
   time: string;
@@ -19,36 +21,83 @@ export const CommentSheetModal: React.FC = () => {
 
   useEffect(() => {
     if (!storageKey) return;
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      setCommentsList(saved ? JSON.parse(saved) : []);
-    } catch {
-      setCommentsList([]);
-    }
-  }, [storageKey]);
+    let active = true;
+    void (async () => {
+      if (isSupabaseConfigured && commentPost) {
+        try {
+          const rows = await commentsRepository.list(commentPost.id);
+          if (active) {
+            setCommentsList(rows.map((row) => ({
+              id: row.id,
+              user: row.userName,
+              text: row.content,
+              time: row.createdAt,
+            })));
+          }
+          return;
+        } catch {
+          // Fall back to the local draft only if the backend is unavailable.
+        }
+      }
+
+      try {
+        const saved = window.localStorage.getItem(storageKey);
+        if (active) setCommentsList(saved ? JSON.parse(saved) : []);
+      } catch {
+        if (active) setCommentsList([]);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [commentPost, storageKey]);
 
   useEffect(() => {
     if (!storageKey) return;
-    window.localStorage.setItem(storageKey, JSON.stringify(commentsList));
+    if (!isSupabaseConfigured) {
+      window.localStorage.setItem(storageKey, JSON.stringify(commentsList));
+    }
   }, [commentsList, storageKey]);
 
-  const handleAddComment = (e: React.FormEvent) => {
+  const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = newComment.trim();
     if (!text) return;
     const userName = currentUser?.name || currentUser?.handle || 'Foydalanuvchi';
-    setCommentsList((items) => [
-      ...items,
-      { id: Date.now(), user: userName, text, time: 'Hozirgina' },
-    ]);
-    if (commentPost) {
-      addCommentToPost(commentPost.id);
+    if (isSupabaseConfigured && (!currentUser || !commentPost)) {
+      showToast('Izoh yozish uchun tizimga kiring');
+      return;
     }
-    setNewComment('');
-    showToast('Izoh qo\'shildi');
+
+    try {
+      const created = isSupabaseConfigured && currentUser && commentPost
+        ? await commentsRepository.create({
+            postId: commentPost.id,
+            userId: currentUser.id,
+            userName,
+            userAvatar: currentUser.avatar || '',
+            content: text,
+          })
+        : null;
+
+      setCommentsList((items) => [
+        ...items,
+        {
+          id: created?.id || Date.now(),
+          user: created?.userName || userName,
+          text: created?.content || text,
+          time: created?.createdAt || 'Hozirgina',
+        },
+      ]);
+      if (commentPost) addCommentToPost(commentPost.id);
+      setNewComment('');
+      showToast('Izoh qo\'shildi');
+    } catch (error: unknown) {
+      showToast(error instanceof Error ? `Izoh saqlanmadi: ${error.message}` : 'Izoh saqlanmadi');
+    }
   };
 
-  const toggleCommentLike = (id: number) => {
+  const toggleCommentLike = (id: string | number) => {
     setCommentsList((items) => items.map((item) => item.id === id ? { ...item, liked: !item.liked } : item));
   };
 

@@ -177,6 +177,8 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
 GRANT SELECT ON public.posts, public.products, public.profiles TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.posts, public.products TO authenticated;
 GRANT UPDATE ON public.profiles TO authenticated;
+GRANT SELECT ON public.comments TO anon, authenticated;
+GRANT INSERT ON public.comments TO authenticated;
 
 
 -- =====================================================================
