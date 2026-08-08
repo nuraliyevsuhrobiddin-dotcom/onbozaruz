@@ -337,7 +337,12 @@ export const VideoReelsViewer: React.FC = () => {
     videoViewerPosts,
     videoViewerStartIndex,
     closeVideoViewer,
+    posts,
   } = useAgroStore();
+  // Feeddagi like/save o'zgarishlari viewer ichidagi post snapshotini ham darhol yangilaydi.
+  const liveVideoPosts = videoViewerPosts.map((viewerPost) =>
+    posts.find((post) => post.id === viewerPost.id) || viewerPost
+  );
   const [currentIndex, setCurrentIndex] = useState(0);
   // Muted autoplay barcha brauzerda ishonchli. Ovoz tugmasi bosilganda
   // yuqoridagi effekt video ijrosini aynan foydalanuvchi harakatidan so'ng yoqadi.
@@ -382,7 +387,7 @@ export const VideoReelsViewer: React.FC = () => {
   const scrollToIndex = useCallback((idx: number) => {
     const el = containerRef.current;
     if (!el) return;
-    const clamped = Math.max(0, Math.min(idx, videoViewerPosts.length - 1));
+    const clamped = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
     isScrolling.current = true;
     const viewportHeight = el.clientHeight || window.innerHeight;
     el.scrollTo({ top: clamped * viewportHeight, behavior: 'smooth' });
@@ -392,14 +397,14 @@ export const VideoReelsViewer: React.FC = () => {
       isScrolling.current = false;
       wheelTimeout.current = null;
     }, 600);
-  }, [videoViewerPosts.length]);
+  }, [liveVideoPosts.length]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') return closeVideoViewer();
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = Math.min(currentIndex + 1, videoViewerPosts.length - 1);
+        const next = Math.min(currentIndex + 1, liveVideoPosts.length - 1);
         scrollToIndex(next);
       }
       if (e.key === 'ArrowUp') {
@@ -410,7 +415,7 @@ export const VideoReelsViewer: React.FC = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeVideoViewer, currentIndex, scrollToIndex, videoViewerPosts.length]);
+  }, [closeVideoViewer, currentIndex, scrollToIndex, liveVideoPosts.length]);
 
   const handleWheelNav = (e: React.WheelEvent) => {
     const now = Date.now();
@@ -418,7 +423,7 @@ export const VideoReelsViewer: React.FC = () => {
     lastWheelTime.current = now;
     const delta = e.deltaY;
     if (delta > 20) {
-      const next = Math.min(currentIndex + 1, videoViewerPosts.length - 1);
+      const next = Math.min(currentIndex + 1, liveVideoPosts.length - 1);
       if (next !== currentIndex) scrollToIndex(next);
     } else if (delta < -20) {
       const prev = Math.max(currentIndex - 1, 0);
@@ -426,7 +431,7 @@ export const VideoReelsViewer: React.FC = () => {
     }
   };
 
-  if (!isVideoViewerOpen || videoViewerPosts.length === 0) return null;
+  if (!isVideoViewerOpen || liveVideoPosts.length === 0) return null;
 
   return (
     <AnimatePresence>
@@ -464,7 +469,7 @@ export const VideoReelsViewer: React.FC = () => {
 
           <div className="bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/20 shadow-lg">
             <span className="text-white text-[12px] font-black">
-              {currentIndex + 1} / {videoViewerPosts.length}
+              {currentIndex + 1} / {liveVideoPosts.length}
             </span>
           </div>
         </div>
@@ -482,7 +487,7 @@ export const VideoReelsViewer: React.FC = () => {
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          {videoViewerPosts.map((post, idx) => (
+          {liveVideoPosts.map((post, idx) => (
             <div
               key={post.id}
               style={{ scrollSnapAlign: 'start', height: '100dvh' }}
