@@ -346,16 +346,17 @@ export const VideoReelsViewer: React.FC = () => {
   const isScrolling = useRef(false);
   const wheelTimeout = useRef<number | null>(null);
   const lastWheelTime = useRef(0);
-  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => {
     if (isVideoViewerOpen) {
       setCurrentIndex(videoViewerStartIndex);
       setGlobalMuted(true);
+      isScrolling.current = false;
       setTimeout(() => {
         const el = containerRef.current;
         if (el) {
-          el.scrollTop = videoViewerStartIndex * window.innerHeight;
+          const viewportHeight = el.clientHeight || window.innerHeight;
+          el.scrollTop = videoViewerStartIndex * viewportHeight;
         }
       }, 40);
     }
@@ -373,7 +374,8 @@ export const VideoReelsViewer: React.FC = () => {
 
   const handleScroll = useCallback(() => {
     if (isScrolling.current || !containerRef.current) return;
-    const idx = Math.round(containerRef.current.scrollTop / window.innerHeight);
+    const viewportHeight = containerRef.current.clientHeight || window.innerHeight;
+    const idx = Math.round(containerRef.current.scrollTop / viewportHeight);
     setCurrentIndex(idx);
   }, []);
 
@@ -382,7 +384,8 @@ export const VideoReelsViewer: React.FC = () => {
     if (!el) return;
     const clamped = Math.max(0, Math.min(idx, videoViewerPosts.length - 1));
     isScrolling.current = true;
-    el.scrollTo({ top: clamped * window.innerHeight, behavior: 'smooth' });
+    const viewportHeight = el.clientHeight || window.innerHeight;
+    el.scrollTo({ top: clamped * viewportHeight, behavior: 'smooth' });
     setCurrentIndex(clamped);
     if (wheelTimeout.current) window.clearTimeout(wheelTimeout.current);
     wheelTimeout.current = window.setTimeout(() => {
@@ -421,23 +424,6 @@ export const VideoReelsViewer: React.FC = () => {
       const prev = Math.max(currentIndex - 1, 0);
       if (prev !== currentIndex) scrollToIndex(prev);
     }
-  };
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current == null) return;
-    const endY = e.changedTouches[0].clientY;
-    const diff = touchStartY.current - endY;
-    if (diff > 50) {
-      const next = Math.min(currentIndex + 1, videoViewerPosts.length - 1);
-      if (next !== currentIndex) scrollToIndex(next);
-    } else if (diff < -50) {
-      const prev = Math.max(currentIndex - 1, 0);
-      if (prev !== currentIndex) scrollToIndex(prev);
-    }
-    touchStartY.current = null;
   };
 
   if (!isVideoViewerOpen || videoViewerPosts.length === 0) return null;
@@ -488,10 +474,13 @@ export const VideoReelsViewer: React.FC = () => {
           ref={containerRef}
           onScroll={handleScroll}
           onWheel={handleWheelNav}
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
           className="w-full h-full overflow-y-scroll no-scrollbar"
-          style={{ scrollSnapType: 'y mandatory', height: '100dvh', WebkitOverflowScrolling: 'touch' }}
+          style={{
+            scrollSnapType: 'y mandatory',
+            scrollBehavior: 'smooth',
+            height: '100dvh',
+            WebkitOverflowScrolling: 'touch',
+          }}
         >
           {videoViewerPosts.map((post, idx) => (
             <div
