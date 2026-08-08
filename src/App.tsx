@@ -22,6 +22,8 @@ import { VideoReelsViewer } from './components/VideoReelsViewer';
 import { CategoryExplorerModal } from './components/CategoryExplorerModal';
 import { EditListingModal } from './components/EditListingModal';
 import { AuthView } from './views/AuthView';
+import { AuthCallbackView } from './views/AuthCallbackView';
+import { subscribeToAuthState } from './api/authClient';
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -47,14 +49,32 @@ export default function App() {
     isAuthenticated,
     isAuthPromptOpen,
     loginUser,
+    restoreSession,
+    clearSession,
     setAuthPromptOpen,
   } = useAgroStore();
   const showHeader = activeTab !== 'search';
+  const isAuthCallback = window.location.pathname === '/auth/callback';
 
   // All hooks MUST run before any early return (Rules of Hooks)
   useEffect(() => {
     hydrateFromApi();
   }, [hydrateFromApi]);
+
+  useEffect(() => {
+    if (!isAuthCallback) {
+      void restoreSession();
+    }
+
+    return subscribeToAuthState((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        clearSession();
+        return;
+      }
+      if (!session) return;
+      void restoreSession();
+    });
+  }, [clearSession, isAuthCallback, restoreSession]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -83,11 +103,25 @@ export default function App() {
   }, [isAuthenticated, setActiveTab]);
 
   useEffect(() => {
+    if (isAuthCallback) return;
     const nextHash = `#${activeTab}`;
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, '', nextHash);
     }
-  }, [activeTab]);
+  }, [activeTab, isAuthCallback]);
+
+  if (isAuthCallback) {
+    return (
+      <AuthCallbackView
+        onSuccess={(user) => {
+          void loginUser(user).then(() => {
+            window.history.replaceState(null, '', '/#home');
+            window.location.reload();
+          });
+        }}
+      />
+    );
+  }
 
   // Feed and search remain public. Registration is requested only for Market
   // and for creating a listing.

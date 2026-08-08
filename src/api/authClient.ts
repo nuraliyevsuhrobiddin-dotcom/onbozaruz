@@ -6,7 +6,7 @@
  * Bu tuzilma real backendga o'tishni eng oson qiladi.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -18,8 +18,57 @@ export const isSupabaseConfigured =
   !SUPABASE_ANON_KEY.includes('your-supabase-anon-key');
 
 const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!)
+  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      auth: {
+        flowType: 'pkce',
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    })
   : null;
+
+const PRODUCTION_AUTH_CALLBACK_URL = 'https://onbozaruz.vercel.app/auth/callback';
+
+export function getAuthCallbackUrl(): string {
+  if (typeof window === 'undefined') return PRODUCTION_AUTH_CALLBACK_URL;
+
+  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  return isLocalhost
+    ? `${window.location.origin}/auth/callback`
+    : PRODUCTION_AUTH_CALLBACK_URL;
+}
+
+export function subscribeToAuthState(
+  callback: (event: AuthChangeEvent, session: Session | null) => void
+): (() => void) {
+  if (!supabase) return () => undefined;
+
+  const { data } = supabase.auth.onAuthStateChange(callback);
+  return () => data.subscription.unsubscribe();
+}
+
+export async function completeAuthCallback(): Promise<void> {
+  if (!supabase) throw new Error('Supabase sozlanmagan');
+
+  const existingSession = await supabase.auth.getSession();
+  if (existingSession.error) throw existingSession.error;
+  // React StrictMode can run the callback effect twice in development. If the
+  // first pass already redeemed the one-time PKCE code, keep the session.
+  if (existingSession.data.session) return;
+
+  const code = new URLSearchParams(window.location.search).get('code');
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) throw error;
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  if (!data.session) {
+    throw new Error('Tasdiqlash sessiyasi topilmadi. Havola muddati tugagan bo\'lishi mumkin.');
+  }
+}
 
 export async function getSupabaseAccessToken(): Promise<string | null> {
   if (!supabase) return null;
@@ -250,6 +299,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
       email: fields.email,
       password: fields.password,
       options: {
+        emailRedirectTo: getAuthCallbackUrl(),
         data: {
           name: fields.name,
           handle: fields.handle,

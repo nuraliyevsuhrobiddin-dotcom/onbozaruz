@@ -64,6 +64,7 @@ interface AgroStoreState {
   isAuthenticated: boolean;
   loginUser: (user: AuthUser) => Promise<void>;
   logoutUser: () => Promise<void>;
+  clearSession: () => void;
   updateUserProfile: (updatedFields: Partial<AuthUser>) => Promise<void>;
   restoreSession: () => Promise<void>;
 
@@ -219,7 +220,10 @@ export const useAgroStore = create<AgroStoreState>()(
 
         logoutUser: async () => {
           await authClient.signOut();
-          set({
+          get().clearSession();
+        },
+
+        clearSession: () => set({
             currentUser: null,
             isAuthenticated: false,
             isAdminUser: false,
@@ -231,8 +235,7 @@ export const useAgroStore = create<AgroStoreState>()(
             orders: [],
             posts: INITIAL_POSTS,
             activeSubView: null,
-          });
-        },
+          }),
 
         updateUserProfile: async (updatedFields) => {
           const updatedUser = await authClient.updateUser(updatedFields);
