@@ -323,6 +323,7 @@ export function useCreatePostForm() {
 
         await addPost({
         id: `post-${now}`,
+        userId: currentUser.id,
         sellerId: currentUser.id,
         sellerName,
         sellerAvatar: currentUser.avatar || '',

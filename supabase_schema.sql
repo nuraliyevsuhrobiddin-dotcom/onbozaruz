@@ -153,6 +153,8 @@ CREATE TABLE IF NOT EXISTS public.liked_posts (
 -- =====================================================================
 -- 2.1 ALTER EXISTING TABLES (Eski jadvallarga yetishmayotgan ustunlarni qo'shish)
 -- =====================================================================
+ALTER TABLE public.posts
+  ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
 ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
 ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS seller_id TEXT DEFAULT '';
 ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS condition TEXT DEFAULT '';
@@ -170,6 +172,11 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS submitted_by TEXT DEFAULT '
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+
+-- PostgREST uchun frontend ishlatadigan rollarga kerakli jadval huquqlari.
+GRANT SELECT ON public.posts, public.products, public.profiles TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.posts, public.products TO authenticated;
+GRANT UPDATE ON public.profiles TO authenticated;
 
 
 -- =====================================================================
@@ -202,6 +209,19 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Trigger o'rnatilishidan oldin yaratilgan userlar uchun profile yaratish.
+INSERT INTO public.profiles (id, email, name, handle, phone, role, is_admin)
+SELECT
+  u.id,
+  u.email,
+  COALESCE(u.raw_user_meta_data->>'name', SPLIT_PART(u.email, '@', 1)),
+  COALESCE(u.raw_user_meta_data->>'handle', SPLIT_PART(u.email, '@', 1)),
+  COALESCE(u.raw_user_meta_data->>'phone', ''),
+  COALESCE(u.raw_user_meta_data->>'role', 'seller'),
+  LOWER(COALESCE(u.email, '')) = 'onbozar@gmail.com'
+FROM auth.users AS u
+ON CONFLICT (id) DO NOTHING;
 
 
 -- =====================================================================
