@@ -60,6 +60,8 @@ export interface Product {
   minOrder: string;
   discount?: string;
   location: string;
+  description?: string;
+  features?: string;
   telegram?: string;
   approvalStatus?: ApprovalStatus;
   source?: ProductSource;

@@ -41,7 +41,7 @@ import { useAgroStore } from '../store/useAgroStore';
 import { CATEGORIES, REGIONS } from '../data/mockAgroData';
 import { Tabs } from '../components/ui/Tabs';
 import { EmptyState } from '../components/ui/EmptyState';
-import { uploadProfileMedia } from '../api/authClient';
+import { uploadProfileMedia, uploadListingMedia } from '../api/authClient';
 import {
   BarChart,
   Bar,
@@ -144,10 +144,14 @@ export const ProfileView: React.FC = () => {
     numericPrice: '',
     minOrder: '1 dona',
     location: REGIONS[1] || 'Toshkent sh.',
-    image: '',
-    imagesText: '',
     discount: '',
+    description: '',
+    features: '',
+    imagesText: '',
+    image: '',
   });
+  const [adminImageFiles, setAdminImageFiles] = useState<File[]>([]);
+  const [adminImagePreviews, setAdminImagePreviews] = useState<string[]>([]);
 
   const handleAdminMarketSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,31 +161,55 @@ export const ProfileView: React.FC = () => {
     }
 
     const imageUrls = adminMarketForm.imagesText
-      .split(/\r?\n|,/)
+      .split(/\r?\n|,/) 
       .map((url) => url.trim())
       .filter(Boolean);
 
+    if (imageUrls.length === 0 && adminImageFiles.length === 0 && !adminMarketForm.image) {
+      showToast("Iltimos, kamida bitta rasm yuklang yoki rasm URL yozing.");
+      return;
+    }
+
     try {
+      const allImageUrls = [...imageUrls];
+
+      if (adminImageFiles.length > 0 && currentUser) {
+        const uploads = await Promise.all(
+          adminImageFiles.map(async (file, index) => {
+            const now = Date.now();
+            const extension = file.type.split('/')[1] || 'jpg';
+            const path = `${currentUser.id}/${now}-${index}.${extension}`;
+            return uploadListingMedia(file, path, file.type || 'image/jpeg');
+          })
+        );
+
+        allImageUrls.unshift(...uploads);
+      }
+
+      const gallery = allImageUrls.length > 0 ? allImageUrls : undefined;
+
       await addProduct({
-      id: `contract-prod-${Date.now()}`,
-      sellerId: currentUser?.id,
-      title: adminMarketForm.title,
-      seller: adminMarketForm.seller || 'Shartnomali hamkor',
-      verified: true,
-      approvalStatus: 'approved',
-      source: 'admin',
-      approvedAt: new Date().toISOString(),
-      category: adminMarketForm.category,
-      price: adminMarketForm.price,
-      numericPrice: Number(adminMarketForm.numericPrice),
-      image: imageUrls[0] || adminMarketForm.image || 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
-      images: imageUrls.length > 0 ? imageUrls : undefined,
-      rating: 5,
-      reviewsCount: 0,
-      minOrder: adminMarketForm.minOrder || '1 dona',
-      discount: adminMarketForm.discount || 'Shartnoma',
-      location: adminMarketForm.location,
-      submittedBy: currentUser?.id,
+        id: `contract-prod-${Date.now()}`,
+        sellerId: currentUser?.id,
+        title: adminMarketForm.title,
+        seller: adminMarketForm.seller || 'Shartnomali hamkor',
+        verified: true,
+        approvalStatus: 'approved',
+        source: 'admin',
+        approvedAt: new Date().toISOString(),
+        category: adminMarketForm.category,
+        price: adminMarketForm.price,
+        numericPrice: Number(adminMarketForm.numericPrice),
+        image: gallery?.[0] || adminMarketForm.image || 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
+        images: gallery,
+        rating: 5,
+        reviewsCount: 0,
+        minOrder: adminMarketForm.minOrder || '1 dona',
+        discount: adminMarketForm.discount || 'Shartnoma',
+        location: adminMarketForm.location,
+        description: adminMarketForm.description,
+        features: adminMarketForm.features,
+        submittedBy: currentUser?.id,
       });
     } catch {
       showToast("Mahsulot saqlanmadi. Supabase ulanishi yoki admin akkauntini tekshiring.");
@@ -196,10 +224,14 @@ export const ProfileView: React.FC = () => {
       numericPrice: '',
       minOrder: '1 dona',
       location: REGIONS[1] || 'Toshkent sh.',
-      image: '',
-      imagesText: '',
       discount: '',
+      description: '',
+      features: '',
+      imagesText: '',
+      image: '',
     });
+    setAdminImageFiles([]);
+    setAdminImagePreviews([]);
   };
 
   const formatCompact = (value: number) => {
@@ -819,9 +851,59 @@ export const ProfileView: React.FC = () => {
             />
           </div>
           <textarea
+            value={adminMarketForm.description}
+            onChange={(e) => setAdminMarketForm({ ...adminMarketForm, description: e.target.value })}
+            rows={3}
+            placeholder="Mahsulot tavsifi"
+            className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
+          />
+          <textarea
+            value={adminMarketForm.features}
+            onChange={(e) => setAdminMarketForm({ ...adminMarketForm, features: e.target.value })}
+            rows={2}
+            placeholder="Xususiyatlar: Rang, o'lcham, paket, qo'shimcha..."
+            className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
+          />
+          <div className="space-y-2">
+            <label className="block text-[12px] font-black text-slate-600">Mahsulot galeriyasi</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => document.getElementById('admin-market-images-input')?.click()}
+                className="rounded-[14px] bg-[#111827] text-white px-4 py-3 text-[13px] font-black hover:bg-black transition-colors"
+              >
+                Rasm yuklash
+              </button>
+              <span className="text-[12px] text-slate-500">JPEG/PNG, bir nechta rasm</span>
+            </div>
+            <input
+              id="admin-market-images-input"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                if (files.length === 0) return;
+                setAdminImageFiles(files);
+                const previews = files.map((file) => URL.createObjectURL(file));
+                setAdminImagePreviews(previews);
+              }}
+              className="hidden"
+            />
+            {adminImagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-2">
+                {adminImagePreviews.map((src, index) => (
+                  <div key={src} className="relative overflow-hidden rounded-[16px] border border-slate-200 bg-slate-100">
+                    <img src={src} alt={`preview-${index}`} className="w-full h-24 object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <textarea
             value={adminMarketForm.imagesText}
             onChange={(e) => setAdminMarketForm({ ...adminMarketForm, imagesText: e.target.value })}
-            rows={3}
+            rows={2}
             placeholder="Rasmlar URL (har bir qatorda bitta rasm havolasi)"
             className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
           />
