@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useAgroStore } from '../store/useAgroStore';
 import { StoryBar, FarmerStory } from '../components/home/StoryBar';
 import { RegionFilter } from '../components/home/RegionFilter';
+import { CategoryFilter } from '../components/home/CategoryFilter';
 import { FeedCard } from '../components/FeedCard';
 import { LoadingSkeleton } from '../components/home/LoadingSkeleton';
 import { EmptyState } from '../components/home/EmptyState';
 
 export const HomeFeedView: React.FC = () => {
   const { posts, followedSellerIds } = useAgroStore();
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,17 +37,18 @@ export const HomeFeedView: React.FC = () => {
   );
 
   const filteredPosts = posts.filter((p) => {
+    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
     const matchesRegion =
       selectedRegion === 'all' || p.location.includes(selectedRegion);
     const matchesSeller = !selectedSeller || p.sellerId === selectedSeller;
-    return matchesRegion && matchesSeller;
+    return matchesCategory && matchesRegion && matchesSeller;
   });
 
   // Deduplicate posts by id to prevent accidental double renders
   const dedupedPosts = Array.from(new Map(filteredPosts.map((p) => [p.id, p])).values());
 
   return (
-    <div className="w-full max-w-[680px] mx-auto px-0 sm:px-4 py-1.5 sm:py-2 space-y-2.5 sm:space-y-3.5">
+    <div className="w-full max-w-170 mx-auto px-0 sm:px-4 py-1.5 sm:py-2 space-y-2.5 sm:space-y-3.5">
       {/* 1. Obunalar (Fermerlar Yangi E'lonlari) StoryBar */}
       <StoryBar
         farmers={farmers}
@@ -60,12 +63,18 @@ export const HomeFeedView: React.FC = () => {
         }}
       />
 
-      {/* 2. Region Filter Sticky Container */}
-      <div className="sticky self-start w-full mobile-sticky-offset lg:static z-50 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60 [transform:translateZ(0)]">
-        <RegionFilter
-          selectedRegion={selectedRegion}
-          onSelectRegion={(reg) => setSelectedRegion(reg)}
-        />
+      {/* 2. Filters Container */}
+      <div className="relative self-start w-full lg:sticky lg:top-20 z-50 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
+        <div className="space-y-2">
+          <CategoryFilter
+            selectedCategory={selectedCategory}
+            onSelectCategory={(catId) => setSelectedCategory(catId)}
+          />
+          <RegionFilter
+            selectedRegion={selectedRegion}
+            onSelectRegion={(reg) => setSelectedRegion(reg)}
+          />
+        </div>
       </div>
 
       {/* 3. Feed Cards list or Skeleton or EmptyState */}
@@ -93,6 +102,7 @@ export const HomeFeedView: React.FC = () => {
       ) : (
         <EmptyState
           onReset={() => {
+            setSelectedCategory('all');
             setSelectedRegion('all');
             setSelectedSeller(null);
           }}

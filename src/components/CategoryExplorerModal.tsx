@@ -44,6 +44,8 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
       ? posts
       : posts.filter((p) => p.category === categoryId);
 
+  const categoryCount = categoryPosts.length;
+
   // Sorting logic
   if (selectedSort === 'price_low') {
     categoryPosts = [...categoryPosts].sort((a, b) => a.numericPrice - b.numericPrice);
@@ -59,7 +61,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 20 }}
           transition={{ duration: 0.25 }}
-          className="w-full max-w-2xl bg-white rounded-[24px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+          className="w-full max-w-2xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
         >
           {/* Header */}
           <div className="px-5 py-4 bg-[#111111] text-white flex items-center justify-between">
@@ -72,7 +74,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
                   {categoryObj.name}
                 </h2>
                 <span className="text-[11px] text-slate-300">
-                  {categoryPosts.length} ta e'lon topildi • {categoryObj.count} jami mahsulot
+                  {categoryCount} ta e'lon topildi • {categoryObj.count || categoryCount} jami mahsulot
                 </span>
               </div>
             </div>
@@ -158,7 +160,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
 
                       <a
                         href={`tel:${post.phone.replace(/\s+/g, '').replace(/[()]/g, '')}`}
-                        className="px-3 py-1.5 rounded-[12px] bg-[#E53935] text-white text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-[#d32f2f]"
+                        className="px-3 py-1.5 rounded-xl bg-[#E53935] text-white text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-[#d32f2f]"
                       >
                         <PhoneCall className="w-3.5 h-3.5" />
                         <span>Bog'lanish</span>

@@ -282,7 +282,7 @@ ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Izohlarni barcha ko'radi" ON public.comments;
 CREATE POLICY "Izohlarni barcha ko'radi" ON public.comments FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Izoh qoldirish" ON public.comments;
-CREATE POLICY "Izoh qoldirish" ON public.comments FOR INSERT WITH CHECK (true);
+CREATE POLICY "Izoh qoldirish" ON public.comments FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 ALTER TABLE public.saved_posts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Saqlanganlarni ko'rish" ON public.saved_posts;
@@ -406,6 +406,39 @@ SET comments_count = (
   SELECT COUNT(*)::INTEGER
   FROM public.comments AS c
   WHERE c.post_id = p.id
+);
+
+-- Layk qo'shilishi yoki o'chirilishida postdagi likes_count ham real va
+-- atomik saqlanadi. Frontend postni bevosita UPDATE qilmaydi.
+CREATE OR REPLACE FUNCTION public.sync_post_likes_count()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    UPDATE public.posts
+    SET likes_count = likes_count + 1,
+        updated_at = NOW()
+    WHERE id = NEW.post_id;
+  ELSIF TG_OP = 'DELETE' THEN
+    UPDATE public.posts
+    SET likes_count = GREATEST(0, likes_count - 1),
+        updated_at = NOW()
+    WHERE id = OLD.post_id;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_post_like_changed ON public.liked_posts;
+CREATE TRIGGER on_post_like_changed
+  AFTER INSERT OR DELETE ON public.liked_posts
+  FOR EACH ROW EXECUTE FUNCTION public.sync_post_likes_count();
+
+-- Eski layklar uchun sonlarni bir marta tiklash.
+UPDATE public.posts AS p
+SET likes_count = (
+  SELECT COUNT(*)::INTEGER
+  FROM public.liked_posts AS l
+  WHERE l.post_id = p.id
 );
 
 -- =====================================================================

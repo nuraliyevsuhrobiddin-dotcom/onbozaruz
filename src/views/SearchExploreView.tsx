@@ -45,7 +45,7 @@ export const SearchExploreView: React.FC = () => {
   ].filter(Boolean).length;
 
   return (
-    <div className="w-full max-w-[680px] mx-auto py-3 px-3 space-y-3.5">
+    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3.5">
       {/* Search Input Row */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
@@ -55,7 +55,7 @@ export const SearchExploreView: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Qidiruv: olmalar, bug'doy, traktor..."
-            className="w-full bg-slate-100 border-0 rounded-[20px] pl-10 pr-10 py-3 text-[13px] text-slate-900 font-medium placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#E53935]/30 transition-all"
+            className="w-full bg-slate-100 border-0 rounded-2xl pl-10 pr-10 py-3 text-[13px] text-slate-900 font-medium placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#E53935]/30 transition-all"
             autoFocus={false}
           />
           {searchTerm && (
@@ -72,7 +72,7 @@ export const SearchExploreView: React.FC = () => {
         <motion.button
           whileTap={{ scale: 0.92 }}
           onClick={() => setShowFilters(!showFilters)}
-          className={`relative p-3 rounded-[20px] border transition-all font-bold flex-shrink-0 ${
+          className={`relative p-3 rounded-2xl border transition-all font-bold shrink-0 ${
             showFilters || activeFilterCount > 0
               ? 'bg-[#111827] text-white border-[#111827]'
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
@@ -175,7 +175,7 @@ export const SearchExploreView: React.FC = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.25, delay: idx * 0.03 }}
                 onClick={() => handlePostClick(idx)}
-                className={`relative bg-slate-100 overflow-hidden cursor-pointer group rounded-[16px] shadow-sm ${
+                className={`relative bg-slate-100 overflow-hidden cursor-pointer group rounded-2xl shadow-sm ${
                   isLarge ? 'row-span-2' : ''
                 }`}
                 style={{ aspectRatio: isLarge ? '1/2' : '1/1' }}

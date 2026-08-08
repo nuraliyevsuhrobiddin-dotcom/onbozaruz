@@ -40,7 +40,7 @@ const sortOptions = [
 
 const partnerSegments = [
   { id: 'all', label: 'Barchasi', icon: Store, categories: [] },
-  { id: 'farmers', label: 'Fermerlar', icon: Leaf, categories: ['fruits', 'grains', 'apiary'] },
+  { id: 'farmers', label: 'Fermerlar', icon: Leaf, categories: ['fruits', 'grains', 'apiary', 'greenhouse'] },
   { id: 'veterinary', label: 'Veterinariya', icon: Stethoscope, categories: ['livestock'] },
   { id: 'manufacturers', label: 'Ishlab chiqaruvchi', icon: Factory, categories: ['seeds', 'logistics'] },
   { id: 'equipment', label: 'Texnika', icon: Tractor, categories: ['machinery'] },
@@ -251,8 +251,8 @@ export const MarketShopView: React.FC = () => {
                     <p className="text-[12px] font-black text-[#E53935]">{product.price}</p>
                     {product.submittedBy && <p className="truncate text-[10px] text-slate-400">Bot foydalanuvchi: {product.submittedBy}</p>}
                     <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button type="button" onClick={() => approveProduct(product.id)} className="rounded-[12px] bg-[#111827] py-2 text-[11px] font-black text-white hover:bg-black transition-colors">Tasdiqlash</button>
-                      <button type="button" onClick={() => rejectProduct(product.id)} className="rounded-[12px] bg-white border border-slate-200 py-2 text-[11px] font-black text-[#E53935] hover:bg-slate-100 transition-colors">Rad etish</button>
+                      <button type="button" onClick={() => approveProduct(product.id)} className="rounded-xl bg-[#111827] py-2 text-[11px] font-black text-white hover:bg-black transition-colors">Tasdiqlash</button>
+                      <button type="button" onClick={() => rejectProduct(product.id)} className="rounded-xl bg-white border border-slate-200 py-2 text-[11px] font-black text-[#E53935] hover:bg-slate-100 transition-colors">Rad etish</button>
                     </div>
                   </div>
                 </div>
@@ -284,14 +284,14 @@ export const MarketShopView: React.FC = () => {
             <input value={form.minOrder} onChange={(e) => setForm({ ...form, minOrder: e.target.value })} placeholder="Min buyurtma" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
             <input value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} placeholder="Belgi: Aksiya, Shartnoma..." className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
           </div>
-          <label className="block rounded-[16px] border border-dashed border-slate-300 bg-slate-50 p-3 cursor-pointer hover:border-[#E53935] transition-colors">
+          <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-3 cursor-pointer hover:border-[#E53935] transition-colors">
             <span className="block text-[12px] font-black text-slate-700">Bir nechta rasm yuklash</span>
             <span className="block mt-1 text-[10px] text-slate-400">JPG, PNG yoki WebP — bir nechta tanlash mumkin</span>
             <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(event) => setSelectedImageFiles(Array.from(event.target.files || []))} />
             {selectedImageFiles.length > 0 && <span className="block mt-2 text-[11px] font-black text-emerald-700">{selectedImageFiles.length} ta rasm tanlandi</span>}
           </label>
           <textarea value={form.imagesText} onChange={(e) => setForm({ ...form, imagesText: e.target.value })} rows={2} placeholder="Yoki rasmlar URL manzilini kiriting (har qatorda bitta)" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30" />
-          <button className="w-full py-3 rounded-[16px] bg-[#E53935] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm">
+          <button className="w-full py-3 rounded-2xl bg-[#E53935] text-white text-xs font-black flex items-center justify-center gap-2 shadow-sm">
             <PackagePlus className="w-4 h-4" /> Marketga joylash
           </button>
         </form>
@@ -363,7 +363,7 @@ export const MarketShopView: React.FC = () => {
             <div className="max-w-xl mx-auto space-y-2">
               <div className="flex items-center justify-between text-xs"><span className="text-slate-500">Mahsulotlar</span><b>{formatMoney(subtotal)}</b></div>
               <div className="flex items-center justify-between text-xs"><span className="text-slate-500">Yetkazib berish</span><b>{deliveryFee ? formatMoney(deliveryFee) : 'Bepul'}</b></div>
-              <button onClick={handleOrder} className="w-full py-3 rounded-[16px] bg-[#E53935] text-white text-sm font-black flex items-center justify-center gap-2 shadow-sm">
+              <button onClick={handleOrder} className="w-full py-3 rounded-2xl bg-[#E53935] text-white text-sm font-black flex items-center justify-center gap-2 shadow-sm">
                 <CreditCard className="w-4 h-4" /> Buyurtma berish - {formatMoney(total)}
               </button>
             </div>
@@ -374,7 +374,7 @@ export const MarketShopView: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-[780px] mx-auto px-3 py-3 pb-28 select-none space-y-3.5">
+    <div className="w-full max-w-195 mx-auto px-3 py-3 pb-28 select-none space-y-3.5">
       <section className="rounded-[22px] bg-white border border-slate-200/80 p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1 min-w-0">
@@ -399,7 +399,7 @@ export const MarketShopView: React.FC = () => {
         </div>
       </section>
 
-      <div className="sticky self-start w-full mobile-sticky-offset lg:static z-50 -mx-3 px-3 bg-[#F8FAFC]/95 backdrop-blur-md py-2 space-y-2 border-b border-slate-200/60 [transform:translateZ(0)]">
+      <div className="relative self-start w-full lg:sticky lg:top-20 z-50 -mx-3 px-3 bg-[#F8FAFC]/95 backdrop-blur-md py-2 space-y-2 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -497,8 +497,8 @@ export const MarketShopView: React.FC = () => {
 
       {cartCount > 0 && (
         <div className="mobile-fixed-action-bar fixed left-0 right-0 z-40 bg-white border-t border-slate-200 p-3">
-          <div className="max-w-[780px] mx-auto flex items-center gap-3">
-            <button onClick={() => setIsCartOpen(true)} className="relative w-12 h-12 rounded-[16px] bg-[#111827] text-white flex items-center justify-center shrink-0">
+          <div className="max-w-195 mx-auto flex items-center gap-3">
+            <button onClick={() => setIsCartOpen(true)} className="relative w-12 h-12 rounded-2xl bg-[#111827] text-white flex items-center justify-center shrink-0">
               <ShoppingCart className="w-5 h-5" />
               <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-[#E53935] text-white text-[10px] font-black flex items-center justify-center">{cartCount}</span>
             </button>
@@ -506,7 +506,7 @@ export const MarketShopView: React.FC = () => {
               <p className="text-[11px] font-bold text-slate-400">Savatdagi mahsulotlar</p>
               <p className="text-sm font-black text-[#111827]">{formatMoney(total)}</p>
             </div>
-            <button onClick={() => setIsCartOpen(true)} className="px-5 py-3 rounded-[16px] bg-[#E53935] text-white text-xs font-black shadow-sm">Buyurtma</button>
+            <button onClick={() => setIsCartOpen(true)} className="px-5 py-3 rounded-2xl bg-[#E53935] text-white text-xs font-black shadow-sm">Buyurtma</button>
           </div>
         </div>
       )}

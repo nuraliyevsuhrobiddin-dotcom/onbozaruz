@@ -41,6 +41,7 @@ interface AgroStoreState {
   savedPostIds: string[];
   likedPostIds: string[];
   followedSellerIds: string[];
+  viewedPostIds: string[];
 
   isCreateModalOpen: boolean;
   isAuthPromptOpen: boolean;
@@ -159,6 +160,7 @@ export const useAgroStore = create<AgroStoreState>()(
         savedPostIds: [],
         likedPostIds: [],
         followedSellerIds: [],
+        viewedPostIds: [],
 
         isCreateModalOpen: false,
         isAuthPromptOpen: false,
@@ -231,6 +233,7 @@ export const useAgroStore = create<AgroStoreState>()(
             savedPostIds: [],
             likedPostIds: [],
             followedSellerIds: [],
+            viewedPostIds: [],
             cart: {},
             orders: [],
             posts: INITIAL_POSTS,
@@ -340,13 +343,20 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       incrementPostViews: (postId) => {
-        set((state) => ({
+        const state = get();
+        if (state.viewedPostIds.includes(postId)) {
+          return;
+        }
+
+        set({
+          viewedPostIds: [...state.viewedPostIds, postId],
           posts: state.posts.map((post) =>
             post.id === postId
               ? { ...post, viewsCount: (post.viewsCount || 0) + 1 }
               : post
           ),
-        }));
+        });
+
         postsRepository.incrementViews(postId).catch(() => {
           // Server xatosida lokal UI ishlashda davom etadi.
         });
