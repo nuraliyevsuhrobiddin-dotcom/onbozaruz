@@ -239,6 +239,9 @@ export const useAgroStore = create<AgroStoreState>()(
 
         updateUserProfile: async (updatedFields) => {
           const updatedUser = await authClient.updateUser(updatedFields);
+          if (isSupabaseConfigured && !updatedUser) {
+            throw new Error("Profil ma'lumotlarini serverda saqlab bo'lmadi");
+          }
           set((state) => {
             const nextUser = updatedUser || (state.currentUser ? { ...state.currentUser, ...updatedFields } : null);
             const isAdmin = (nextUser?.email || '').toLowerCase().trim() === ADMIN_EMAIL;

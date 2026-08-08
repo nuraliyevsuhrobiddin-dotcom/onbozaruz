@@ -93,6 +93,18 @@ export async function uploadListingMedia(
   return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
 }
 
+export async function uploadProfileMedia(
+  dataUrl: string,
+  userId: string,
+  target: 'avatar' | 'cover'
+): Promise<string> {
+  return uploadListingMedia(
+    dataUrl,
+    `${userId}/profile-${target}-${Date.now()}.jpg`,
+    'image/jpeg'
+  );
+}
+
 export async function incrementPostViewsOnServer(postId: string): Promise<void> {
   if (!supabase) return;
   const { error } = await supabase.rpc('increment_post_views', { p_post_id: postId });
@@ -234,16 +246,24 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
 
   const user = data.user;
   const meta = user.user_metadata as Record<string, string> | undefined;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle();
 
   return {
     id: user.id,
     email: user.email || '',
-    name: meta?.name || '',
-    handle: meta?.handle || (user.email || '').split('@')[0],
-    phone: meta?.phone || '',
-    location: meta?.location || '',
-    businessName: meta?.businessName || '',
-    role: (meta?.role as 'seller' | 'buyer') || 'seller',
+    name: profile?.name || meta?.name || '',
+    handle: profile?.handle || meta?.handle || (user.email || '').split('@')[0],
+    phone: profile?.phone || meta?.phone || '',
+    location: profile?.location || meta?.location || '',
+    businessName: profile?.business_name || meta?.businessName || '',
+    bio: profile?.bio || '',
+    avatar: profile?.avatar_url || '',
+    cover: profile?.cover_url || '',
+    role: (profile?.role as 'seller' | 'buyer') || (meta?.role as 'seller' | 'buyer') || 'seller',
     createdAt: user.created_at || new Date().toISOString(),
   };
 }
@@ -264,6 +284,8 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
       business_name: fields.businessName,
       bio: fields.bio,
       role: fields.role,
+      avatar_url: fields.avatar,
+      cover_url: fields.cover,
     }).filter(([, value]) => value !== undefined)
   );
 
@@ -286,6 +308,8 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
     businessName: data.business_name || '',
     bio: data.bio || '',
     role: (data.role as 'seller' | 'buyer') || 'seller',
+    avatar: data.avatar_url || '',
+    cover: data.cover_url || '',
     createdAt: data.created_at,
   };
 }

@@ -41,6 +41,7 @@ import { useAgroStore } from '../store/useAgroStore';
 import { CATEGORIES, REGIONS } from '../data/mockAgroData';
 import { Tabs } from '../components/ui/Tabs';
 import { EmptyState } from '../components/ui/EmptyState';
+import { uploadProfileMedia } from '../api/authClient';
 import {
   BarChart,
   Bar,
@@ -949,18 +950,31 @@ export const ProfileView: React.FC = () => {
 
           <button
             onClick={async () => {
-              await updateUserProfile({
-                name: profileForm.name,
-                handle: profileForm.handle,
-                email: profileForm.email,
-                phone: profileForm.phone,
-                avatar: profileForm.avatar,
-                cover: profileForm.cover,
-                location: profileForm.location,
-                businessName: profileForm.businessName,
-                bio: profileForm.bio,
-              });
-              setActiveSubView(null);
+              if (!currentUser) return;
+              try {
+                const avatar = profileForm.avatar.startsWith('data:')
+                  ? await uploadProfileMedia(profileForm.avatar, currentUser.id, 'avatar')
+                  : profileForm.avatar;
+                const cover = profileForm.cover.startsWith('data:')
+                  ? await uploadProfileMedia(profileForm.cover, currentUser.id, 'cover')
+                  : profileForm.cover;
+
+                await updateUserProfile({
+                  name: profileForm.name,
+                  handle: profileForm.handle,
+                  email: profileForm.email,
+                  phone: profileForm.phone,
+                  avatar,
+                  cover,
+                  location: profileForm.location,
+                  businessName: profileForm.businessName,
+                  bio: profileForm.bio,
+                });
+                setProfileForm((prev) => ({ ...prev, avatar, cover }));
+                setActiveSubView(null);
+              } catch (error: unknown) {
+                showToast(error instanceof Error ? error.message : 'Profil saqlanmadi');
+              }
             }}
             className="w-full py-3 rounded-[16px] bg-[#E53935] text-white font-extrabold text-xs hover:bg-[#C62828] transition-colors shadow-sm flex items-center justify-center gap-2"
           >
