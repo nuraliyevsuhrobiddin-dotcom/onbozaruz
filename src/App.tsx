@@ -131,7 +131,7 @@ export default function App() {
       <AuthView
         onSuccess={(user) => {
           void loginUser(user).then(() => {
-            if (user.email.toLowerCase().trim() === 'onbozar@gmail.com') {
+            if (user.email.toLowerCase().trim() === 'nuraliyevsuhrobiddin@gmail.com') {
               setActiveTab('profile');
               setActiveSubView('admin-panel');
             }

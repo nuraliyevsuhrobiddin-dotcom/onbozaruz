@@ -196,7 +196,7 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', ''),
     COALESCE(NEW.raw_user_meta_data->>'role', 'seller'),
-    LOWER(COALESCE(NEW.email, '')) = 'onbozar@gmail.com'
+    LOWER(COALESCE(NEW.email, '')) = 'nuraliyevsuhrobiddin@gmail.com'
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
@@ -221,7 +221,7 @@ SELECT
   COALESCE(u.raw_user_meta_data->>'handle', SPLIT_PART(u.email, '@', 1)),
   COALESCE(u.raw_user_meta_data->>'phone', ''),
   COALESCE(u.raw_user_meta_data->>'role', 'seller'),
-  LOWER(COALESCE(u.email, '')) = 'onbozar@gmail.com'
+  LOWER(COALESCE(u.email, '')) = 'nuraliyevsuhrobiddin@gmail.com'
 FROM auth.users AS u
 ON CONFLICT (id) DO NOTHING;
 
@@ -333,7 +333,7 @@ CREATE POLICY "Listing media owner delete" ON storage.objects
   USING (bucket_id = 'listing-media' AND owner_id = auth.uid()::text);
 
 -- Oldindan ro'yxatdan o'tgan admin akkauntini ham admin sifatida belgilash.
-UPDATE public.profiles SET is_admin = TRUE WHERE LOWER(email) = 'onbozar@gmail.com';
+UPDATE public.profiles SET is_admin = TRUE WHERE LOWER(email) = 'nuraliyevsuhrobiddin@gmail.com';
 
 
 -- =====================================================================

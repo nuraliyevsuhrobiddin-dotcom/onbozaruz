@@ -107,7 +107,7 @@ interface AgroStoreState {
   closeVideoViewer: () => void;
 }
 
-const ADMIN_EMAIL = 'onbozar@gmail.com';
+const ADMIN_EMAIL = 'nuraliyevsuhrobiddin@gmail.com';
 
 export const useAgroStore = create<AgroStoreState>()(
   persist(
@@ -186,7 +186,7 @@ export const useAgroStore = create<AgroStoreState>()(
             if (subView === 'admin-panel' && !state.isAdminUser) {
               return {
                 activeSubView: null,
-                toastMessage: "⛔ Boshqaruv paneliga faqat admin (onbozar@gmail.com) kirishi mumkin!",
+                toastMessage: "⛔ Boshqaruv paneliga faqat admin (nuraliyevsuhrobiddin@gmail.com) kirishi mumkin!",
               };
             }
             return { activeSubView: subView };
