@@ -31,6 +31,7 @@ export interface Post {
   isSaved?: boolean;
   date: string;
   condition?: string;
+  description?: string;
 }
 
 export interface Category {

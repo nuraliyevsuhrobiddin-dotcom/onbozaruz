@@ -48,6 +48,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
   const isSaved = savedPostIds.includes(post.id);
   const [showHeartAnim, setShowHeartAnim] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mediaError, setMediaError] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   const viewedRef = useRef(false);
 
@@ -214,9 +215,10 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           <VideoPlayer src={post.mediaUrl} poster={post.posterUrl} />
         ) : (
           <img
-            src={post.mediaUrl}
+            src={mediaError ? '/logo.png' : post.posterUrl || post.mediaUrl || '/logo.png'}
             alt={post.title}
             loading="lazy"
+            onError={() => setMediaError(true)}
             className="w-full h-full object-cover"
           />
         )}

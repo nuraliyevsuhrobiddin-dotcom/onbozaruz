@@ -9,11 +9,12 @@ import {
   INITIAL_ORDERS,
 } from '../data/mockAgroData';
 import { CreatePostInput, CreateProductInput } from '../api/types';
-import { type AuthUser, authClient, isSupabaseConfigured } from '../api/authClient';
+import { type AuthUser, authClient, deleteListingMedia, isSupabaseConfigured } from '../api/authClient';
 import { postsRepository } from '../api/repositories/postsRepository';
 import { productsRepository } from '../api/repositories/productsRepository';
 import { ordersRepository } from '../api/repositories/ordersRepository';
 import { userInteractionsRepository } from '../api/repositories/userInteractionsRepository';
+import { cacheManager } from '../utils/cacheManager';
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile';
 export type SubView =
@@ -43,6 +44,12 @@ interface AgroStoreState {
   followedSellerIds: string[];
   viewedPostIds: string[];
 
+  // --- Offline & Cache state ---
+  isHydrating: boolean;
+  isOffline: boolean;
+  isBackgroundFetching: boolean;
+  fetchError: string | null;
+
   isCreateModalOpen: boolean;
   isAuthPromptOpen: boolean;
   isNotificationsOpen: boolean;
@@ -52,6 +59,9 @@ interface AgroStoreState {
   productDetail: Product | Post | null;
   toastMessage: string | null;
   selectedCategoryModalId: string | null;
+
+  uploadingPostStatus: { isUploading: boolean; title?: string; isSuccess?: boolean; error?: string } | null;
+  setUploadingPostStatus: (status: { isUploading: boolean; title?: string; isSuccess?: boolean; error?: string } | null) => void;
 
   isVideoViewerOpen: boolean;
   videoViewerPosts: Post[];
@@ -86,6 +96,7 @@ interface AgroStoreState {
   updateCartQuantity: (productId: string, nextQuantity: number) => void;
   clearCart: () => void;
   hydrateFromApi: () => Promise<void>;
+  retryHydrate: () => void;
 
   approveProduct: (productId: string) => void;
   rejectProduct: (productId: string) => void;
@@ -101,6 +112,7 @@ interface AgroStoreState {
   setContactSellerData: (data: { name: string; phone: string; telegram?: string; title?: string } | null) => void;
   setProductDetail: (item: Product | Post | null) => void;
   setSelectedCategoryModalId: (catId: string | null) => void;
+  setIsAdminUser: (isAdmin: boolean) => void;
   showToast: (msg: string) => void;
   hideToast: () => void;
 
@@ -137,6 +149,12 @@ export const useAgroStore = create<AgroStoreState>()(
         }
       }
 
+      const cachedPostsResult = cacheManager.loadPostsCache();
+      const cachedProductsResult = cacheManager.loadProductsCache();
+
+      const initialPosts = cachedPostsResult?.posts?.length ? cachedPostsResult.posts : INITIAL_POSTS;
+      const initialProducts = cachedProductsResult?.products?.length ? cachedProductsResult.products : INITIAL_PRODUCTS;
+
       const markPostFlags = (posts: Post[], savedPostIds: string[], likedPostIds: string[]) =>
         posts.map((post) => ({
           ...post,
@@ -145,13 +163,19 @@ export const useAgroStore = create<AgroStoreState>()(
         }));
 
       return {
-        posts: INITIAL_POSTS,
-        products: INITIAL_PRODUCTS,
+        posts: initialPosts,
+        products: initialProducts,
         orders: INITIAL_ORDERS,
         cart: {},
         activeTab: 'home',
         activeSubView: null,
         isAdminUser: initialIsAdmin,
+
+        // --- Offline & Cache state ---
+        isHydrating: true,
+        isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
+        isBackgroundFetching: false,
+        fetchError: null,
 
         // --- Auth: restore session from localStorage ---
         currentUser: initialUser,
@@ -171,6 +195,7 @@ export const useAgroStore = create<AgroStoreState>()(
         productDetail: null,
         toastMessage: null,
         selectedCategoryModalId: null,
+        uploadingPostStatus: null,
 
         isVideoViewerOpen: false,
         videoViewerPosts: [],
@@ -408,18 +433,34 @@ export const useAgroStore = create<AgroStoreState>()(
         // Faqat server postni qabul qilgandan keyin e'lon lentaga qo'shiladi.
         // Shunday qilib tarmoq xatosi “muvaffaqiyatli” deb ko'rsatilmaydi.
         const created = await postsRepository.create(input);
-        set((state) => ({ posts: [created, ...state.posts] }));
+        set((state) => {
+          const nextPosts = [created, ...state.posts];
+          cacheManager.savePostsCache(nextPosts);
+          return { posts: nextPosts };
+        });
       },
       editModalItem: null,
       setEditModalItem: (item) => set({ editModalItem: item }),
 
       deletePost: (postId) => {
-        set((state) => ({
-          posts: state.posts.filter((p) => p.id !== postId),
-          productDetail: state.productDetail?.id === postId ? null : state.productDetail,
-          toastMessage: "E'lon muvaffaqiyatli o'chirildi",
-        }));
-        postsRepository.remove(postId).catch(() => {});
+        const targetPost = get().posts.find((p) => p.id === postId);
+        set((state) => {
+          const nextPosts = state.posts.filter((p) => p.id !== postId);
+          cacheManager.savePostsCache(nextPosts);
+          return {
+            posts: nextPosts,
+            productDetail: state.productDetail?.id === postId ? null : state.productDetail,
+            toastMessage: "E'lon muvaffaqiyatli o'chirildi",
+          };
+        });
+        postsRepository.remove(postId)
+          .then(() => {
+            if (targetPost?.mediaUrl) void deleteListingMedia(targetPost.mediaUrl);
+            if (targetPost?.posterUrl) void deleteListingMedia(targetPost.posterUrl);
+          })
+          .catch((err: Error) => {
+            set({ toastMessage: `E'lonni serverdan o'chirishda xatolik: ${err.message || 'Tarmoq xatosi'}` });
+          });
       },
 
       updatePost: (postId, updatedFields) => {
@@ -430,6 +471,7 @@ export const useAgroStore = create<AgroStoreState>()(
           const nextDetail = state.productDetail?.id === postId
             ? { ...state.productDetail, ...updatedFields }
             : state.productDetail;
+          cacheManager.savePostsCache(nextPosts);
           return {
             posts: nextPosts,
             productDetail: nextDetail as Post | Product | null,
@@ -437,16 +479,32 @@ export const useAgroStore = create<AgroStoreState>()(
             toastMessage: "E'lon tahrirlandi va saqlandi!",
           };
         });
-        postsRepository.update(postId, updatedFields).catch(() => {});
+        postsRepository.update(postId, updatedFields).catch((err: Error) => {
+          set({ toastMessage: `Serverda saqlanmadi: ${err.message || 'Xatolik'}` });
+        });
       },
 
       deleteProduct: (productId) => {
-        set((state) => ({
-          products: state.products.filter((p) => p.id !== productId),
-          productDetail: state.productDetail?.id === productId ? null : state.productDetail,
-          toastMessage: "Mahsulot muvaffaqiyatli o'chirildi",
-        }));
-        productsRepository.remove(productId).catch(() => {});
+        const targetProduct = get().products.find((p) => p.id === productId);
+        set((state) => {
+          const nextProducts = state.products.filter((p) => p.id !== productId);
+          cacheManager.saveProductsCache(nextProducts);
+          return {
+            products: nextProducts,
+            productDetail: state.productDetail?.id === productId ? null : state.productDetail,
+            toastMessage: "Mahsulot muvaffaqiyatli o'chirildi",
+          };
+        });
+        productsRepository.remove(productId)
+          .then(() => {
+            if (targetProduct?.image) void deleteListingMedia(targetProduct.image);
+            if (targetProduct?.images) {
+              targetProduct.images.forEach((img) => void deleteListingMedia(img));
+            }
+          })
+          .catch((err: Error) => {
+            set({ toastMessage: `Mahsulotni serverdan o'chirishda xatolik: ${err.message || 'Tarmoq xatosi'}` });
+          });
       },
 
       updateProduct: (productId, updatedFields) => {
@@ -464,7 +522,9 @@ export const useAgroStore = create<AgroStoreState>()(
             toastMessage: "Mahsulot tahrirlandi va saqlandi!",
           };
         });
-        productsRepository.update(productId, updatedFields).catch(() => {});
+        productsRepository.update(productId, updatedFields).catch((err: Error) => {
+          set({ toastMessage: `Serverda saqlanmadi: ${err.message || 'Xatolik'}` });
+        });
       },
 
       addProduct: async (newProduct) => {
@@ -579,23 +639,63 @@ export const useAgroStore = create<AgroStoreState>()(
       clearCart: () => set({ cart: {} }),
 
       hydrateFromApi: async () => {
+        // Step 1: Cache dan darhol o'qi (Stale-While-Revalidate)
+        const cachedPosts = cacheManager.loadPostsCache();
+        const cachedProducts = cacheManager.loadProductsCache();
+        const hasCache = !!(cachedPosts?.posts?.length || cachedProducts?.products?.length);
+
+        if (hasCache) {
+          // Cache mavjud: darhol ko'rsat, isHydrating false qil
+          const state = get();
+          if (cachedPosts?.posts?.length) {
+            set({
+              posts: markPostFlags(cachedPosts.posts, state.savedPostIds, state.likedPostIds),
+              isHydrating: false,
+            });
+          }
+          if (cachedProducts?.products?.length) {
+            set({ products: cachedProducts.products, isHydrating: false });
+          }
+        }
+
+        // Step 2: Background da Supabase dan yangiliklari olib kel
+        set({ isBackgroundFetching: true });
         try {
           const [posts, products] = await Promise.all([
             postsRepository.list(),
             productsRepository.list(),
           ]);
           const state = get();
+          const freshPosts = markPostFlags(posts, state.savedPostIds, state.likedPostIds);
+          cacheManager.savePostsCache(freshPosts);
+          cacheManager.saveProductsCache(products);
           set({
-            posts: markPostFlags(posts, state.savedPostIds, state.likedPostIds),
+            posts: freshPosts,
             products,
+            isHydrating: false,
+            isOffline: false,
+            fetchError: null,
+            isBackgroundFetching: false,
           });
           if (state.isAuthenticated) {
             const orders = await ordersRepository.list();
             set({ orders });
           }
-        } catch {
-          // API mavjud bo'lmasa empty state ko'rsatiladi.
+        } catch (err) {
+          // Network xatosi: cache ko'rsatilayotgan bo'lsa, foydalanuvchi hech nima sezmaydi
+          const isOfflineNow = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+          set({
+            isHydrating: false,
+            isBackgroundFetching: false,
+            isOffline: isOfflineNow,
+            fetchError: hasCache ? null : (isOfflineNow ? 'offline' : 'network_error'),
+          });
         }
+      },
+
+      retryHydrate: () => {
+        set({ fetchError: null });
+        void get().hydrateFromApi();
       },
 
       setCreateModalOpen: (open) =>
@@ -611,7 +711,8 @@ export const useAgroStore = create<AgroStoreState>()(
       setContactSellerData: (data) => set({ contactSellerData: data }),
       setProductDetail: (item) => set({ productDetail: item }),
       setSelectedCategoryModalId: (catId) => set({ selectedCategoryModalId: catId }),
-      setIsAdminUser: (isAdmin) => set({ isAdminUser: isAdmin }),
+      setUploadingPostStatus: (status) => set({ uploadingPostStatus: status }),
+      setIsAdminUser: (isAdmin: boolean) => set({ isAdminUser: isAdmin }),
       showToast: (msg) => set({ toastMessage: msg }),
       hideToast: () => set({ toastMessage: null }),
 

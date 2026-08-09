@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS public.products (
     discount TEXT DEFAULT '',
     location TEXT NOT NULL,
     telegram TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    features TEXT DEFAULT '',
     approval_status approval_status_type DEFAULT 'approved',
     source product_source_type DEFAULT 'admin',
     submitted_by TEXT DEFAULT '',

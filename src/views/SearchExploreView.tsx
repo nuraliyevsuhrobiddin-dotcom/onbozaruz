@@ -1,52 +1,270 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, SlidersHorizontal, Heart, MessageCircle, Play, MapPin } from 'lucide-react';
+import {
+  Search, X, SlidersHorizontal, Heart, MessageCircle, Play, MapPin, Video, Image as ImageIcon
+} from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { CATEGORIES, REGIONS } from '../data/mockAgroData';
+import { Post } from '../api/types';
 
+/* ─────────────────────────────────────────────
+   Video thumbnail card — video elementdan
+   birinchi kadrni oladi va hover bo'lganda ijro etadi
+   ───────────────────────────────────────────── */
+const VideoThumbnail: React.FC<{
+  src: string;
+  alt: string;
+  isHovered?: boolean;
+}> = ({ src, alt, isHovered = false }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [hasError, setHasError] = useState(false);
+
+  // Set 0.5s frame position on load if browser didn't seek automatically
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleLoadedMetadata = () => {
+      if (video.currentTime === 0) {
+        try {
+          video.currentTime = 0.5;
+        } catch {
+          // Ignore seek errors
+        }
+      }
+    };
+
+    video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    if (video.readyState >= 1 && video.currentTime === 0) {
+      handleLoadedMetadata();
+    }
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+  }, [src]);
+
+  // Play on hover, pause when unhovered
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || hasError) return;
+
+    if (isHovered) {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Ignore autoplay restriction errors
+        });
+      }
+    } else {
+      video.pause();
+    }
+  }, [isHovered, hasError]);
+
+  if (hasError) {
+    return (
+      <div className="w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex flex-col items-center justify-center p-3 text-center">
+        <Video className="w-7 h-7 text-rose-400 mb-1" />
+        <span className="text-[10px] text-slate-300 font-medium truncate max-w-full">{alt}</span>
+      </div>
+    );
+  }
+
+  // Media fragment #t=0.5 forces modern browsers to decode 0.5s frame natively as poster
+  const videoSrc = src.includes('#t=') ? src : `${src}#t=0.5`;
+
+  return (
+    <div className="w-full h-full relative bg-slate-900 overflow-hidden">
+      <video
+        ref={videoRef}
+        src={videoSrc}
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        onError={() => setHasError(true)}
+        className="w-full h-full object-cover pointer-events-none"
+      />
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   Grid card — rasm yoki video thumbnail
+   ───────────────────────────────────────────── */
+const ExploreCard: React.FC<{
+  post: Post;
+  idx: number;
+  isLarge: boolean;
+  onClick: () => void;
+}> = ({ post, idx, isLarge, onClick }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const isVideo = post.type === 'video' || post.mediaUrl.endsWith('.mp4') || post.mediaUrl.endsWith('.webm') || post.mediaUrl.includes('data:video');
+  const hasPoster = !!(post.posterUrl && post.posterUrl.trim() !== '');
+  const hasImage = !!(post.mediaUrl && post.mediaUrl.trim() !== '' && !isVideo);
+
+  return (
+    <motion.div
+      key={post.id}
+      initial={{ opacity: 0, scale: 0.94 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.25, delay: Math.min(idx * 0.04, 0.3) }}
+      onClick={onClick}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`relative bg-slate-900 overflow-hidden cursor-pointer group rounded-xl shadow-sm ${
+        isLarge ? 'row-span-2' : ''
+      }`}
+      style={{ aspectRatio: isLarge ? '1/2' : '1/1' }}
+    >
+      {/* ── Media ── */}
+      {isVideo && hasPoster ? (
+        /* Video + poster mavjud */
+        <img
+          src={post.posterUrl}
+          alt={post.title}
+          loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+      ) : isVideo && !hasPoster ? (
+        /* Video, poster yo'q → video elementdan thumbnail */
+        <div className="w-full h-full group-hover:scale-105 transition-transform duration-500">
+          <VideoThumbnail src={post.mediaUrl} alt={post.title} isHovered={isHovered} />
+        </div>
+      ) : hasImage ? (
+        /* Rasm */
+        <img
+          src={post.mediaUrl}
+          alt={post.title}
+          loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
+      ) : (
+        /* Fallback placeholder */
+        <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center p-2 text-center">
+          <ImageIcon className="w-8 h-8 text-slate-600 mb-1" />
+          <span className="text-[10px] text-slate-400 font-semibold truncate max-w-full">{post.title}</span>
+        </div>
+      )}
+
+      {/* ── Gradyan overlay ── */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent pointer-events-none" />
+
+      {/* ── Video badge ── */}
+      {isVideo && (
+        <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white backdrop-blur-sm z-10 shadow">
+          <Play className="w-3 h-3 fill-white" />
+        </div>
+      )}
+
+      {/* ── Bottom info ── */}
+      <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2 pt-4 pointer-events-none z-10">
+        <span className="font-extrabold text-[11px] text-[#22C55E] block leading-tight drop-shadow">
+          {post.price}
+        </span>
+        <span className="text-[10px] font-semibold text-white/90 truncate block leading-tight">
+          {post.sellerName}
+        </span>
+      </div>
+
+      {/* ── Hover overlay (like + comment) ── */}
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-5 text-white text-xs font-extrabold backdrop-blur-[1px] z-20">
+        <span className="flex items-center gap-1.5">
+          <Heart className="w-4 h-4 fill-white" />
+          {(post.likesCount || 0).toLocaleString()}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <MessageCircle className="w-4 h-4 fill-white" />
+          {post.commentsCount || 0}
+        </span>
+      </div>
+    </motion.div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   Main view
+   ───────────────────────────────────────────── */
 export const SearchExploreView: React.FC = () => {
-  const { posts, openVideoViewer } = useAgroStore();
+  const { posts, openVideoViewer, setProductDetail } = useAgroStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCat, setSelectedCat] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
-  const filteredPosts = posts.filter((p) => {
-    const matchesCat = selectedCat === 'all' || p.category === selectedCat;
-    const matchesRegion =
-      selectedRegion === 'all' ||
-      p.location.toLowerCase().includes(selectedRegion.toLowerCase());
-    const matchesSearch =
-      !searchTerm ||
-      p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sellerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.categoryName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCat && matchesRegion && matchesSearch;
-  });
+  const filteredPosts = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    const minP = minPrice ? Number(minPrice.replace(/\D/g, '')) : 0;
+    const maxP = maxPrice ? Number(maxPrice.replace(/\D/g, '')) : Infinity;
+
+    return posts.filter((p) => {
+      const matchesCat = selectedCat === 'all' || p.category === selectedCat;
+      const matchesRegion =
+        selectedRegion === 'all' ||
+        p.location.toLowerCase().includes(selectedRegion.toLowerCase());
+      const matchesSearch =
+        !term ||
+        p.title.toLowerCase().includes(term) ||
+        p.sellerName.toLowerCase().includes(term) ||
+        p.categoryName.toLowerCase().includes(term);
+      const matchesPrice = p.numericPrice >= minP && (maxP === Infinity || p.numericPrice <= maxP);
+      return matchesCat && matchesRegion && matchesSearch && matchesPrice;
+    });
+  }, [posts, searchTerm, selectedCat, selectedRegion, minPrice, maxPrice]);
 
   const handlePostClick = useCallback(
     (idx: number) => {
-      openVideoViewer(filteredPosts, idx);
+      const clickedPost = filteredPosts[idx];
+      if (!clickedPost) return;
+
+      const isVideo =
+        clickedPost.type === 'video' ||
+        clickedPost.mediaUrl.endsWith('.mp4') ||
+        clickedPost.mediaUrl.endsWith('.webm') ||
+        clickedPost.mediaUrl.includes('data:video');
+
+      if (isVideo) {
+        // Video postlarni alohida ajratib, bosilgan video indeksini id bo'yicha aniq topamiz
+        const videoPosts = filteredPosts.filter(
+          (p) =>
+            p.type === 'video' ||
+            p.mediaUrl.endsWith('.mp4') ||
+            p.mediaUrl.endsWith('.webm') ||
+            p.mediaUrl.includes('data:video')
+        );
+        const videoIdx = videoPosts.findIndex((v) => v.id === clickedPost.id);
+        openVideoViewer(videoPosts, videoIdx !== -1 ? videoIdx : 0);
+      } else {
+        // Rasm shaklidagi e'lon bo'lsa detail modalni ochamiz
+        setProductDetail(clickedPost);
+      }
     },
-    [filteredPosts, openVideoViewer]
+    [filteredPosts, openVideoViewer, setProductDetail]
   );
 
   const handleReset = () => {
     setSearchTerm('');
     setSelectedCat('all');
     setSelectedRegion('all');
+    setMinPrice('');
+    setMaxPrice('');
     setShowFilters(false);
   };
 
   const activeFilterCount = [
     selectedCat !== 'all',
     selectedRegion !== 'all',
+    minPrice !== '',
+    maxPrice !== '',
     searchTerm.length > 0,
   ].filter(Boolean).length;
 
   return (
-    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3.5">
-      {/* Search Input Row */}
+    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3">
+
+      {/* ── Search Input Row ── */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -68,7 +286,7 @@ export const SearchExploreView: React.FC = () => {
           )}
         </div>
 
-        {/* Filter Toggle Button */}
+        {/* Filter Toggle */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           onClick={() => setShowFilters(!showFilters)}
@@ -78,7 +296,7 @@ export const SearchExploreView: React.FC = () => {
               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
           }`}
         >
-          <SlidersHorizontal className="w-4.5 h-4.5" />
+          <SlidersHorizontal className="w-[18px] h-[18px]" />
           {activeFilterCount > 0 && (
             <span className="absolute -top-1.5 -right-1.5 w-4.5 h-4.5 text-[9px] font-black bg-[#E53935] text-white rounded-full flex items-center justify-center shadow">
               {activeFilterCount}
@@ -87,7 +305,7 @@ export const SearchExploreView: React.FC = () => {
         </motion.button>
       </div>
 
-      {/* Filter Expanded Panel */}
+      {/* ── Filter Panel ── */}
       <AnimatePresence>
         {showFilters && (
           <motion.div
@@ -97,7 +315,7 @@ export const SearchExploreView: React.FC = () => {
             transition={{ duration: 0.25 }}
             className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3 shadow-md overflow-hidden"
           >
-            {/* Hudud filter */}
+            {/* Hudud */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
                 <MapPin className="w-3.5 h-3.5 text-[#E53935]" />
@@ -111,8 +329,7 @@ export const SearchExploreView: React.FC = () => {
                     key={reg}
                     onClick={() => setSelectedRegion(reg === 'Barchasi' ? 'all' : reg)}
                     className={`px-3 py-1 rounded-[14px] text-[11px] font-bold transition-all ${
-                      (reg === 'Barchasi' && selectedRegion === 'all') ||
-                      selectedRegion === reg
+                      (reg === 'Barchasi' && selectedRegion === 'all') || selectedRegion === reg
                         ? 'bg-[#E53935] text-white shadow-sm'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
@@ -120,6 +337,31 @@ export const SearchExploreView: React.FC = () => {
                     {reg}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Narx */}
+            <div>
+              <label className="text-[11px] font-extrabold text-slate-600 uppercase tracking-wider block mb-1.5">
+                Narx oralig'i (so'm)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Min narx"
+                  value={minPrice}
+                  onChange={(e) => setMinPrice(e.target.value.replace(/\D/g, ''))}
+                  className="bg-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Max narx"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(e.target.value.replace(/\D/g, ''))}
+                  className="bg-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                />
               </div>
             </div>
 
@@ -135,7 +377,7 @@ export const SearchExploreView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Category Filter Pills */}
+      {/* ── Category Pills ── */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
         {CATEGORIES.map((cat) => (
           <motion.button
@@ -154,68 +396,30 @@ export const SearchExploreView: React.FC = () => {
         ))}
       </div>
 
-      {/* Results Count */}
+      {/* ── Results count ── */}
       <div className="text-[12px] text-slate-500 font-medium px-1">
         <span className="font-extrabold text-[#111827]">{filteredPosts.length}</span> ta e'lon topildi
         {searchTerm && (
-          <span> - "<span className="text-[#E53935] font-bold">{searchTerm}</span>" bo'yicha</span>
+          <span>
+            {' '}— "<span className="text-[#E53935] font-bold">{searchTerm}</span>" bo'yicha
+          </span>
         )}
       </div>
 
-      {/* Instagram Explore Masonry Grid */}
+      {/* ── Instagram Explore Grid ── */}
       {filteredPosts.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-[3px]">
           {filteredPosts.map((post, idx) => {
-            // Instagram-style: every 3rd item is large (spans 2 rows)
-            const isLarge = (idx % 6 === 0) || (idx % 6 === 5);
+            // Instagram-style: har 6 elementda 1-chi va 6-chi katta
+            const isLarge = idx % 6 === 0 || idx % 6 === 5;
             return (
-              <motion.div
+              <ExploreCard
                 key={post.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25, delay: idx * 0.03 }}
+                post={post}
+                idx={idx}
+                isLarge={isLarge}
                 onClick={() => handlePostClick(idx)}
-                className={`relative bg-slate-100 overflow-hidden cursor-pointer group rounded-2xl shadow-sm ${
-                  isLarge ? 'row-span-2' : ''
-                }`}
-                style={{ aspectRatio: isLarge ? '1/2' : '1/1' }}
-              >
-                <img
-                  src={post.posterUrl || post.mediaUrl}
-                  alt={post.title}
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
-                />
-
-                {/* Video badge */}
-                {post.type === 'video' && (
-                  <div className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white backdrop-blur-sm shadow">
-                    <Play className="w-3 h-3 fill-white" />
-                  </div>
-                )}
-
-                {/* Bottom info strip */}
-                <div className="absolute bottom-0 left-0 right-0 p-2.5 bg-gradient-to-t from-black/80 via-black/30 to-transparent">
-                  <span className="font-extrabold text-[11px] text-[#22C55E] block leading-tight">
-                    {post.price}
-                  </span>
-                  <span className="text-[10px] font-semibold text-slate-200 truncate block">
-                    {post.sellerName}
-                  </span>
-                </div>
-
-                {/* Hover overlay with Like + Comment counts */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-4 text-white text-xs font-extrabold">
-                  <span className="flex items-center gap-1">
-                    <Heart className="w-4 h-4 fill-white" />
-                    {post.likesCount.toLocaleString()}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <MessageCircle className="w-4 h-4 fill-white" />
-                    {post.commentsCount}
-                  </span>
-                </div>
-              </motion.div>
+              />
             );
           })}
         </div>
@@ -234,7 +438,9 @@ export const SearchExploreView: React.FC = () => {
             Qidiruv bo'yicha e'lon topilmadi
           </h3>
           <p className="text-xs text-slate-400 max-w-xs leading-relaxed font-medium">
-            "{searchTerm}" so'rovi bo'yicha hech nima topilmadi. Boshqa kalit so'z yoki filtrni sinab ko'ring.
+            {searchTerm
+              ? `"${searchTerm}" so'rovi bo'yicha hech nima topilmadi.`
+              : "Boshqa kalit so'z yoki filtrni sinab ko'ring."}
           </p>
           <button
             onClick={handleReset}

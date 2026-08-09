@@ -45,6 +45,7 @@ export default function App() {
     selectedCategoryModalId,
     setSelectedCategoryModalId,
     hydrateFromApi,
+    retryHydrate,
     setActiveTab,
     setActiveSubView,
     isAuthenticated,
@@ -61,6 +62,23 @@ export default function App() {
   useEffect(() => {
     hydrateFromApi();
   }, [hydrateFromApi]);
+
+  // Online/Offline holat kuzatuvchisi
+  useEffect(() => {
+    const handleOnline = () => {
+      useAgroStore.setState({ isOffline: false });
+      retryHydrate(); // Internet qaytganda avtomatik yangilash
+    };
+    const handleOffline = () => {
+      useAgroStore.setState({ isOffline: true });
+    };
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [retryHydrate]);
 
   useEffect(() => {
     if (!isAuthCallback) {

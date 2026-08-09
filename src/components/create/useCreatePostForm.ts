@@ -26,9 +26,17 @@ export type Step = 1 | 2 | 3 | 4;
 const DEFAULT_REGION = REGIONS[1] || 'Toshkent sh.';
 
 export function useCreatePostForm() {
-  const { isCreateModalOpen, setCreateModalOpen, addPost, showToast, setActiveTab, currentUser } =
-    useAgroStore();
+  const {
+    isCreateModalOpen,
+    setCreateModalOpen,
+    addPost,
+    showToast,
+    setActiveTab,
+    currentUser,
+    setUploadingPostStatus,
+  } = useAgroStore();
   const [step, setStep] = useState<Step>(1);
+  const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
   const [selectedMediaUrl, setSelectedMediaUrl] = useState('');
   const [selectedPosterUrl, setSelectedPosterUrl] = useState('');
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
@@ -117,10 +125,10 @@ export function useCreatePostForm() {
       if (!file) return;
 
       const supportedImage = file.type.startsWith('image/');
-      const supportedVideo = ['video/mp4', 'video/webm'].includes(file.type);
+      const supportedVideo = file.type.startsWith('video/') || ['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type);
       const supported = supportedImage || supportedVideo;
       if (!supported) {
-        showToast("Rasm yoki MP4 / WebM videoni tanlang. MOV va HEVC formatlari hamma brauzerda ishlamaydi.");
+        showToast("Rasm yoki MP4 / WebM / MOV videoni tanlang.");
         e.target.value = '';
         return;
       }
@@ -130,52 +138,49 @@ export function useCreatePostForm() {
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = typeof reader.result === 'string' ? reader.result : '';
-        if (!result) {
-          showToast("Media faylni o'qib bo'lmadi");
-          return;
-        }
-        setSelectedMediaUrl(result);
-        const selectedType = file.type.startsWith('video') ? 'video' : 'image';
-        setMediaType(selectedType);
-        setMediaContentType(file.type || (selectedType === 'video' ? 'video/webm' : 'image/jpeg'));
-        setMediaMode(selectedType);
-        if (selectedType === 'video') {
-          const video = document.createElement('video');
-          video.src = result;
-          video.muted = true;
-          video.playsInline = true;
-          video.onloadeddata = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth || 360;
-            canvas.height = video.videoHeight || 640;
-            const context = canvas.getContext('2d');
-            if (context) {
-              context.drawImage(video, 0, 0, canvas.width, canvas.height);
-              setSelectedPosterUrl(canvas.toDataURL('image/jpeg', 0.78));
-            }
-            URL.revokeObjectURL(video.src);
-          };
-          video.onerror = () => setSelectedPosterUrl('');
-        } else {
-          setSelectedPosterUrl('');
-        }
-      };
-      reader.onerror = () => showToast("Media faylni o'qib bo'lmadi");
-      reader.readAsDataURL(file);
+      const previewUrl = URL.createObjectURL(file);
+      setSelectedMediaFile(file);
+      setSelectedMediaUrl(previewUrl);
+
+      const selectedType = file.type.startsWith('video') ? 'video' : 'image';
+      setMediaType(selectedType);
+      setMediaContentType(file.type || (selectedType === 'video' ? 'video/mp4' : 'image/jpeg'));
+      setMediaMode(selectedType);
+
+      if (selectedType === 'video') {
+        const video = document.createElement('video');
+        video.src = previewUrl;
+        video.muted = true;
+        video.playsInline = true;
+        video.onloadeddata = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 360;
+          canvas.height = video.videoHeight || 640;
+          const context = canvas.getContext('2d');
+          if (context) {
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            setSelectedPosterUrl(canvas.toDataURL('image/jpeg', 0.78));
+          }
+        };
+        video.onerror = () => setSelectedPosterUrl('');
+      } else {
+        setSelectedPosterUrl('');
+      }
     },
     [showToast]
   );
 
   const removeMedia = useCallback(() => {
+    if (selectedMediaUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(selectedMediaUrl);
+    }
+    setSelectedMediaFile(null);
     setSelectedMediaUrl('');
     setSelectedPosterUrl('');
     setMediaType('image');
     setMediaContentType('image/jpeg');
     setMediaMode('video');
-  }, []);
+  }, [selectedMediaUrl]);
 
   // ── Joylashuv ──
   const getCurrentPosition = () =>
@@ -295,7 +300,7 @@ export function useCreatePostForm() {
     setValue('category', catId, { shouldValidate: true });
   };
 
-  // ── Nashr qilish ──
+  // ── Nashr qilish (Instagram-style background upload) ──
   const handlePublish = useCallback(
     async (data: PostFormData) => {
       const categoryObj = CATEGORIES.find((c) => c.id === data.category);
@@ -305,74 +310,98 @@ export function useCreatePostForm() {
         showToast("E'lon uchun akkaunt va media fayl kerak");
         return;
       }
-      setIsPublishing(true);
 
+      // Instagram-style UX: Nashr bosilgan zahoti modal yopiladi va Bosh sahifaga o'tiladi
+      const postTitle = data.title.trim();
+      const fileToUpload = selectedMediaFile || selectedMediaUrl;
+      const posterToUpload = selectedPosterUrl;
+      const mediaTypeToUpload = mediaType;
+      const mediaContentTypeToUpload = mediaContentType;
+      const currentUserId = currentUser.id;
+      const currentUserAvatar = currentUser.avatar || '';
+      const sellerName = currentUser.businessName?.trim() || currentUser.name.trim() || currentUser.handle;
+      const location = data.location.toLowerCase().includes(selectedRegion.toLowerCase())
+        ? data.location.trim()
+        : `${data.location.trim()}, ${selectedRegion}`;
+
+      // Instantly close modal, switch tab to home feed & show top progress bar
+      setCreateModalOpen(false);
+      setActiveTab('home');
+      setUploadingPostStatus({ isUploading: true, title: postTitle });
+
+      // Reset form and draft
+      clearDraft();
+      reset({
+        title: '',
+        category: '',
+        price: '',
+        minOrder: '',
+        location: '',
+        phone: '+998 ',
+        telegram: '',
+        condition: '',
+      });
+      setStep(1);
+      setSelectedMediaFile(null);
+      setSelectedMediaUrl('');
+      setSelectedPosterUrl('');
+      setMediaType('image');
+      setMediaContentType('image/jpeg');
+      setSelectedRegion(DEFAULT_REGION);
+
+      // Background upload process
       try {
         const mediaUrl = await uploadListingMedia(
-          selectedMediaUrl,
-          `${currentUser.id}/${now}-media.${mediaContentType.split('/')[1] || 'bin'}`,
-          mediaContentType
+          fileToUpload,
+          `${currentUserId}/${now}-media.${mediaContentTypeToUpload.split('/')[1] || 'bin'}`,
+          mediaContentTypeToUpload
         );
-        const posterUrl = selectedPosterUrl
-          ? await uploadListingMedia(selectedPosterUrl, `${currentUser.id}/${now}-poster.jpg`, 'image/jpeg')
+        const posterUrl = posterToUpload
+          ? await uploadListingMedia(posterToUpload, `${currentUserId}/${now}-poster.jpg`, 'image/jpeg')
           : undefined;
-        const location = data.location.toLowerCase().includes(selectedRegion.toLowerCase())
-          ? data.location.trim()
-          : `${data.location.trim()}, ${selectedRegion}`;
-        const sellerName = currentUser.businessName?.trim() || currentUser.name.trim() || currentUser.handle;
 
         await addPost({
-        id: `post-${now}`,
-        userId: currentUser.id,
-        sellerId: currentUser.id,
-        sellerName,
-        sellerAvatar: currentUser.avatar || '',
-        verified: false,
-        location,
-        phone: data.phone,
-        telegram: data.telegram?.trim() || undefined,
-        title: data.title.trim(),
-        category: data.category,
-        categoryName: categoryObj?.name || 'Boshqa',
-        price: data.price.trim(),
-        numericPrice,
-        minOrder: data.minOrder.trim(),
-        type: mediaType,
-        mediaUrl,
-        posterUrl,
-        likesCount: 0,
-        commentsCount: 0,
-        viewsCount: 0,
-        isLiked: false,
-        isSaved: false,
-        date: 'Hozirgina',
-        condition: data.condition?.trim(),
+          id: `post-${now}`,
+          userId: currentUserId,
+          sellerId: currentUserId,
+          sellerName,
+          sellerAvatar: currentUserAvatar,
+          verified: false,
+          location,
+          phone: data.phone,
+          telegram: data.telegram?.trim() || undefined,
+          title: postTitle,
+          category: data.category,
+          categoryName: categoryObj?.name || 'Boshqa',
+          price: data.price.trim(),
+          numericPrice,
+          minOrder: data.minOrder.trim(),
+          type: mediaTypeToUpload,
+          mediaUrl,
+          posterUrl,
+          likesCount: 0,
+          commentsCount: 0,
+          viewsCount: 0,
+          isLiked: false,
+          isSaved: false,
+          date: 'Hozirgina',
+          condition: data.condition?.trim(),
         });
 
-        clearDraft();
-        setIsPublishing(false);
-        showToast("E'lon muvaffaqiyatli nashr qilindi!");
-        setCreateModalOpen(false);
-        setActiveTab('home');
-        reset({
-          title: '',
-          category: '',
-          price: '',
-          minOrder: '',
-          location: '',
-          phone: '+998 ',
-          telegram: '',
-          condition: '',
-        });
-        setStep(1);
-        setSelectedMediaUrl('');
-        setSelectedPosterUrl('');
-        setMediaType('image');
-        setMediaContentType('image/jpeg');
-        setSelectedRegion(DEFAULT_REGION);
+        // Upload finished successfully
+        setUploadingPostStatus({ isUploading: false, isSuccess: true, title: postTitle });
+        showToast("E'lon muvaffaqiyatli nashr qilindi! ✨");
+
+        // Hide success progress bar after 3 seconds
+        setTimeout(() => {
+          setUploadingPostStatus(null);
+        }, 3500);
       } catch (error: unknown) {
-        setIsPublishing(false);
         const message = error instanceof Error ? error.message : '';
+        setUploadingPostStatus({
+          isUploading: false,
+          error: message || "E'lon joylanmadi. Aloqani tekshiring.",
+        });
         showToast(
           message
             ? `E'lon saqlanmadi: ${message}`
@@ -383,14 +412,16 @@ export function useCreatePostForm() {
     [
       addPost,
       currentUser,
-      mediaType,
       mediaContentType,
+      mediaType,
       reset,
+      selectedMediaFile,
       selectedMediaUrl,
       selectedPosterUrl,
       selectedRegion,
       setActiveTab,
       setCreateModalOpen,
+      setUploadingPostStatus,
       showToast,
     ]
   );

@@ -77,28 +77,57 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
 }
 
 export async function uploadListingMedia(
-  dataUrl: string,
+  input: string | File | Blob,
   path: string,
   contentType: string
 ): Promise<string> {
-  if (!dataUrl || !supabase) return dataUrl;
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
-  const { error } = await supabase.storage.from('listing-media').upload(path, blob, {
+  if (!input || !supabase) {
+    return typeof input === 'string' ? input : '';
+  }
+
+  let fileOrBlob: Blob;
+  if (typeof input === 'string') {
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      return input;
+    }
+    const response = await fetch(input);
+    fileOrBlob = await response.blob();
+  } else {
+    fileOrBlob = input;
+  }
+
+  const { error } = await supabase.storage.from('listing-media').upload(path, fileOrBlob, {
     contentType,
-    upsert: false,
+    upsert: true,
     cacheControl: '31536000',
   });
+
   if (error) {
     throw new Error(
-      `Media yuklanmadi: ${error.message}. Supabase Storage File size limitini tekshiring.`
+      `Media yuklanmadi: ${error.message}. Supabase Storage fayl hajmi va ruxsatlarini tekshiring.`
     );
   }
+
   return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
 }
 
+export async function deleteListingMedia(urlOrPath: string): Promise<void> {
+  if (!urlOrPath || !supabase) return;
+  try {
+    let storagePath = urlOrPath;
+    if (urlOrPath.includes('/listing-media/')) {
+      storagePath = urlOrPath.split('/listing-media/')[1] || '';
+    }
+    if (storagePath && !storagePath.startsWith('http')) {
+      await supabase.storage.from('listing-media').remove([storagePath]);
+    }
+  } catch {
+    // Ignore storage deletion error if file does not exist.
+  }
+}
+
 export async function uploadProfileMedia(
-  dataUrl: string,
+  dataUrl: string | File,
   userId: string,
   target: 'avatar' | 'cover'
 ): Promise<string> {

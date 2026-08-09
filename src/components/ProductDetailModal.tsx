@@ -28,6 +28,8 @@ export const ProductDetailModal: React.FC = () => {
   const canManage = Boolean(isAdminUser || (currentUser?.id && ownerId === currentUser.id));
   const telegram = ('telegram' in productDetail ? productDetail.telegram : undefined)?.replace(/^@/, '').replace(/\s+/g, '');
   const isVideoPost = 'mediaUrl' in productDetail && productDetail.type === 'video';
+  const description = 'description' in productDetail ? productDetail.description : '';
+  const features = 'features' in productDetail ? productDetail.features : '';
 
   return (
     <Modal

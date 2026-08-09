@@ -29,9 +29,10 @@ interface SlideProps {
   post: Post;
   isActive: boolean;
   globalMuted: boolean;
+  onUnmute: () => void;
 }
 
-const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
+const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmute }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
@@ -52,20 +53,29 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
   const isFollowing = followedSellerIds.includes(post.sellerId);
   const isOwnPost = currentUser?.id === post.sellerId;
 
-  // Play/pause based on active slide
+  // Play/pause based on active slide — ovozli ijro birinchi bo'lib urinadigan qilib yozildi
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     if (isActive) {
       video.currentTime = 0;
-      video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      video.muted = globalMuted;
+      video.volume = globalMuted ? 1 : 1;
+      video
+        .play()
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          // Brauzer ovozli autoplayni rad etdi — ovozsizga o'tib qayta urinamiz
+          video.muted = true;
+          video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+        });
     } else {
       video.pause();
       setIsPlaying(false);
     }
   }, [isActive]);
 
-  // Sync mute and ensure only the visible slide can play audio.
+  // globalMuted o'zgarganda sinxronlashtirish
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -165,6 +175,19 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted }) => {
               'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.05) 70%, transparent 100%)',
           }}
         />
+
+        {/* Instagram-style tap-to-unmute indicator */}
+        {globalMuted && isActive && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onUnmute(); }}
+            className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20 shadow-lg text-white text-[12px] font-black hover:bg-black/80 transition-all animate-bounce-subtle"
+            style={{ animation: 'pulse 2s ease-in-out infinite' }}
+          >
+            <VolumeX className="w-4 h-4 text-white/80" />
+            <span>Ovozni yoqish</span>
+            <Volume2 className="w-4 h-4 text-emerald-400" />
+          </button>
+        )}
 
         {/* Double-tap heart animation */}
         {showHeart && (
@@ -344,9 +367,9 @@ export const VideoReelsViewer: React.FC = () => {
     posts.find((post) => post.id === viewerPost.id) || viewerPost
   );
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Muted autoplay barcha brauzerda ishonchli. Ovoz tugmasi bosilganda
-  // yuqoridagi effekt video ijrosini aynan foydalanuvchi harakatidan so'ng yoqadi.
-  const [globalMuted, setGlobalMuted] = useState(true);
+  // Ovozli boshlanadi (foydalanuvchi ekranga bosib kirganligi user-gesture hisoblanadi).
+  // Agar brauzer autoplay siyosati rad etsa, ovozsizga fallback qilinadi.
+  const [globalMuted, setGlobalMuted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
   const wheelTimeout = useRef<number | null>(null);
@@ -355,15 +378,19 @@ export const VideoReelsViewer: React.FC = () => {
   useEffect(() => {
     if (isVideoViewerOpen) {
       setCurrentIndex(videoViewerStartIndex);
-      setGlobalMuted(true);
-      isScrolling.current = false;
-      setTimeout(() => {
-        const el = containerRef.current;
-        if (el) {
-          const viewportHeight = el.clientHeight || window.innerHeight;
-          el.scrollTop = videoViewerStartIndex * viewportHeight;
-        }
-      }, 40);
+      // Ovozli boshlanadi — foydalanuvchi bosib kirdi, shuning uchun user gesture mavjud
+      setGlobalMuted(false);
+      isScrolling.current = true;
+      // Instant positioning without smooth-scroll flashing through intermediate videos
+      const el = containerRef.current;
+      if (el) {
+        const viewportHeight = el.clientHeight || window.innerHeight;
+        el.scrollTop = videoViewerStartIndex * viewportHeight;
+      }
+      const timer = setTimeout(() => {
+        isScrolling.current = false;
+      }, 60);
+      return () => clearTimeout(timer);
     }
   }, [isVideoViewerOpen, videoViewerStartIndex]);
 
@@ -386,20 +413,23 @@ export const VideoReelsViewer: React.FC = () => {
     }
   }, [currentIndex, liveVideoPosts.length]);
 
+  const touchStartY = useRef(0);
+
   const scrollToIndex = useCallback((idx: number) => {
     const el = containerRef.current;
-    if (!el) return;
-    const clamped = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
-    if (clamped === currentIndex) return;
+    if (!el || liveVideoPosts.length === 0) return;
+    // Chegarada to'xtatish — oxirgi e'londan keyin qaytarmaydi
+    const targetIdx = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
+    if (targetIdx === currentIndex) return;
     isScrolling.current = true;
     const viewportHeight = el.getBoundingClientRect().height || window.innerHeight;
-    el.scrollTo({ top: clamped * viewportHeight, behavior: 'smooth' });
-    setCurrentIndex(clamped);
+    el.scrollTo({ top: targetIdx * viewportHeight, behavior: 'smooth' });
+    setCurrentIndex(targetIdx);
     if (wheelTimeout.current) window.clearTimeout(wheelTimeout.current);
     wheelTimeout.current = window.setTimeout(() => {
       isScrolling.current = false;
       wheelTimeout.current = null;
-    }, 800);
+    }, 600);
   }, [currentIndex, liveVideoPosts.length]);
 
   useEffect(() => {
@@ -407,31 +437,48 @@ export const VideoReelsViewer: React.FC = () => {
       if (e.key === 'Escape') return closeVideoViewer();
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const next = Math.min(currentIndex + 1, liveVideoPosts.length - 1);
-        scrollToIndex(next);
+        scrollToIndex(currentIndex + 1);
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const prev = Math.max(currentIndex - 1, 0);
-        scrollToIndex(prev);
+        scrollToIndex(currentIndex - 1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeVideoViewer, currentIndex, scrollToIndex, liveVideoPosts.length]);
+  }, [closeVideoViewer, currentIndex, scrollToIndex]);
 
   const handleWheelNav = (e: React.WheelEvent) => {
     if (isScrolling.current) return;
     const now = Date.now();
-    if (now - lastWheelTime.current < 500) return;
+    if (now - lastWheelTime.current < 400) return;
     lastWheelTime.current = now;
     const delta = e.deltaY;
-    if (delta > 80) {
-      const next = Math.min(currentIndex + 1, liveVideoPosts.length - 1);
-      if (next !== currentIndex) scrollToIndex(next);
-    } else if (delta < -80) {
-      const prev = Math.max(currentIndex - 1, 0);
-      if (prev !== currentIndex) scrollToIndex(prev);
+    if (delta > 50) {
+      scrollToIndex(currentIndex + 1);
+    } else if (delta < -50) {
+      scrollToIndex(currentIndex - 1);
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.targetTouches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isScrolling.current) return;
+    const touchEndY = e.changedTouches[0].clientY;
+    const diffY = touchStartY.current - touchEndY;
+
+    // 40px swipe threshold for up/down navigation
+    if (Math.abs(diffY) > 40) {
+      if (diffY > 0) {
+        // Swiped UP -> Next video
+        scrollToIndex(currentIndex + 1);
+      } else {
+        // Swiped DOWN -> Previous video
+        scrollToIndex(currentIndex - 1);
+      }
     }
   };
 
@@ -456,7 +503,7 @@ export const VideoReelsViewer: React.FC = () => {
           <span>Orqaga</span>
         </motion.button>
 
-        {/* Top Controls: Audio toggle & Counter */}
+        {/* Top Controls: Audio toggle */}
         <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -470,12 +517,6 @@ export const VideoReelsViewer: React.FC = () => {
               <Volume2 className="w-4 h-4 text-white" />
             )}
           </motion.button>
-
-          <div className="bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/20 shadow-lg">
-            <span className="text-white text-[12px] font-black">
-              {currentIndex + 1} / {liveVideoPosts.length}
-            </span>
-          </div>
         </div>
 
         {/* Scroll container */}
@@ -483,10 +524,11 @@ export const VideoReelsViewer: React.FC = () => {
           ref={containerRef}
           onScroll={handleScroll}
           onWheel={handleWheelNav}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
           className="w-full h-full overflow-y-scroll no-scrollbar"
           style={{
             scrollSnapType: 'y mandatory',
-            scrollBehavior: 'smooth',
             height: '100dvh',
             WebkitOverflowScrolling: 'touch',
           }}
@@ -500,6 +542,7 @@ export const VideoReelsViewer: React.FC = () => {
                 post={post}
                 isActive={idx === currentIndex}
                 globalMuted={globalMuted}
+                onUnmute={() => setGlobalMuted(false)}
               />
             </div>
           ))}

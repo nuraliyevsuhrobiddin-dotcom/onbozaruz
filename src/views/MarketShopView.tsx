@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   CreditCard,
+  Edit3,
   Factory,
   Leaf,
   MapPin,
