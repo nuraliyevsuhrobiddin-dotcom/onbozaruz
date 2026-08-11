@@ -28,27 +28,63 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   showToast,
   onLogout,
 }) => {
-
-  const [settingsForm, setSettingsForm] = useState({
-    pushNotifications: true,
-    orderUpdates: true,
-    marketingMessages: false,
-    darkMode: false,
-    showPhone: true,
-    twoFactor: false,
-    autoSaveListings: true,
-    language: "O'zbekcha",
-    currency: "So'm (UZS)",
-    deliveryRegion: "Farg'ona vodiysi",
-    paymentMethod: 'Naqd va karta',
+  // Load saved settings from localStorage or fallback to defaults
+  const [settingsForm, setSettingsForm] = useState(() => {
+    try {
+      const saved = localStorage.getItem('onbozor-app-settings');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {
+      // Fallback
+    }
+    return {
+      pushNotifications: true,
+      orderUpdates: true,
+      marketingMessages: false,
+      darkMode: false,
+      showPhone: true,
+      twoFactor: false,
+      autoSaveListings: true,
+      language: "O'zbekcha",
+      currency: "So'm (UZS)",
+      deliveryRegion: "Butun O'zbekiston",
+      paymentMethod: 'Naqd va karta',
+    };
   });
 
   const toggleSetting = (field: keyof typeof settingsForm) => {
-    setSettingsForm((prev) => ({ ...prev, [field]: !prev[field] }));
+    setSettingsForm((prev: any) => {
+      const updated = { ...prev, [field]: !prev[field] };
+      localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const updateSetting = (field: keyof typeof settingsForm, value: string) => {
-    setSettingsForm((prev) => ({ ...prev, [field]: value }));
+    setSettingsForm((prev: any) => {
+      const updated = { ...prev, [field]: value };
+      localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('onbozor-app-settings', JSON.stringify(settingsForm));
+    showToast('Sozlamalar saqlandi va yangilandi!');
+    onBack();
+  };
+
+  const handleClearCache = () => {
+    try {
+      localStorage.removeItem('onbozor-comments-cache');
+      localStorage.removeItem('onbozor-posts-cache');
+      localStorage.removeItem('onbozor-products-cache');
+      localStorage.removeItem('onbozor-profile-form');
+      showToast("Vaqtinchalik ma'lumotlar va kesh tozalandi");
+    } catch {
+      showToast("Xatolik yuz berdi");
+    }
   };
 
   const ToggleRow = ({
@@ -105,6 +141,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         </div>
       </div>
 
+      {/* Bildirishnomalar */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
         <h3 className="font-black text-sm text-[#111827] mb-2 flex items-center gap-2">
           <Bell className="w-4 h-4 text-[#E53935]" />
@@ -132,6 +169,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         </div>
       </div>
 
+      {/* Maxfiylik va xavfsizlik */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
         <h3 className="font-black text-sm text-[#111827] mb-2 flex items-center gap-2">
           <Lock className="w-4 h-4 text-[#E53935]" />
@@ -159,6 +197,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         </div>
       </div>
 
+      {/* Ilova va savdo sozlamalari */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm space-y-3">
         <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
           <Settings className="w-4 h-4 text-[#E53935]" />
@@ -166,10 +205,30 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         </h3>
 
         {[
-          { field: 'language', label: 'Til', icon: Globe, options: ["O'zbekcha", 'Русский', 'English'] },
-          { field: 'currency', label: 'Valyuta', icon: CreditCard, options: ["So'm (UZS)", 'Dollar (USD)', 'Rubl (RUB)'] },
-          { field: 'deliveryRegion', label: 'Yetkazib berish hududi', icon: Truck, options: ["Farg'ona vodiysi", "Butun O'zbekiston", 'Faqat mahalliy'] },
-          { field: 'paymentMethod', label: "To'lov usuli", icon: CreditCard, options: ['Naqd va karta', 'Faqat naqd', "Bank o'tkazma"] },
+          {
+            field: 'language',
+            label: 'Til (Language)',
+            icon: Globe,
+            options: ["O'zbekcha", 'Русский', 'English', 'Қазақша', 'Кыргызча'],
+          },
+          {
+            field: 'currency',
+            label: 'Valyuta',
+            icon: CreditCard,
+            options: ["So'm (UZS)", 'Dollar (USD)', 'Rubl (RUB)', 'Tenge (KZT)', 'Som (KGS)'],
+          },
+          {
+            field: 'deliveryRegion',
+            label: 'Yetkazib berish hududi',
+            icon: Truck,
+            options: ["Butun O'zbekiston", "Farg'ona vodiysi", 'Toshkent sh. va viloyati', 'Markaziy Osiyo / Eksport'],
+          },
+          {
+            field: 'paymentMethod',
+            label: "To'lov usuli",
+            icon: CreditCard,
+            options: ['Naqd va karta', 'Faqat naqd', "Bank o'tkazma", 'Humo / Uzcard'],
+          },
         ].map((item) => {
           const Icon = item.icon;
           return (
@@ -184,7 +243,9 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
                 className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-sm font-bold text-[#111827] outline-none focus:border-[#E53935] focus:bg-white transition-colors"
               >
                 {item.options.map((option) => (
-                  <option key={option}>{option}</option>
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
                 ))}
               </select>
             </label>
@@ -192,44 +253,47 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         })}
       </div>
 
+      {/* Tungi rejim & Vaqtinchalik ma'lumot */}
       <div className="grid grid-cols-2 gap-2">
         <button
+          type="button"
           onClick={() => {
-            setSettingsForm((prev) => {
+            setSettingsForm((prev: any) => {
               const nextDarkMode = !prev.darkMode;
+              const updated = { ...prev, darkMode: nextDarkMode };
+              localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
               showToast(nextDarkMode ? 'Tungi rejim tanlandi' : 'Yorug rejim tanlandi');
-              return { ...prev, darkMode: nextDarkMode };
+              return updated;
             });
           }}
           className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-slate-50 transition-colors"
         >
-          <Moon className="w-4 h-4" />
+          <Moon className="w-4 h-4 text-[#E53935]" />
           {settingsForm.darkMode ? 'Yorug rejim' : 'Tungi rejim'}
         </button>
         <button
-          onClick={() => {
-            window.localStorage.removeItem('onbozor-comments-cache');
-            showToast("Vaqtinchalik ma'lumotlar tozalandi");
-          }}
+          type="button"
+          onClick={handleClearCache}
           className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs shadow-sm hover:bg-slate-50 transition-colors"
         >
           Vaqtinchalik ma'lumot
         </button>
       </div>
 
+      {/* Sozlamalarni saqlash */}
       <button
-        onClick={() => {
-          showToast('Sozlamalar saqlandi!');
-          onBack();
-        }}
-        className="w-full py-3.5 rounded-[18px] bg-[#111827] hover:bg-black text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-2"
+        type="button"
+        onClick={handleSaveSettings}
+        className="w-full py-3.5 rounded-[18px] bg-[#111827] hover:bg-black text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-2 active:scale-[0.98]"
       >
-        <Save className="w-4 h-4" />
+        <Save className="w-4 h-4 text-emerald-400" />
         Sozlamalarni saqlash
       </button>
 
+      {/* Akkauntdan chiqish */}
       {onLogout && (
         <button
+          type="button"
           onClick={() => {
             if (window.confirm("Akkauntdan chiqishni tasdiqlaysizmi?")) {
               onLogout();
