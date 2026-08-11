@@ -629,14 +629,17 @@ export const VideoReelsViewer: React.FC = () => {
           ref={containerRef}
           onScroll={handleScroll}
           onWheel={handleWheelNav}
-          className="w-full h-full overflow-y-scroll no-scrollbar"
+          className="w-full h-full overflow-y-auto no-scrollbar"
           style={{
             scrollSnapType: 'y mandatory',
             height: '100dvh',
             WebkitOverflowScrolling: 'touch',
             overscrollBehaviorY: 'contain',
-          }}
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          } as React.CSSProperties}
         >
+
           {liveVideoPosts.map((post, idx) => (
             <div
               key={post.id}
