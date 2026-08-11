@@ -615,16 +615,11 @@ export const VideoReelsViewer: React.FC = () => {
           <span>Orqaga</span>
         </motion.button>
 
-        {/* Top Right Controls: Audio + counter */}
+        {/* Top Right Controls: Audio */}
         <div
           className="absolute right-4 z-30 flex items-center gap-2"
           style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
         >
-          {/* Video counter */}
-          <div className="px-2.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white text-[11px] font-black">
-            {currentIndex + 1} / {liveVideoPosts.length}
-          </div>
-
           {/* Mute toggle */}
           <motion.button
             whileTap={{ scale: 0.9 }}
