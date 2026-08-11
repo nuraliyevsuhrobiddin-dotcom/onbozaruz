@@ -665,24 +665,6 @@ export const VideoReelsViewer: React.FC = () => {
           ))}
         </div>
 
-        {/* Bottom dot navigation indicator */}
-        {liveVideoPosts.length > 1 && liveVideoPosts.length <= 10 && (
-          <div
-            className="absolute right-3 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1.5"
-          >
-            {liveVideoPosts.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => scrollToIndex(idx)}
-                className={`rounded-full transition-all duration-300 ${
-                  idx === currentIndex
-                    ? 'w-1.5 h-5 bg-white'
-                    : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/70'
-                }`}
-              />
-            ))}
-          </div>
-        )}
       </motion.div>
     </AnimatePresence>
   );
