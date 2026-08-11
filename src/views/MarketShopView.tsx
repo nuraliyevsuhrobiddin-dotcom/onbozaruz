@@ -125,39 +125,102 @@ export const MarketShopView: React.FC = () => {
     addToCart(product);
   };
 
+  // ─── Telegram xabar yuborish ──────────────────────────────────────────────
+  const sendTelegramMessage = async (chatId: string, text: string) => {
+    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+    if (!botToken || !chatId) return;
+    const cleanChatId = chatId.replace(/^@/, '').replace(/\s+/g, '');
+    if (!cleanChatId) return;
+    try {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: cleanChatId,
+          text,
+          parse_mode: 'HTML',
+        }),
+      });
+    } catch {
+      // Telegram xatosi buyurtmani to'xtatmasin
+    }
+  };
+
   const handleOrder = async () => {
     if (!cartCount) return;
     if (!checkoutForm.name || !checkoutForm.phone || !checkoutForm.address) {
       showToast('Buyurtma uchun ism, telefon va manzilni kiriting');
       return;
     }
+
+    const adminChatId = import.meta.env.VITE_TELEGRAM_WEBHOOK_URL || '';
+    const orderTime = new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' });
+
+    // ── Har bir mahsulot uchun buyurtma ──
     try {
       await Promise.all(
-        cartItems.map((item, idx) =>
-          addOrder({
+        cartItems.map(async (item, idx) => {
+          const product = item.product;
+          const lineTotal = formatMoney(product.numericPrice * item.quantity);
+
+          // 1. DB ga saqlash
+          await addOrder({
             id: `ord-${Date.now()}-${idx}`,
             userId: currentUser?.id,
-            productName: item.product.title,
-            sellerName: item.product.seller,
-            sellerPhone: '+998 90 123 45 67',
-            image: getProductImage(item.product),
-            totalPrice: formatMoney(item.product.numericPrice * item.quantity),
+            productName: product.title,
+            sellerName: product.seller,
+            sellerPhone: product.telegram || '+998 90 123 45 67',
+            image: getProductImage(product),
+            totalPrice: lineTotal,
             quantity: `${item.quantity} dona`,
             status: 'Qabul qilindi',
             statusStep: 1,
             date: 'Hozirgina',
-          })
-        )
+          });
+
+          // 2. Sotuvchining Telegram'iga xabar
+          if (product.telegram) {
+            const sellerMsg =
+              `🛒 <b>Yangi buyurtma keldi!</b>\n\n` +
+              `📦 <b>Mahsulot:</b> ${product.title}\n` +
+              `🔢 <b>Miqdor:</b> ${item.quantity} dona\n` +
+              `💰 <b>Narx:</b> ${lineTotal}\n\n` +
+              `👤 <b>Xaridor:</b> ${checkoutForm.name}\n` +
+              `📞 <b>Telefon:</b> ${checkoutForm.phone}\n` +
+              `📍 <b>Manzil:</b> ${checkoutForm.address}\n\n` +
+              `🕐 <b>Vaqt:</b> ${orderTime}\n` +
+              `🟢 <b>OnBozar Market</b> orqali buyurtma`;
+            await sendTelegramMessage(product.telegram, sellerMsg);
+          }
+
+          // 3. Admin Telegram'iga xabar
+          if (adminChatId) {
+            const adminMsg =
+              `🔔 <b>OnBozar — Yangi buyurtma!</b>\n\n` +
+              `📦 <b>Mahsulot:</b> ${product.title}\n` +
+              `👤 <b>Sotuvchi:</b> ${product.seller}\n` +
+              `🔢 <b>Miqdor:</b> ${item.quantity} dona\n` +
+              `💰 <b>Summa:</b> ${lineTotal}\n\n` +
+              `🛍 <b>Xaridor:</b> ${checkoutForm.name}\n` +
+              `📞 <b>Tel:</b> ${checkoutForm.phone}\n` +
+              `📍 <b>Manzil:</b> ${checkoutForm.address}\n` +
+              `🆔 <b>User ID:</b> ${currentUser?.id || 'Nomaʼlum'}\n\n` +
+              `🕐 <b>Vaqt:</b> ${orderTime}`;
+            await sendTelegramMessage(adminChatId, adminMsg);
+          }
+        })
       );
     } catch {
       showToast("Buyurtma saqlanmadi. Internet aloqasini tekshirib qayta urinib ko'ring.");
       return;
     }
+
     showToast(`✅ Buyurtma qabul qilindi: ${formatMoney(total)}`);
     clearCart();
     setCheckoutForm({ name: '', phone: '', address: '' });
     setIsCartOpen(false);
   };
+
 
   // ─── Cart View ─────────────────────────────────────────────────────────────
   if (isCartOpen) {
