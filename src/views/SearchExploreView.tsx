@@ -13,49 +13,60 @@ import { Post } from '../api/types';
    ───────────────────────────────────────────── */
 const VideoThumbnail: React.FC<{
   src: string;
+  poster?: string;
   alt: string;
   isHovered?: boolean;
-}> = ({ src, alt, isHovered = false }) => {
+}> = ({ src, poster, alt, isHovered = false }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [capturedPoster, setCapturedPoster] = useState<string>(poster || '');
   const [hasError, setHasError] = useState(false);
 
-  // Set 0.5s frame position on load if browser didn't seek automatically
+  // Extract thumbnail frame on video metadata seeked
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    if (capturedPoster) return;
+    const video = document.createElement('video');
+    video.src = src.includes('#t=') ? src : `${src}#t=0.5`;
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = 'anonymous';
 
-    const handleLoadedMetadata = () => {
-      if (video.currentTime === 0) {
-        try {
-          video.currentTime = 0.5;
-        } catch {
-          // Ignore seek errors
+    const capture = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 360;
+        canvas.height = video.videoHeight || 640;
+        const ctx = canvas.getContext('2d');
+        if (ctx && canvas.width > 0 && canvas.height > 0) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          if (dataUrl && dataUrl.length > 500) {
+            setCapturedPoster(dataUrl);
+          }
         }
+      } catch {
+        // Ignore capture errors
       }
     };
 
-    video.addEventListener('loadedmetadata', handleLoadedMetadata);
-    if (video.readyState >= 1 && video.currentTime === 0) {
-      handleLoadedMetadata();
-    }
-
-    return () => {
-      video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    video.onloadedmetadata = () => {
+      try {
+        video.currentTime = 0.5;
+      } catch {
+        capture();
+      }
     };
-  }, [src]);
+    video.onseeked = capture;
+    video.onloadeddata = capture;
+  }, [src, capturedPoster]);
 
-  // Play on hover, pause when unhovered
+  // Hover play / pause
   useEffect(() => {
     const video = videoRef.current;
     if (!video || hasError) return;
 
     if (isHovered) {
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          // Ignore autoplay restriction errors
-        });
-      }
+      const p = video.play();
+      if (p !== undefined) p.catch(() => undefined);
     } else {
       video.pause();
     }
@@ -64,27 +75,36 @@ const VideoThumbnail: React.FC<{
   if (hasError) {
     return (
       <div className="w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex flex-col items-center justify-center p-3 text-center">
-        <Video className="w-7 h-7 text-rose-400 mb-1" />
+        <Video className="w-7 h-7 text-red-400 mb-1" />
         <span className="text-[10px] text-slate-300 font-medium truncate max-w-full">{alt}</span>
       </div>
     );
   }
 
-  // Media fragment #t=0.5 forces modern browsers to decode 0.5s frame natively as poster
-  const videoSrc = src.includes('#t=') ? src : `${src}#t=0.5`;
+  const effectivePoster = capturedPoster || poster;
 
   return (
-    <div className="w-full h-full relative bg-slate-900 overflow-hidden">
-      <video
-        ref={videoRef}
-        src={videoSrc}
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        onError={() => setHasError(true)}
-        className="w-full h-full object-cover pointer-events-none"
-      />
+    <div className="w-full h-full relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+      {effectivePoster ? (
+        <img
+          src={effectivePoster}
+          alt={alt}
+          loading="lazy"
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onError={() => setCapturedPoster('')}
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          src={src.includes('#t=') ? src : `${src}#t=0.5`}
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onError={() => setHasError(true)}
+          className="w-full h-full object-cover pointer-events-none"
+        />
+      )}
     </div>
   );
 };
@@ -99,9 +119,14 @@ const ExploreCard: React.FC<{
   onClick: () => void;
 }> = ({ post, idx, isLarge, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const isVideo = post.type === 'video' || post.mediaUrl.endsWith('.mp4') || post.mediaUrl.endsWith('.webm') || post.mediaUrl.includes('data:video');
-  const hasPoster = !!(post.posterUrl && post.posterUrl.trim() !== '');
-  const hasImage = !!(post.mediaUrl && post.mediaUrl.trim() !== '' && !isVideo);
+  const [imgError, setImgError] = useState(false);
+  const isVideo =
+    post.type === 'video' ||
+    post.mediaUrl.endsWith('.mp4') ||
+    post.mediaUrl.endsWith('.webm') ||
+    post.mediaUrl.includes('data:video');
+
+  const posterSrc = post.posterUrl && post.posterUrl.trim() !== '' ? post.posterUrl : undefined;
 
   return (
     <motion.div
@@ -112,38 +137,31 @@ const ExploreCard: React.FC<{
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`relative bg-slate-900 overflow-hidden cursor-pointer group rounded-xl shadow-sm ${
+      className={`relative bg-[#111827] overflow-hidden cursor-pointer group rounded-xl shadow-sm ${
         isLarge ? 'row-span-2' : ''
       }`}
       style={{ aspectRatio: isLarge ? '1/2' : '1/1' }}
     >
       {/* ── Media ── */}
-      {isVideo && hasPoster ? (
-        /* Video + poster mavjud */
-        <img
-          src={post.posterUrl}
+      {isVideo ? (
+        <VideoThumbnail
+          src={post.mediaUrl}
+          poster={posterSrc}
           alt={post.title}
-          loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          isHovered={isHovered}
         />
-      ) : isVideo && !hasPoster ? (
-        /* Video, poster yo'q → video elementdan thumbnail */
-        <div className="w-full h-full group-hover:scale-105 transition-transform duration-500">
-          <VideoThumbnail src={post.mediaUrl} alt={post.title} isHovered={isHovered} />
-        </div>
-      ) : hasImage ? (
-        /* Rasm */
+      ) : !imgError && post.mediaUrl ? (
         <img
           src={post.mediaUrl}
           alt={post.title}
           loading="lazy"
+          onError={() => setImgError(true)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
       ) : (
-        /* Fallback placeholder */
         <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center p-2 text-center">
-          <ImageIcon className="w-8 h-8 text-slate-600 mb-1" />
-          <span className="text-[10px] text-slate-400 font-semibold truncate max-w-full">{post.title}</span>
+          <ImageIcon className="w-8 h-8 text-slate-500 mb-1" />
+          <span className="text-[10px] text-slate-300 font-semibold truncate max-w-full">{post.title}</span>
         </div>
       )}
 

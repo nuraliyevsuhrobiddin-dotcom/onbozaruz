@@ -152,16 +152,31 @@ export function useCreatePostForm() {
         video.src = previewUrl;
         video.muted = true;
         video.playsInline = true;
-        video.onloadeddata = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 360;
-          canvas.height = video.videoHeight || 640;
-          const context = canvas.getContext('2d');
-          if (context) {
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            setSelectedPosterUrl(canvas.toDataURL('image/jpeg', 0.78));
+        video.crossOrigin = 'anonymous';
+
+        const captureFrame = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 480;
+            canvas.height = video.videoHeight || 640;
+            const ctx = canvas.getContext('2d');
+            if (ctx && canvas.width > 0 && canvas.height > 0) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              if (dataUrl && dataUrl.length > 500) {
+                setSelectedPosterUrl(dataUrl);
+              }
+            }
+          } catch {
+            // Ignore canvas taint or capture errors
           }
         };
+
+        video.onloadedmetadata = () => {
+          video.currentTime = Math.min(0.5, (video.duration || 1) / 2);
+        };
+        video.onseeked = captureFrame;
+        video.onloadeddata = captureFrame;
         video.onerror = () => setSelectedPosterUrl('');
       } else {
         setSelectedPosterUrl('');
