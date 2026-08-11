@@ -139,7 +139,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
           selectedFiles.map((file, idx) =>
             uploadListingMedia(
               file,
-              `market/${currentUser.id}/prod-${Date.now()}-${idx}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+              `${currentUser.id}/market-prod-${Date.now()}-${idx}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
               file.type || 'image/jpeg'
             )
           )

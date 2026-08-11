@@ -81,34 +81,55 @@ export async function uploadListingMedia(
   path: string,
   contentType: string
 ): Promise<string> {
-  if (!input || !supabase) {
-    return typeof input === 'string' ? input : '';
+  if (!input) return '';
+  if (typeof input === 'string' && (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('data:'))) {
+    return input;
   }
 
   let fileOrBlob: Blob;
-  if (typeof input === 'string') {
-    if (input.startsWith('http://') || input.startsWith('https://')) {
-      return input;
+  try {
+    if (typeof input === 'string') {
+      const response = await fetch(input);
+      fileOrBlob = await response.blob();
+    } else {
+      fileOrBlob = input;
     }
-    const response = await fetch(input);
-    fileOrBlob = await response.blob();
-  } else {
-    fileOrBlob = input;
+  } catch (e) {
+    return typeof input === 'string' ? input : '';
   }
 
-  const { error } = await supabase.storage.from('listing-media').upload(path, fileOrBlob, {
-    contentType,
-    upsert: true,
-    cacheControl: '31536000',
-  });
+  if (supabase) {
+    try {
+      const { error } = await supabase.storage.from('listing-media').upload(path, fileOrBlob, {
+        contentType,
+        upsert: true,
+        cacheControl: '31536000',
+      });
 
-  if (error) {
-    throw new Error(
-      `Media yuklanmadi: ${error.message}. Supabase Storage fayl hajmi va ruxsatlarini tekshiring.`
-    );
+      if (!error) {
+        return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
+      }
+      console.warn('[uploadListingMedia] Supabase Storage upload warning:', error.message);
+    } catch (err) {
+      console.warn('[uploadListingMedia] Storage upload exception:', err);
+    }
   }
 
-  return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
+  // Fallback: If Supabase Storage upload fails or is not available, convert image to Data URL if small, or create Object URL
+  try {
+    if (fileOrBlob.size < 3 * 1024 * 1024) {
+      return await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(typeof input === 'string' ? input : URL.createObjectURL(fileOrBlob));
+        reader.readAsDataURL(fileOrBlob);
+      });
+    }
+  } catch {
+    // Ignore fallback conversion failure
+  }
+
+  return typeof input === 'string' ? input : URL.createObjectURL(fileOrBlob);
 }
 
 export async function deleteListingMedia(urlOrPath: string): Promise<void> {

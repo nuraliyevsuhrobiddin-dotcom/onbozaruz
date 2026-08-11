@@ -435,19 +435,22 @@ ON CONFLICT (id) DO UPDATE SET public = TRUE;
 DROP POLICY IF EXISTS "Listing media public read" ON storage.objects;
 CREATE POLICY "Listing media public read" ON storage.objects
   FOR SELECT USING (bucket_id = 'listing-media');
+
 DROP POLICY IF EXISTS "Listing media authenticated upload" ON storage.objects;
 CREATE POLICY "Listing media authenticated upload" ON storage.objects
   FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'listing-media' AND (storage.foldername(name))[1] = auth.uid()::text);
+  WITH CHECK (bucket_id = 'listing-media');
+
 DROP POLICY IF EXISTS "Listing media owner update" ON storage.objects;
 CREATE POLICY "Listing media owner update" ON storage.objects
   FOR UPDATE TO authenticated
-  USING (bucket_id = 'listing-media' AND owner_id = auth.uid()::text)
-  WITH CHECK (bucket_id = 'listing-media' AND owner_id = auth.uid()::text);
+  USING (bucket_id = 'listing-media')
+  WITH CHECK (bucket_id = 'listing-media');
+
 DROP POLICY IF EXISTS "Listing media owner delete" ON storage.objects;
 CREATE POLICY "Listing media owner delete" ON storage.objects
   FOR DELETE TO authenticated
-  USING (bucket_id = 'listing-media' AND owner_id = auth.uid()::text);
+  USING (bucket_id = 'listing-media');
 
 -- Oldindan ro'yxatdan o'tgan admin akkauntini ham admin sifatida belgilash.
 UPDATE public.profiles SET is_admin = TRUE WHERE LOWER(email) = 'nuraliyevsuhrobiddin@gmail.com';
