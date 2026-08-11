@@ -359,24 +359,31 @@ CREATE POLICY "Audit loglarni faqat admin yaratadi" ON public.audit_logs FOR INS
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Tasdiqlangan mahsulotlarni barcha ko'radi" ON public.products;
 CREATE POLICY "Tasdiqlangan mahsulotlarni barcha ko'radi" ON public.products FOR SELECT USING (
-  approval_status = 'approved' OR submitted_by = auth.uid()::text
+  approval_status = 'approved'
+  OR auth.uid()::text = submitted_by
+  OR seller_id = auth.uid()
+  OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
 );
 DROP POLICY IF EXISTS "Mahsulot qo'shish" ON public.products;
 CREATE POLICY "Mahsulot qo'shish" ON public.products FOR INSERT WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND is_admin = true
+  auth.uid() IS NOT NULL AND (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND is_admin = true
+    )
+    OR auth.uid()::text = submitted_by
+    OR seller_id = auth.uid()
   )
 );
 DROP POLICY IF EXISTS "Mahsulotni o'chirish yoki yangilash" ON public.products;
 CREATE POLICY "Mahsulotni o'chirish yoki yangilash" ON public.products FOR UPDATE USING (
-  seller_id = auth.uid() OR submitted_by = auth.uid()::text OR EXISTS (
+  seller_id = auth.uid() OR auth.uid()::text = submitted_by OR EXISTS (
     SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
   )
 );
 DROP POLICY IF EXISTS "Mahsulotni o'chirish" ON public.products;
 CREATE POLICY "Mahsulotni o'chirish" ON public.products FOR DELETE USING (
-  seller_id = auth.uid() OR submitted_by = auth.uid()::text OR EXISTS (
+  seller_id = auth.uid() OR auth.uid()::text = submitted_by OR EXISTS (
     SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
   )
 );

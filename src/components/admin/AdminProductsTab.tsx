@@ -125,58 +125,61 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
       showToast("Mahsulot nomi va narxini kiriting");
       return;
     }
+    if (!currentUser) {
+      showToast("⛔ Mahsulot qo'shish uchun tizimga kiring");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      // 1. Upload local selected files to Supabase Storage
+      // 1. Upload local selected files directly (File objects → Supabase Storage)
       let uploadedUrls: string[] = [];
-      if (selectedFiles.length > 0 && currentUser) {
+      if (selectedFiles.length > 0) {
         uploadedUrls = await Promise.all(
           selectedFiles.map((file, idx) =>
             uploadListingMedia(
-              URL.createObjectURL(file),
-              `market/${currentUser.id}/prod-${Date.now()}-${idx}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '')}`,
+              file,
+              `market/${currentUser.id}/prod-${Date.now()}-${idx}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
               file.type || 'image/jpeg'
             )
           )
         );
       }
 
-      // Combine uploaded Storage URLs with pasted URL previews
+      // 2. URL maydoniga yozilgan rasmlarni qo'shish
       const urlPreviews = previewUrls.filter((u) => u.startsWith('http://') || u.startsWith('https://'));
       const finalImages = [...uploadedUrls, ...urlPreviews];
       const mainImage = finalImages[0] || 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80';
 
-      const newProd: Product = {
-        id: `prod-${Date.now()}`,
-        sellerId: currentUser?.id,
-        title: form.title,
-        seller: form.seller || 'Shartnomali hamkor',
+      // 3. Mahsulot ob'ekti — id berilmaydi (Supabase UUID qaytaradi)
+      const newProd: Omit<Product, 'id' | 'rating' | 'reviewsCount'> & { id?: string; rating?: number; reviewsCount?: number } = {
+        sellerId: currentUser.id,
+        title: form.title.trim(),
+        seller: (form.seller || currentUser.name || 'Shartnomali hamkor').trim(),
         verified: true,
         approvalStatus: 'approved',
         source: 'admin',
         approvedAt: new Date().toISOString(),
+        submittedAt: new Date().toISOString(),
+        submittedBy: currentUser.id,
         category: form.category,
-        price: form.price,
+        price: form.price.trim(),
         numericPrice: Number(form.numericPrice),
         image: mainImage,
         images: finalImages.length > 0 ? finalImages : [mainImage],
-        description: form.description || undefined,
-        features: form.features || undefined,
-        rating: 5,
-        reviewsCount: 0,
+        description: form.description?.trim() || '',
+        features: form.features?.trim() || '',
         minOrder: form.minOrder || '1 dona',
-        discount: form.discount || undefined,
+        discount: form.discount?.trim() || '',
         location: form.location,
-        submittedBy: currentUser?.id,
       };
 
-      await addProduct(newProd);
-      await onLogAction('create_product', newProd.id, null, newProd);
+      await addProduct(newProd as Product);
+      await onLogAction('create_product', newProd.title, null, newProd);
       showToast("✅ Marketga yangi mahsulot muvaffaqiyatli joylandi!");
       setIsAddModalOpen(false);
 
-      // Reset form
+      // Formni tozalash
       setSelectedFiles([]);
       setPreviewUrls([]);
       setForm({
@@ -192,7 +195,9 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
         discount: '',
       });
     } catch (err: any) {
-      showToast(err.message || 'Xatolik yuz berdi');
+      console.error('[AdminProductsTab] handleAddSubmit error:', err);
+      const msg = err?.message || String(err) || 'Noma\'lum xatolik yuz berdi';
+      showToast(`❌ Xatolik: ${msg}`);
     } finally {
       setIsSubmitting(false);
     }

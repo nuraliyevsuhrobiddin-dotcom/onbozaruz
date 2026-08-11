@@ -591,7 +591,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       addProduct: async (newProduct) => {
         if (!get().isAdminUser) {
-          throw new Error('Market mahsulotini faqat admin qo\'sha oladi');
+          throw new Error('Market mahsulotini faqat admin qo\'sha oladi. Iltimos, admin hisobidan kiring.');
         }
 
         const input: CreateProductInput = {
@@ -608,6 +608,8 @@ export const useAgroStore = create<AgroStoreState>()(
           discount: newProduct.discount,
           location: newProduct.location,
           telegram: newProduct.telegram,
+          description: newProduct.description,
+          features: newProduct.features,
           approvalStatus: newProduct.approvalStatus,
           source: newProduct.source,
           submittedBy: newProduct.submittedBy,
@@ -616,7 +618,9 @@ export const useAgroStore = create<AgroStoreState>()(
           rejectedAt: newProduct.rejectedAt,
         };
 
+        console.log('[addProduct] Supabase ga yuborilmoqda:', input);
         const created = await productsRepository.create(input);
+        console.log('[addProduct] Supabase dan qaytdi:', created);
         set((state) => ({
           products: [created, ...state.products],
           toastMessage:
