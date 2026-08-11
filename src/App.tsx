@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence, type Transition } from 'framer-motion';
-import { useAgroStore, type NavTab } from './store/useAgroStore';
+import { useAgroStore, type NavTab, type SubView } from './store/useAgroStore';
+
 import { InstagramHeader } from './components/InstagramHeader';
 import { InstagramBottomNav } from './components/InstagramBottomNav';
 import { DesktopLeftSidebar } from './components/DesktopLeftSidebar';
@@ -100,39 +101,54 @@ export default function App() {
     });
   }, [clearSession, isAuthCallback, restoreSession]);
 
+  // ─── Single Page App History & Phone Back Button Handler ─────────────────
+  const { activeSubView } = useAgroStore();
+
+  // Push new history state whenever activeTab or activeSubView changes
   useEffect(() => {
-    if (!isAuthenticated) return;
-    const validTabs: NavTab[] = ['home', 'search', 'market', 'profile', 'admin'];
+    if (isAuthCallback) return;
 
-    const parseHash = (): NavTab => {
-      const tab = window.location.hash.replace(/^#/, '') as NavTab;
-      return validTabs.includes(tab) ? tab : 'home';
-    };
+    const currentSubView = useAgroStore.getState().activeSubView;
+    const nextHash = currentSubView ? `#${activeTab}/${currentSubView}` : `#${activeTab}`;
 
-    const handleHashChange = () => {
-      const nextTab = parseHash();
-      const currentTab = useAgroStore.getState().activeTab;
-      if (nextTab !== currentTab) {
-        setActiveTab(nextTab);
+    if (window.location.hash !== nextHash) {
+      window.history.pushState(
+        { tab: activeTab, subView: currentSubView },
+        '',
+        nextHash
+      );
+    }
+  }, [activeTab, activeSubView, isAuthCallback]);
+
+  // Handle hardware / browser back button (popstate)
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const state = event.state as { tab?: NavTab; subView?: SubView } | null;
+      const { activeTab: currentTab, activeSubView: currentSubView } = useAgroStore.getState();
+
+      // If state is provided from history pop
+      if (state) {
+        if (state.subView !== currentSubView) {
+          setActiveSubView(state.subView || null);
+        }
+        if (state.tab && state.tab !== currentTab) {
+          setActiveTab(state.tab);
+        }
+        return;
+      }
+
+      // Fallback if no history state (e.g. hash manually changed or direct back)
+      if (currentSubView) {
+        setActiveSubView(null);
+      } else if (currentTab !== 'home') {
+        setActiveTab('home');
       }
     };
 
-    const initialTab = parseHash();
-    if (initialTab !== useAgroStore.getState().activeTab) {
-      setActiveTab(initialTab);
-    }
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setActiveSubView, setActiveTab]);
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isAuthenticated, setActiveTab]);
-
-  useEffect(() => {
-    if (isAuthCallback) return;
-    const nextHash = `#${activeTab}`;
-    if (window.location.hash !== nextHash) {
-      window.history.replaceState(null, '', nextHash);
-    }
-  }, [activeTab, isAuthCallback]);
 
   if (isAuthCallback) {
     return (
