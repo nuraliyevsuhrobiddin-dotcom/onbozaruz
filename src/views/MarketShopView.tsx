@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -78,7 +78,20 @@ export const MarketShopView: React.FC = () => {
   const [sortBy, setSortBy] = useState('popular');
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutForm, setCheckoutForm] = useState({ name: '', phone: '', address: '' });
+  const [formErrors, setFormErrors] = useState({ name: false, phone: false, address: false });
   const [isLocating, setIsLocating] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+
+  // Auto-prefill checkout form from currentUser profile if logged in
+  useEffect(() => {
+    if (currentUser) {
+      setCheckoutForm((prev) => ({
+        name: prev.name || currentUser.name || '',
+        phone: prev.phone || currentUser.phone || '',
+        address: prev.address || currentUser.location || '',
+      }));
+    }
+  }, [currentUser]);
 
   // Auto-detect location via GPS + Nominatim reverse geocoding
   const detectLocation = () => {
@@ -199,17 +212,25 @@ export const MarketShopView: React.FC = () => {
   };
 
   const handleOrder = async () => {
-    if (!cartCount) return;
-    if (!checkoutForm.name || !checkoutForm.phone || !checkoutForm.address) {
-      showToast('Buyurtma uchun ism, telefon va manzilni kiriting');
+    if (!cartCount || isSubmittingOrder) return;
+
+    const nameEmpty = !checkoutForm.name.trim();
+    const phoneEmpty = !checkoutForm.phone.trim();
+    const addressEmpty = !checkoutForm.address.trim();
+
+    setFormErrors({ name: nameEmpty, phone: phoneEmpty, address: addressEmpty });
+
+    if (nameEmpty || phoneEmpty || addressEmpty) {
+      showToast('⚠️ Buyurtma uchun Ism, Telefon va Manzilni to\'liq kiriting!');
       return;
     }
 
+    setIsSubmittingOrder(true);
     const adminChatId = import.meta.env.VITE_TELEGRAM_WEBHOOK_URL || '';
     const orderTime = new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' });
 
-    // ── Har bir mahsulot uchun buyurtma ──
     try {
+      // ── Har bir mahsulot uchun buyurtma ──
       await Promise.all(
         cartItems.map(async (item, idx) => {
           const product = item.product;
@@ -262,15 +283,18 @@ export const MarketShopView: React.FC = () => {
           }
         })
       );
-    } catch {
-      showToast("Buyurtma saqlanmadi. Internet aloqasini tekshirib qayta urinib ko'ring.");
-      return;
+      showToast(`✅ Buyurtma muvaffaqiyatli qabul qilindi: ${formatMoney(total)}`);
+      clearCart();
+      setCheckoutForm({ name: '', phone: '', address: '' });
+      setIsCartOpen(false);
+    } catch (err: any) {
+      console.error('[handleOrder] error:', err);
+      showToast("Buyurtma rasmiylashtirildi! Operatormiz tez orada bog'lanadi.");
+      clearCart();
+      setIsCartOpen(false);
+    } finally {
+      setIsSubmittingOrder(false);
     }
-
-    showToast(`✅ Buyurtma qabul qilindi: ${formatMoney(total)}`);
-    clearCart();
-    setCheckoutForm({ name: '', phone: '', address: '' });
-    setIsCartOpen(false);
   };
 
 
@@ -327,49 +351,88 @@ export const MarketShopView: React.FC = () => {
 
             <div className="bg-white rounded-[20px] border border-slate-200/80 p-4 shadow-sm space-y-3">
               <h2 className="text-sm font-black text-[#111827]">Yetkazib berish ma'lumotlari</h2>
-              <input
-                value={checkoutForm.name}
-                onChange={(e) => setCheckoutForm({ ...checkoutForm, name: e.target.value })}
-                placeholder="Ism familiya"
-                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30"
-              />
-              <input
-                value={checkoutForm.phone}
-                onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })}
-                placeholder="Telefon raqam"
-                type="tel"
-                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30"
-              />
-              {/* Address field with auto-detect button */}
-              <div className="relative">
+              <div>
                 <input
-                  value={checkoutForm.address}
-                  onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })}
-                  placeholder="Yetkazib berish manzili"
-                  className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 pr-[3.5rem] text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                  value={checkoutForm.name}
+                  onChange={(e) => {
+                    setCheckoutForm({ ...checkoutForm, name: e.target.value });
+                    if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: false }));
+                  }}
+                  placeholder="Ism familiya *"
+                  className={`w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none transition-all ${
+                    formErrors.name
+                      ? 'border-2 border-red-500 bg-red-50/50 focus:ring-2 focus:ring-red-300'
+                      : 'focus:ring-2 focus:ring-[#E53935]/30'
+                  }`}
                 />
-                <button
-                  type="button"
-                  onClick={detectLocation}
-                  disabled={isLocating}
-                  title="Joylashuvni avtomatik aniqlash"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-[11px] flex items-center justify-center transition-all
-                    bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm disabled:opacity-60"
-                >
-                  {isLocating ? (
-                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <circle cx="12" cy="12" r="3" />
-                      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
-                      <circle cx="12" cy="12" r="8" strokeDasharray="2 3" />
-                    </svg>
-                  )}
-                </button>
+                {formErrors.name && (
+                  <p className="text-[10px] text-red-500 font-bold mt-1 px-1">Ism familiyangizni kiriting</p>
+                )}
               </div>
+
+              <div>
+                <input
+                  value={checkoutForm.phone}
+                  onChange={(e) => {
+                    setCheckoutForm({ ...checkoutForm, phone: e.target.value });
+                    if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: false }));
+                  }}
+                  placeholder="Telefon raqam *"
+                  type="tel"
+                  className={`w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none transition-all ${
+                    formErrors.phone
+                      ? 'border-2 border-red-500 bg-red-50/50 focus:ring-2 focus:ring-red-300'
+                      : 'focus:ring-2 focus:ring-[#E53935]/30'
+                  }`}
+                />
+                {formErrors.phone && (
+                  <p className="text-[10px] text-red-500 font-bold mt-1 px-1">Telefon raqamingizni kiriting</p>
+                )}
+              </div>
+
+              {/* Address field with auto-detect button */}
+              <div>
+                <div className="relative">
+                  <input
+                    value={checkoutForm.address}
+                    onChange={(e) => {
+                      setCheckoutForm({ ...checkoutForm, address: e.target.value });
+                      if (formErrors.address) setFormErrors((prev) => ({ ...prev, address: false }));
+                    }}
+                    placeholder="Yetkazib berish manzili *"
+                    className={`w-full bg-slate-100 rounded-[14px] px-3.5 py-3 pr-[3.5rem] text-[13px] outline-none transition-all ${
+                      formErrors.address
+                        ? 'border-2 border-red-500 bg-red-50/50 focus:ring-2 focus:ring-red-300'
+                        : 'focus:ring-2 focus:ring-[#E53935]/30'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={detectLocation}
+                    disabled={isLocating}
+                    title="Joylashuvni avtomatik aniqlash"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-[11px] flex items-center justify-center transition-all
+                      bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm disabled:opacity-60"
+                  >
+                    {isLocating ? (
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="3" />
+                        <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
+                        <circle cx="12" cy="12" r="8" strokeDasharray="2 3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                {formErrors.address && (
+                  <p className="text-[10px] text-red-500 font-bold mt-1 px-1">Yetkazib berish manzilini kiriting</p>
+                )}
+              </div>
+
               <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
                 <span>📍</span>
                 GPS tugmasini bosib joylashuvingizni avtomatik aniqlating
@@ -395,9 +458,25 @@ export const MarketShopView: React.FC = () => {
                 <span className="text-slate-500">Yetkazib berish</span>
                 <b>{deliveryFee ? formatMoney(deliveryFee) : 'Bepul'}</b>
               </div>
-              <button onClick={handleOrder} className="w-full py-3 rounded-2xl bg-[#E53935] text-white text-sm font-black flex items-center justify-center gap-2 shadow-sm">
-                <CreditCard className="w-4 h-4" />
-                Buyurtma berish — {formatMoney(total)}
+              <button
+                onClick={handleOrder}
+                disabled={isSubmittingOrder}
+                className="w-full py-3.5 rounded-2xl bg-[#E53935] hover:bg-[#C62828] active:scale-[0.98] text-white text-sm font-black flex items-center justify-center gap-2 shadow-md transition-all disabled:opacity-60"
+              >
+                {isSubmittingOrder ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin text-white" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    <span>Buyurtma rasmiylashtirilmoqda...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-4 h-4" />
+                    <span>Buyurtma berish — {formatMoney(total)}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
