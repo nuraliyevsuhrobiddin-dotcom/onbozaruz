@@ -199,6 +199,8 @@ export interface AuthResult {
   ok: boolean;
   user?: AuthUser;
   error?: string;
+  successMessage?: string;
+  requiresConfirmation?: boolean;
 }
 
 // ---------- Mock Auth (localStorage) ----------
@@ -383,49 +385,77 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
   try {
     if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
 
+    const cleanHandle = fields.handle
+      .trim()
+      .toLowerCase()
+      .replace(/^@/, '')
+      .replace(/[^a-z0-9_]/g, '') || `user_${Date.now().toString().slice(-5)}`;
+
     const { data, error } = await supabase.auth.signUp({
-      email: fields.email,
+      email: fields.email.trim().toLowerCase(),
       password: fields.password,
       options: {
         emailRedirectTo: getAuthCallbackUrl(),
         data: {
-          name: fields.name,
-          handle: fields.handle,
-          phone: fields.phone,
-          location: fields.location,
-          businessName: fields.businessName,
-          role: fields.role,
+          name: fields.name.trim(),
+          handle: cleanHandle,
+          phone: fields.phone.trim(),
+          location: fields.location || '',
+          businessName: fields.businessName || '',
+          role: fields.role || 'seller',
         },
       },
     });
 
     if (error) {
-      const normalized = error.message.toLowerCase().includes('rate limit')
-        ? "Email yuborish limiti tugagan. Bir ozdan keyin qayta urinib ko'ring yoki Supabase Auth sozlamalarida SMTP ulang."
-        : error.message;
+      let normalized = error.message;
+      if (error.message.toLowerCase().includes('rate limit')) {
+        normalized = "Email yuborish limiti tugagan. Bir ozdan keyin qayta urinib ko'ring yoki kiring.";
+      } else if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')) {
+        normalized = "Ushbu email bilan allaqachon ro'yxatdan o'tilgan. Iltimos, tizimga kiring.";
+      }
       return { ok: false, error: normalized };
     }
     if (!data.user) return { ok: false, error: 'Foydalanuvchi yaratilmadi.' };
 
-    if (!data.session) {
-      return {
-        ok: false,
-        error: "Ro'yxatdan o'tish muvaffaqiyatli. Emailingizga yuborilgan tasdiqlash havolasini bosing, keyin kiring.",
+    // Update profile table directly if session is created
+    if (data.session) {
+      try {
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          email: data.user.email || fields.email,
+          name: fields.name.trim(),
+          handle: cleanHandle,
+          phone: fields.phone.trim(),
+          location: fields.location || '',
+          business_name: fields.businessName || '',
+          role: fields.role || 'seller',
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // Fallback to trigger
+      }
+
+      const user: AuthUser = {
+        id: data.user.id,
+        email: data.user.email || fields.email,
+        name: fields.name.trim(),
+        handle: cleanHandle,
+        phone: fields.phone.trim(),
+        location: fields.location || '',
+        businessName: fields.businessName || '',
+        role: fields.role || 'seller',
+        createdAt: data.user.created_at,
       };
+      return { ok: true, user };
     }
 
-    const user: AuthUser = {
-      id: data.user.id,
-      email: data.user.email || fields.email,
-      name: fields.name.trim(),
-      handle: fields.handle || fields.email.split('@')[0],
-      phone: fields.phone.trim(),
-      location: fields.location || '',
-      businessName: fields.businessName || '',
-      role: fields.role || 'seller',
-      createdAt: data.user.created_at,
+    // Confirmation email sent case
+    return {
+      ok: true,
+      requiresConfirmation: true,
+      successMessage: "Ro'yxatdan o'tish muvaffaqiyatli! Emailingizga yuborilgan tasdiqlash havolasini bosing, so'ngra tizimga kiring.",
     };
-    return { ok: true, user };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
     return { ok: false, error: message };

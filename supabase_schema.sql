@@ -249,7 +249,7 @@ CREATE TRIGGER tr_protect_profile_admin_flag
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, name, handle, phone, avatar_url, role, is_admin)
+  INSERT INTO public.profiles (id, email, name, handle, phone, avatar_url, location, business_name, role, is_admin)
   VALUES (
     NEW.id,
     NEW.email,
@@ -257,6 +257,8 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'handle', SPLIT_PART(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', ''),
+    COALESCE(NEW.raw_user_meta_data->>'location', ''),
+    COALESCE(NEW.raw_user_meta_data->>'businessName', ''),
     COALESCE(NEW.raw_user_meta_data->>'role', 'seller'),
     LOWER(COALESCE(NEW.email, '')) = 'nuraliyevsuhrobiddin@gmail.com'
   )
@@ -264,6 +266,8 @@ BEGIN
     email = EXCLUDED.email,
     name = CASE WHEN public.profiles.name = '' THEN EXCLUDED.name ELSE public.profiles.name END,
     handle = CASE WHEN public.profiles.handle = '' THEN EXCLUDED.handle ELSE public.profiles.handle END,
+    location = CASE WHEN public.profiles.location = '' THEN EXCLUDED.location ELSE public.profiles.location END,
+    business_name = CASE WHEN public.profiles.business_name = '' THEN EXCLUDED.business_name ELSE public.profiles.business_name END,
     is_admin = public.profiles.is_admin OR EXCLUDED.is_admin;
   RETURN NEW;
 END;

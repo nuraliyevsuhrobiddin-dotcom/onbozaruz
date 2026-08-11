@@ -60,6 +60,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   const [signupStep, setSignupStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldError>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -80,6 +81,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
     setServerError('');
+    setSuccessMessage('');
   };
 
   const handlePhoneChange = (raw: string) => {
@@ -184,9 +186,11 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
       }
 
       if (result.ok && result.user) {
-        // Clean legacy cached forms to avoid old demo data leak
         window.localStorage.removeItem('onbozor-profile-form');
         onSuccess(result.user);
+      } else if (result.requiresConfirmation || result.successMessage) {
+        setSuccessMessage(result.successMessage || "Ro'yxatdan o'tish muvaffaqiyatli! Emailingizni tasdiqlang.");
+        setMode('login');
       } else {
         setServerError(result.error || 'Xatolik yuz berdi. Qayta urinib ko\'ring.');
       }
@@ -202,6 +206,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
     setMode(next);
     setSignupStep(1);
     setServerError('');
+    setSuccessMessage('');
     setFieldErrors({});
     setShowPassword(false);
     setShowConfirm(false);
@@ -662,8 +667,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
                 </motion.div>
               )}
 
-              {/* Server error */}
+              {/* Success / Info message */}
               <AnimatePresence>
+                {successMessage && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-start gap-2.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                    <p className="text-[13px] text-emerald-700 font-semibold leading-relaxed">{successMessage}</p>
+                  </motion.div>
+                )}
+
                 {serverError && (
                   <motion.div
                     initial={{ opacity: 0, y: -8 }}
@@ -672,7 +689,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
                     className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2.5"
                   >
                     <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                    <p className="text-[13px] text-red-600">{serverError}</p>
+                    <p className="text-[13px] text-red-600 font-medium">{serverError}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
