@@ -176,16 +176,76 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ DEF
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
 
 -- PostgREST uchun frontend ishlatadigan rollarga kerakli jadval huquqlari.
-GRANT SELECT ON public.posts, public.products, public.profiles TO anon, authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.posts, public.products TO authenticated;
-GRANT UPDATE ON public.profiles TO authenticated;
-GRANT SELECT ON public.comments TO anon, authenticated;
-GRANT INSERT ON public.comments TO authenticated;
+GRANT SELECT ON public.posts, public.products, public.profiles, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.posts, public.products, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs, public.orders TO authenticated;
+GRANT INSERT, UPDATE ON public.profiles TO authenticated;
 
 
+
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
+
+-- CATEGORIES (Kategoriyalar jadvali)
+CREATE TABLE IF NOT EXISTS public.categories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '',
+    order_index INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- REPORTS (Foydalanuvchi va e'lonlar ustidan shikoyatlar)
+CREATE TABLE IF NOT EXISTS public.reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    reporter_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    target_type TEXT NOT NULL, -- 'post' | 'product' | 'user'
+    target_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    status TEXT DEFAULT 'pending', -- 'pending' | 'resolved' | 'rejected'
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- AUDIT LOGS (Adminlar bajargan amallar jurnali)
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    admin_email TEXT NOT NULL,
+    action TEXT NOT NULL, -- 'update_user_role' | 'ban_user' | 'approve_post' | 'reject_post' | 'update_order_status'
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- =====================================================================
--- 3. AUTOMATIC PROFILE CREATION TRIGGER
+-- 3. AUTOMATIC PROFILE CREATION TRIGGER & ADMIN SECURITY TRIGGER
 -- =====================================================================
+
+-- Regular user o'ziga is_admin = true berishini taqiqlash triggeri
+CREATE OR REPLACE FUNCTION public.protect_profile_admin_flag()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (OLD.is_admin IS DISTINCT FROM NEW.is_admin) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
+    ) AND CURRENT_USER <> 'postgres' THEN
+      NEW.is_admin := OLD.is_admin;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_protect_profile_admin_flag ON public.profiles;
+CREATE TRIGGER tr_protect_profile_admin_flag
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_admin_flag();
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -235,8 +295,14 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Barcha foydalanuvchi profillarini ko'rish mumkin" ON public.profiles;
 CREATE POLICY "Barcha foydalanuvchi profillarini ko'rish mumkin" ON public.profiles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Foydalanuvchi o'z profilini yaratishi mumkin" ON public.profiles;
+CREATE POLICY "Foydalanuvchi o'z profilini yaratishi mumkin" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles;
-CREATE POLICY "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles FOR UPDATE USING (
+  auth.uid() = id OR EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
+  )
+);
 
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "E'lonlarni barcha ko'rishi mumkin" ON public.posts;
@@ -244,9 +310,47 @@ CREATE POLICY "E'lonlarni barcha ko'rishi mumkin" ON public.posts FOR SELECT USI
 DROP POLICY IF EXISTS "Tizimdagi foydalanuvchi e'lon qo'sha oladi" ON public.posts;
 CREATE POLICY "Tizimdagi foydalanuvchi e'lon qo'sha oladi" ON public.posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z e'lonini tahrirlay oladi" ON public.posts;
-CREATE POLICY "Foydalanuvchi faqat o'z e'lonini tahrirlay oladi" ON public.posts FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Foydalanuvchi faqat o'z e'lonini tahrirlay oladi" ON public.posts FOR UPDATE USING (
+  auth.uid() = user_id OR EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
+  )
+);
 DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z e'lonini o'chira oladi" ON public.posts;
-CREATE POLICY "Foydalanuvchi faqat o'z e'lonini o'chira oladi" ON public.posts FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Foydalanuvchi faqat o'z e'lonini o'chira oladi" ON public.posts FOR DELETE USING (
+  auth.uid() = user_id OR EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
+  )
+);
+
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Kategoriyalarni barcha ko'radi" ON public.categories;
+CREATE POLICY "Kategoriyalarni barcha ko'radi" ON public.categories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admin kategoriyalarni boshqaradi" ON public.categories;
+CREATE POLICY "Admin kategoriyalarni boshqaradi" ON public.categories FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+);
+
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Shikoyatlarni admin ko'radi" ON public.reports;
+CREATE POLICY "Shikoyatlarni admin ko'radi" ON public.reports FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+);
+DROP POLICY IF EXISTS "Foydalanuvchi shikoyat qoldirishi mumkin" ON public.reports;
+CREATE POLICY "Foydalanuvchi shikoyat qoldirishi mumkin" ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Admin shikoyatni yangilaydi" ON public.reports;
+CREATE POLICY "Admin shikoyatni yangilaydi" ON public.reports FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+);
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Audit loglarni faqat admin ko'radi" ON public.audit_logs;
+CREATE POLICY "Audit loglarni faqat admin ko'radi" ON public.audit_logs FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+);
+DROP POLICY IF EXISTS "Audit loglarni faqat admin yaratadi" ON public.audit_logs;
+CREATE POLICY "Audit loglarni faqat admin yaratadi" ON public.audit_logs FOR INSERT WITH CHECK (
+  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+);
 
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Tasdiqlangan mahsulotlarni barcha ko'radi" ON public.products;

@@ -141,7 +141,6 @@ function normalizeApiDates(value: unknown): unknown {
     Object.entries(row).map(([key, nested]) => [key, normalizeApiDates(nested)])
   );
 
-  // The database uses date_display while the UI domain model uses date.
   if (normalized.date === undefined && normalized.dateDisplay !== undefined) {
     normalized.date = normalized.dateDisplay;
   }
@@ -168,9 +167,15 @@ async function requestSupabase(
 
   if (method === 'GET') params.set('select', '*');
   if (id) params.set('id', `eq.${id}`);
+
   if (options?.params) {
     Object.entries(options.params).forEach(([key, value]) => {
-      if (value !== undefined) params.set(toSnakeCase(key), String(value));
+      if (value !== undefined) {
+        const strVal = String(value);
+        const hasOperator = /^(eq|neq|gt|gte|lt|lte|like|ilike|in|is|cs|cd)\./.test(strVal);
+        const formattedVal = hasOperator ? strVal : `eq.${strVal}`;
+        params.set(toSnakeCase(key), formattedVal);
+      }
     });
   }
 
@@ -213,5 +218,3 @@ export const api = {
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };
-
-

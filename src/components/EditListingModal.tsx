@@ -5,7 +5,7 @@ import { CATEGORIES, REGIONS } from '../data/mockAgroData';
 import { Edit3, Save, Trash2, Tag, MapPin, DollarSign, Package } from 'lucide-react';
 
 export const EditListingModal: React.FC = () => {
-  const { editModalItem, setEditModalItem, updatePost, updateProduct, deletePost, deleteProduct, showToast } = useAgroStore();
+  const { editModalItem, setEditModalItem, updatePost, updateProduct, deletePost, deleteProduct, showToast, isAdminUser } = useAgroStore();
 
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
@@ -31,7 +31,7 @@ export const EditListingModal: React.FC = () => {
       setFeatures('features' in editModalItem ? editModalItem.features || '' : '');    }
   }, [editModalItem]);
 
-  if (!editModalItem) return null;
+  if (!editModalItem || !isAdminUser) return null;
 
   const isPost = 'sellerName' in editModalItem || 'mediaUrl' in editModalItem;
 

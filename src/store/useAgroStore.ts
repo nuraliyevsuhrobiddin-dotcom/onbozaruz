@@ -16,7 +16,8 @@ import { ordersRepository } from '../api/repositories/ordersRepository';
 import { userInteractionsRepository } from '../api/repositories/userInteractionsRepository';
 import { cacheManager } from '../utils/cacheManager';
 
-export type NavTab = 'home' | 'search' | 'market' | 'profile';
+export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
+
 export type SubView =
   | 'orders'
   | 'saved'
@@ -50,7 +51,31 @@ interface AgroStoreState {
   isBackgroundFetching: boolean;
   fetchError: string | null;
 
+  selectedSellerModal: {
+    sellerId?: string;
+    sellerName: string;
+    sellerAvatar?: string;
+    location?: string;
+    phone?: string;
+    telegram?: string;
+    verified?: boolean;
+    bio?: string;
+  } | null;
+  setSelectedSellerModal: (
+    data: {
+      sellerId?: string;
+      sellerName: string;
+      sellerAvatar?: string;
+      location?: string;
+      phone?: string;
+      telegram?: string;
+      verified?: boolean;
+      bio?: string;
+    } | null
+  ) => void;
+
   isCreateModalOpen: boolean;
+
   isAuthPromptOpen: boolean;
   isNotificationsOpen: boolean;
   commentPost: Post | null;
@@ -101,6 +126,9 @@ interface AgroStoreState {
   approveProduct: (productId: string) => void;
   rejectProduct: (productId: string) => void;
 
+  approvePost: (postId: string) => void;
+  rejectPost: (postId: string, reason?: string) => void;
+
   toggleFollowSeller: (sellerId: string, sellerName?: string) => void;
 
   setCreateModalOpen: (open: boolean) => void;
@@ -120,13 +148,16 @@ interface AgroStoreState {
   closeVideoViewer: () => void;
 }
 
+// ADMIN_EMAIL is kept only as a fallback for mock-mode (no Supabase). Real admin check comes from profiles.is_admin in DB.
 const ADMIN_EMAIL = 'nuraliyevsuhrobiddin@gmail.com';
 
 export const useAgroStore = create<AgroStoreState>()(
   persist(
     (set, get) => {
       const initialUser = isSupabaseConfigured ? null : authClient.getCurrentUser();
-      const initialIsAdmin = initialUser?.email?.toLowerCase().trim() === ADMIN_EMAIL;
+      const initialIsAdmin = initialUser
+        ? Boolean(initialUser.isAdmin) || initialUser.email?.toLowerCase().trim() === ADMIN_EMAIL
+        : false;
 
       async function loadUserInteractions(user: AuthUser) {
         try {
@@ -186,7 +217,11 @@ export const useAgroStore = create<AgroStoreState>()(
         followedSellerIds: [],
         viewedPostIds: [],
 
+        selectedSellerModal: null,
+        setSelectedSellerModal: (data) => set({ selectedSellerModal: data }),
+
         isCreateModalOpen: false,
+
         isAuthPromptOpen: false,
         isNotificationsOpen: false,
         commentPost: null,
@@ -221,7 +256,8 @@ export const useAgroStore = create<AgroStoreState>()(
 
         // --- Auth actions ---
         loginUser: async (user: AuthUser) => {
-          const isAdmin = user.email.toLowerCase().trim() === ADMIN_EMAIL;
+          // isAdmin comes from DB profiles.is_admin field (set in authClient restoreSession/signIn)
+          const isAdmin = Boolean(user.isAdmin) || (!isSupabaseConfigured && user.email.toLowerCase().trim() === ADMIN_EMAIL);
           set({
             currentUser: user,
             isAuthenticated: true,
@@ -235,7 +271,8 @@ export const useAgroStore = create<AgroStoreState>()(
           const restoredUser = await authClient.restoreSession();
           if (!restoredUser) return;
 
-          const isAdmin = restoredUser.email.toLowerCase().trim() === ADMIN_EMAIL;
+          // isAdmin sourced from profiles.is_admin in Supabase DB — not from email string
+          const isAdmin = Boolean(restoredUser.isAdmin) || (!isSupabaseConfigured && restoredUser.email.toLowerCase().trim() === ADMIN_EMAIL);
           set({
             currentUser: restoredUser,
             isAuthenticated: true,
@@ -272,7 +309,8 @@ export const useAgroStore = create<AgroStoreState>()(
           }
           set((state) => {
             const nextUser = updatedUser || (state.currentUser ? { ...state.currentUser, ...updatedFields } : null);
-            const isAdmin = (nextUser?.email || '').toLowerCase().trim() === ADMIN_EMAIL;
+            // Preserve isAdmin from DB — don't derive from email on update
+            const isAdmin = Boolean(nextUser?.isAdmin) || (!isSupabaseConfigured && (nextUser?.email || '').toLowerCase().trim() === ADMIN_EMAIL);
             return {
               currentUser: nextUser,
               isAdminUser: isAdmin,
@@ -443,6 +481,10 @@ export const useAgroStore = create<AgroStoreState>()(
       setEditModalItem: (item) => set({ editModalItem: item }),
 
       deletePost: (postId) => {
+        if (!get().isAdminUser) {
+          set({ toastMessage: "E'lonni o'chirish faqat Admin paneli orqali amalga oshiriladi!" });
+          return;
+        }
         const targetPost = get().posts.find((p) => p.id === postId);
         set((state) => {
           const nextPosts = state.posts.filter((p) => p.id !== postId);
@@ -464,6 +506,10 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       updatePost: (postId, updatedFields) => {
+        if (!get().isAdminUser) {
+          set({ toastMessage: "E'lonni tahrirlash faqat Admin paneli orqali amalga oshiriladi!" });
+          return;
+        }
         set((state) => {
           const nextPosts = state.posts.map((p) =>
             p.id === postId ? { ...p, ...updatedFields } : p
@@ -485,6 +531,10 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       deleteProduct: (productId) => {
+        if (!get().isAdminUser) {
+          set({ toastMessage: "Mahsulotni o'chirish faqat Admin paneli orqali amalga oshiriladi!" });
+          return;
+        }
         const targetProduct = get().products.find((p) => p.id === productId);
         set((state) => {
           const nextProducts = state.products.filter((p) => p.id !== productId);
@@ -508,6 +558,10 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       updateProduct: (productId, updatedFields) => {
+        if (!get().isAdminUser) {
+          set({ toastMessage: "Mahsulotni tahrirlash faqat Admin paneli orqali amalga oshiriladi!" });
+          return;
+        }
         set((state) => {
           const nextProducts = state.products.map((p) =>
             p.id === productId ? { ...p, ...updatedFields } : p
@@ -600,7 +654,30 @@ export const useAgroStore = create<AgroStoreState>()(
           // Offline holatda rad etish lokal qoladi.
         });
       },
+
+      approvePost: (postId) => {
+        set((state) => ({
+          posts: state.posts.map((p) =>
+            p.id === postId ? { ...p, status: 'approved' } : p
+          ),
+          toastMessage: "E'lon tasdiqlandi va nashr qilindi!",
+        }));
+        // Supabase update (adminRepository.updatePostModeration) is called from the tab component
+      },
+
+      rejectPost: (postId, reason) => {
+        set((state) => ({
+          posts: state.posts.map((p) =>
+            p.id === postId
+              ? { ...p, status: 'rejected', ...(reason ? { rejectionReason: reason } : {}) }
+              : p
+          ),
+          toastMessage: reason ? `E'lon rad etildi: ${reason}` : "E'lon rad etildi",
+        }));
+      },
+
       addOrder: async (newOrder) => {
+
         const created = await ordersRepository.create(newOrder);
         set((state) => ({ orders: [created, ...state.orders] }));
       },
@@ -666,7 +743,23 @@ export const useAgroStore = create<AgroStoreState>()(
             productsRepository.list(),
           ]);
           const state = get();
-          const freshPosts = markPostFlags(posts, state.savedPostIds, state.likedPostIds);
+          // Server postlarini lokal ko'rish/like/saqlash ma'lumotlari bilan birlashtirish.
+          // Server ko'rish sonini lokal nusxa bilan solishtirish:
+          // ikkisidan kattaroqni ishlatamiz (boshqa sessiyalardagi ko'rishlar ham hisoblanadi).
+          const localPostsMap = new Map(state.posts.map((p) => [p.id, p]));
+          const freshPosts = posts.map((serverPost) => {
+            const localPost = localPostsMap.get(serverPost.id);
+            return {
+              ...serverPost,
+              isSaved: state.savedPostIds.includes(serverPost.id),
+              isLiked: state.likedPostIds.includes(serverPost.id),
+              // Ko'rish soni: server va lokal o'rtasida kattaroqni ol
+              viewsCount: Math.max(
+                serverPost.viewsCount || 0,
+                localPost?.viewsCount || 0
+              ),
+            };
+          });
           cacheManager.savePostsCache(freshPosts);
           cacheManager.saveProductsCache(products);
           set({
@@ -729,6 +822,8 @@ export const useAgroStore = create<AgroStoreState>()(
       savedPostIds: state.savedPostIds,
       likedPostIds: state.likedPostIds,
       followedSellerIds: state.followedSellerIds,
+      currentUser: state.currentUser,
+      isAuthenticated: state.isAuthenticated,
     }),
   }
 )

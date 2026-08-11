@@ -5,6 +5,7 @@ import {
   Tag,
   PlusSquare,
   User,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAgroStore, NavTab } from '../store/useAgroStore';
 
@@ -13,6 +14,7 @@ export const DesktopLeftSidebar: React.FC = () => {
     activeTab,
     setActiveTab,
     setCreateModalOpen,
+    isAdminUser,
   } = useAgroStore();
 
   const handleNavClick = (tab: NavTab) => {
@@ -46,6 +48,16 @@ export const DesktopLeftSidebar: React.FC = () => {
           <button title="Profil" onClick={() => handleNavClick('profile')} className={`p-3 rounded-lg ${activeTab === 'profile' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
             <User className={`w-5 h-5 ${activeTab === 'profile' ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
           </button>
+
+          {isAdminUser && (
+            <button
+              title="Admin Panel"
+              onClick={() => handleNavClick('admin')}
+              className={`p-3 rounded-lg ${activeTab === 'admin' ? 'bg-[#E53935] text-white shadow-lg' : 'text-[#E53935] hover:bg-red-50'}`}
+            >
+              <ShieldCheck className={`w-5 h-5 ${activeTab === 'admin' ? 'stroke-[2.5]' : 'stroke-[2]'}`} />
+            </button>
+          )}
         </nav>
       </div>
     </aside>

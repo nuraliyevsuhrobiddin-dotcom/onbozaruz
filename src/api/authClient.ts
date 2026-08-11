@@ -127,15 +127,37 @@ export async function deleteListingMedia(urlOrPath: string): Promise<void> {
 }
 
 export async function uploadProfileMedia(
-  dataUrl: string | File,
+  input: string | File,
   userId: string,
   target: 'avatar' | 'cover'
 ): Promise<string> {
-  return uploadListingMedia(
-    dataUrl,
-    `${userId}/profile-${target}-${Date.now()}.jpg`,
-    'image/jpeg'
-  );
+  if (!input) return '';
+
+  let fileOrBlob: Blob;
+  let extension = 'jpg';
+  let contentType = 'image/jpeg';
+
+  if (typeof input === 'string') {
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      return input;
+    }
+    const response = await fetch(input);
+    fileOrBlob = await response.blob();
+    contentType = fileOrBlob.type || 'image/jpeg';
+    if (contentType.includes('png')) extension = 'png';
+    else if (contentType.includes('webp')) extension = 'webp';
+  } else {
+    fileOrBlob = input;
+    contentType = input.type || 'image/jpeg';
+    const fileExt = input.name.split('.').pop()?.toLowerCase();
+    if (fileExt && ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
+      extension = fileExt;
+    } else if (contentType.includes('png')) extension = 'png';
+    else if (contentType.includes('webp')) extension = 'webp';
+  }
+
+  const path = `${userId}/profile-${target}-${Date.now()}.${extension}`;
+  return uploadListingMedia(fileOrBlob, path, contentType);
 }
 
 export async function incrementPostViewsOnServer(postId: string): Promise<void> {
@@ -159,6 +181,7 @@ export interface AuthUser {
   cover?: string;
   createdAt: string;
   isAdmin?: boolean;
+  status?: 'active' | 'banned';
 }
 
 export interface SignUpFields {
@@ -298,13 +321,17 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
     cover: profile?.cover_url || '',
     role: (profile?.role as 'seller' | 'buyer') || (meta?.role as 'seller' | 'buyer') || 'seller',
     createdAt: user.created_at || new Date().toISOString(),
+    isAdmin: profile?.is_admin ?? (user.email?.toLowerCase().trim() === 'nuraliyevsuhrobiddin@gmail.com'),
+    status: (profile?.status as 'active' | 'banned') || 'active',
   };
 }
 
 async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser | null> {
   if (!supabase) return null;
   const { data: sessionData, error: sessionError } = await supabase.auth.getUser();
-  if (sessionError || !sessionData.user) return null;
+  if (sessionError || !sessionData.user) {
+    throw new Error('Sessiya topilmadi. Qaytadan kiring.');
+  }
 
   const userId = sessionData.user.id;
   const profileUpdate = Object.fromEntries(
@@ -319,21 +346,23 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
       role: fields.role,
       avatar_url: fields.avatar,
       cover_url: fields.cover,
+      updated_at: new Date().toISOString(),
     }).filter(([, value]) => value !== undefined)
   );
 
   const { data, error } = await supabase
     .from('profiles')
-    .update(profileUpdate)
-    .eq('id', userId)
+    .upsert({ id: userId, email: sessionData.user.email || fields.email || '', ...profileUpdate })
     .select()
     .single();
 
-  if (error || !data) return null;
+  if (error || !data) {
+    throw new Error(error?.message || "Profil ma'lumotlarini saqlashda server xatoligi yuz berdi");
+  }
 
   return {
     id: data.id,
-    email: data.email,
+    email: data.email || sessionData.user.email || '',
     name: data.name || '',
     handle: data.handle || '',
     phone: data.phone || '',
@@ -343,7 +372,9 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
     role: (data.role as 'seller' | 'buyer') || 'seller',
     avatar: data.avatar_url || '',
     cover: data.cover_url || '',
-    createdAt: data.created_at,
+    createdAt: data.created_at || new Date().toISOString(),
+    isAdmin: Boolean(data.is_admin),
+    status: (data.status as 'active' | 'banned') || 'active',
   };
 }
 

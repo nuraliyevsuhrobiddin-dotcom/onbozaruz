@@ -311,6 +311,10 @@ export function useCreatePostForm() {
         return;
       }
 
+      // Ikki marta bosishdan himoya: agar allaqachon nashr jarayoni bo'lsa, chiqib ketamiz
+      if (isPublishing) return;
+      setIsPublishing(true);
+
       // Instagram-style UX: Nashr bosilgan zahoti modal yopiladi va Bosh sahifaga o'tiladi
       const postTitle = data.title.trim();
       const fileToUpload = selectedMediaFile || selectedMediaUrl;
@@ -407,11 +411,14 @@ export function useCreatePostForm() {
             ? `E'lon saqlanmadi: ${message}`
             : "E'lon saqlanmadi. Internet aloqasi va server sozlamalarini tekshirib qayta urinib ko'ring."
         );
+      } finally {
+        setIsPublishing(false);
       }
     },
     [
       addPost,
       currentUser,
+      isPublishing,
       mediaContentType,
       mediaType,
       reset,
@@ -428,6 +435,9 @@ export function useCreatePostForm() {
 
   // ── Submit: maydonlarni qo'lda tekshirish ──
   const onSubmit = useCallback(() => {
+    // Ikki marta bosishdan himoya
+    if (isPublishing) return;
+
     const values = getValues();
 
     // Qaysi maydon bo'sh ekanini aniqlash
@@ -447,7 +457,7 @@ export function useCreatePostForm() {
     }
 
     void handlePublish(values as PostFormData);
-  }, [getValues, handlePublish, selectedMediaUrl, showToast]);
+  }, [getValues, handlePublish, isPublishing, selectedMediaUrl, showToast]);
 
   return {
     isCreateModalOpen,

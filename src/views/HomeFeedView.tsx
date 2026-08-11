@@ -194,13 +194,7 @@ export const HomeFeedView: React.FC = () => {
         selectedSeller={selectedSeller}
         onSelectSeller={(sellerId) => setSelectedSeller(sellerId)}
         onOpenFarmerReels={(sellerId) => {
-          const allVideoPosts = posts.filter(
-            (p) =>
-              p.type === 'video' ||
-              p.mediaUrl.endsWith('.mp4') ||
-              p.mediaUrl.endsWith('.webm') ||
-              p.mediaUrl.includes('data:video')
-          );
+          const allVideoPosts = posts.filter((p) => p.type === 'video');
           if (allVideoPosts.length > 0) {
             const startIdx = allVideoPosts.findIndex((p) => p.sellerId === sellerId);
             useAgroStore.getState().openVideoViewer(allVideoPosts, startIdx !== -1 ? startIdx : 0);

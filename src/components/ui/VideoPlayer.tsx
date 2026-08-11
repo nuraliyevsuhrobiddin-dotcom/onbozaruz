@@ -20,7 +20,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isMuted, setIsMuted] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-  // In-feed Autoplay using IntersectionObserver
+  // src o'zgarganda xato va play holatini tiklash
+  useEffect(() => {
+    setHasError(false);
+    setIsPlaying(false);
+  }, [src, poster]);
+
+  // IntersectionObserver — feed da avtomatik ijro/to'xtatish
+  // src o'zgarganda observer qayta tiklanadi
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -29,7 +36,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-          video.play().then(() => setIsPlaying(true)).catch(() => {});
+          video.play().then(() => setIsPlaying(true)).catch(() => {
+            // Muted fallback
+            video.muted = true;
+            setIsMuted(true);
+            video.play().then(() => setIsPlaying(true)).catch(() => {});
+          });
         } else {
           video.pause();
           setIsPlaying(false);
@@ -40,24 +52,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    setHasError(false);
-  }, [src, poster]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src]);
 
   const togglePlay = useCallback(() => {
     if (hasError) return;
     const video = videoRef.current;
     if (!video) return;
 
-    if (isPlaying) {
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
       video.pause();
       setIsPlaying(false);
-    } else {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
     }
-  }, [isPlaying, hasError]);
+  }, [hasError]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -68,8 +77,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     video.muted = nextMuted;
     setIsMuted(nextMuted);
 
-    // Ovozni yoqish foydalanuvchi bosishi orqali bajariladi. Shunda mobil va
-    // desktop brauzerlarining autoplay cheklovi audio ijrosini to'smaydi.
+    // Ovozni yoqish foydalanuvchi bosishi orqali — audio autoplay siyosatini chetlab o'tadi
     if (!nextMuted) {
       video.volume = 1;
       video.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -91,6 +99,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         playsInline
         preload="metadata"
         onError={() => setHasError(true)}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
         className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       />
 
@@ -99,7 +109,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           <div className="space-y-2">
             <AlertTriangle className="mx-auto w-10 h-10 text-red-400" />
             <p className="text-sm font-bold">Video yuklanmadi</p>
-            <p className="text-[11px] text-slate-200">Iltimos internet aloqasini tekshirib qayta urinib ko‘ring.</p>
+            <p className="text-[11px] text-slate-200">Iltimos internet aloqasini tekshirib qayta urinib ko'ring.</p>
           </div>
         </div>
       )}
@@ -116,6 +126,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {/* Mute button */}
       <button
         onClick={toggleMute}
+        aria-label={isMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
         className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors z-10"
       >
         {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}

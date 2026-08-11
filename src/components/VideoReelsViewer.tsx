@@ -13,6 +13,7 @@ import {
   MapPin,
   PhoneCall,
   Tag,
+  Play,
 } from 'lucide-react';
 import { Post } from '../data/mockAgroData';
 import { useAgroStore } from '../store/useAgroStore';
@@ -36,6 +37,10 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
+  // Double-tap detection
+  const lastTapTime = useRef(0);
+  const singleTapTimer = useRef<number | null>(null);
+
   const {
     toggleLikePost,
     toggleSavePost,
@@ -53,63 +58,48 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
   const isFollowing = followedSellerIds.includes(post.sellerId);
   const isOwnPost = currentUser?.id === post.sellerId;
 
-  // Play/pause based on active slide — ovozli ijro birinchi bo'lib urinadigan qilib yozildi
+  // Active slide: play; inactive: pause
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
     if (isActive) {
       video.currentTime = 0;
       video.muted = globalMuted;
-      video.volume = globalMuted ? 1 : 1;
-      video
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch(() => {
-          // Brauzer ovozli autoplayni rad etdi — ovozsizga o'tib qayta urinamiz
-          video.muted = true;
-          video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-        });
+      video.volume = 1;
+
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => setIsPlaying(true))
+          .catch(() => {
+            // Brauzer ovozli autoplayni rad etdi — ovozsizga o'tib qayta urinamiz
+            video.muted = true;
+            video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+          });
+      }
     } else {
       video.pause();
+      video.currentTime = 0;
       setIsPlaying(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
 
-  // globalMuted o'zgarganda sinxronlashtirish
+  // globalMuted o'zgarganda faqat aktiv slide da ovozni sinxronlashtirish
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-
+    if (!video || !isActive) return;
     video.muted = globalMuted;
-    if (!isActive) {
-      video.pause();
-      setIsPlaying(false);
-      return;
-    }
-
-    if (!globalMuted && isActive) {
-      video.volume = 1;
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
   }, [globalMuted, isActive]);
 
+  // Komponent unmount bo'lganda video ni to'xtatish
   useEffect(() => {
     const video = videoRef.current;
     return () => {
       video?.pause();
     };
   }, []);
-
-  const handleTap = useCallback(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (isPlaying) {
-      video.pause();
-      setIsPlaying(false);
-    } else {
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
-    }
-  }, [isPlaying]);
 
   const handleDoubleTap = useCallback(() => {
     setShowHeart(true);
@@ -118,21 +108,43 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
     setTimeout(() => setShowHeart(false), 800);
   }, [isLiked, post.id, toggleLikePost]);
 
-  const lastTap = useRef(0);
-  const handleClick = useCallback(() => {
+  const handleSingleTap = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    } else {
+      video.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+
+  // Double-tap detection: 300ms window
+  // Single tap fires only if no second tap arrives within 300ms
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     const now = Date.now();
-    if (now - lastTap.current < 300) {
+    const delta = now - lastTapTime.current;
+    lastTapTime.current = now;
+
+    if (delta < 300) {
+      // Double tap detected — cancel pending single tap
+      if (singleTapTimer.current !== null) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
       handleDoubleTap();
     } else {
-      handleTap();
+      // Schedule single tap — cancelled if double tap comes
+      singleTapTimer.current = window.setTimeout(() => {
+        singleTapTimer.current = null;
+        handleSingleTap();
+      }, 300);
     }
-    lastTap.current = now;
-  }, [handleDoubleTap, handleTap]);
+  }, [handleDoubleTap, handleSingleTap]);
 
   const cleanPhone = post.phone.replace(/\s+/g, '').replace(/[()]/g, '');
   const cleanTelegram = post.telegram?.replace(/^@/, '').replace(/\s+/g, '');
-  // E'londagi Telegram username bo'lsa undan foydalanamiz; eski e'lonlarda
-  // username yo'q bo'lsa telefon raqami orqali Telegram ochiladi.
   const telegramLink = cleanTelegram ? `https://t.me/${cleanTelegram}` : undefined;
   const telLink = `tel:${cleanPhone}`;
 
@@ -141,11 +153,11 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
       className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none"
       style={{ height: '100dvh' }}
     >
-      {/* Container: 100% full height/width on mobile, centered 9:16 card on desktop */}
+      {/* Container: full on mobile, centered 9:16 card on desktop */}
       <div
         className="relative bg-black overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
       >
-        {/* Video / Image (tap to play/pause) - full edge-to-edge Reels fill */}
+        {/* Video / Image (tap to play/pause) */}
         {post.type === 'video' ? (
           <video
             ref={videoRef}
@@ -156,31 +168,42 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
             playsInline
             preload="auto"
             onClick={handleClick}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
             className="w-full h-full object-cover cursor-pointer"
           />
         ) : (
           <img
-            src={post.mediaUrl}
+            src={post.mediaUrl || post.posterUrl}
             alt={post.title}
             onClick={handleClick}
             className="w-full h-full object-cover cursor-pointer"
           />
         )}
 
-        {/* Instagram-style smooth bottom gradient overlay - no blocking cards! */}
+        {/* Bottom gradient overlay */}
         <div
           className="absolute inset-0 pointer-events-none z-10"
           style={{
             background:
-              'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 40%, rgba(0,0,0,0.05) 70%, transparent 100%)',
+              'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 35%, rgba(0,0,0,0.08) 65%, transparent 100%)',
           }}
         />
 
-        {/* Instagram-style tap-to-unmute indicator */}
-        {globalMuted && isActive && (
+        {/* Play/Pause center indicator — shows briefly */}
+        {post.type === 'video' && isActive && !isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+              <Play className="w-8 h-8 text-white fill-white translate-x-0.5" />
+            </div>
+          </div>
+        )}
+
+        {/* Tap-to-unmute indicator (top center) */}
+        {globalMuted && isActive && post.type === 'video' && (
           <button
             onClick={(e) => { e.stopPropagation(); onUnmute(); }}
-            className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/20 shadow-lg text-white text-[12px] font-black hover:bg-black/80 transition-all animate-bounce-subtle"
+            className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/70 backdrop-blur-md border border-white/20 shadow-lg text-white text-[12px] font-black hover:bg-black/90 transition-all"
             style={{ animation: 'pulse 2s ease-in-out infinite' }}
           >
             <VolumeX className="w-4 h-4 text-white/80" />
@@ -190,21 +213,30 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
         )}
 
         {/* Double-tap heart animation */}
-        {showHeart && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
-            <Heart className="w-28 h-28 fill-[#E53935] text-[#E53935] drop-shadow-2xl animate-heart-pulse" />
-          </div>
-        )}
+        <AnimatePresence>
+          {showHeart && (
+            <motion.div
+              key="heart"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1.4, opacity: 1 }}
+              exit={{ scale: 1.1, opacity: 0 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
+            >
+              <Heart className="w-28 h-28 fill-[#E53935] text-[#E53935] drop-shadow-2xl" />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* -- Right action bar (Instagram style) -- */}
+        {/* Right action bar (Instagram style) */}
         <div
-          className="absolute right-3 bottom-16 sm:right-4 sm:bottom-20 flex flex-col items-center gap-3.5 pointer-events-none z-20"
+          className="absolute right-3 bottom-16 sm:right-4 sm:bottom-20 flex flex-col items-center gap-3.5 z-20"
         >
           {/* Like */}
           <motion.button
             whileTap={{ scale: 1.3 }}
             onClick={(e) => { e.stopPropagation(); toggleLikePost(post.id); }}
-            className="pointer-events-auto flex flex-col items-center gap-1 focus:outline-none group"
+            className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
               <Heart
@@ -222,7 +254,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
           <motion.button
             whileTap={{ scale: 1.2 }}
             onClick={(e) => { e.stopPropagation(); setCommentPost(post); }}
-            className="pointer-events-auto flex flex-col items-center gap-1 focus:outline-none group"
+            className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
               <MessageCircle className="w-6 h-6 text-white stroke-[2] drop-shadow-md" />
@@ -236,7 +268,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
           <motion.button
             whileTap={{ scale: 1.2 }}
             onClick={(e) => { e.stopPropagation(); setSharePost(post); }}
-            className="pointer-events-auto flex flex-col items-center gap-1 focus:outline-none group"
+            className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
               <Send className="w-6 h-6 text-white stroke-[2] drop-shadow-md" />
@@ -248,7 +280,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
           <motion.button
             whileTap={{ scale: 1.2 }}
             onClick={(e) => { e.stopPropagation(); toggleSavePost(post.id); }}
-            className="pointer-events-auto flex flex-col items-center gap-1 focus:outline-none group"
+            className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
               <Bookmark
@@ -258,14 +290,13 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
               />
             </div>
           </motion.button>
-
         </div>
 
-        {/* -- Bottom Overlay Information (Instagram Style) -- */}
-        <div className="absolute left-3 right-16 bottom-4 sm:left-4 sm:right-20 sm:bottom-6 z-20 pointer-events-none flex flex-col gap-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] max-w-[calc(100%-4.75rem)] sm:max-w-[420px]">
+        {/* Bottom Overlay Information */}
+        <div className="absolute left-3 right-16 bottom-4 sm:left-4 sm:right-20 sm:bottom-6 z-20 flex flex-col gap-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] max-w-[calc(100%-4.75rem)] sm:max-w-[420px]">
           {/* Row 1: Seller Avatar + Name + Obuna Button */}
           <div className="flex items-center gap-2.5">
-            <div className="relative shrink-0 pointer-events-auto">
+            <div className="relative shrink-0">
               <img
                 src={post.sellerAvatar}
                 alt={post.sellerName}
@@ -278,7 +309,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
               )}
             </div>
 
-            <div className="min-w-0 flex-1 pointer-events-auto">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 truncate">
                 <span className="text-white font-black text-sm sm:text-base drop-shadow-md truncate">
                   {post.sellerName}
@@ -290,31 +321,33 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
               </div>
             </div>
 
-            {!isOwnPost && <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFollowSeller(post.sellerId, post.sellerName);
-              }}
-              className={`pointer-events-auto shrink-0 text-[11px] font-extrabold px-3 py-1.5 rounded-full transition-all border backdrop-blur-md shadow-sm ${
-                isFollowing
-                  ? 'bg-white/20 text-white border-white/30 hover:bg-white/30'
-                  : 'bg-[#E53935] text-white border-transparent hover:bg-[#d32f2f]'
-              }`}
-            >
-              {isFollowing ? '✓ Obuna' : '+ Obuna'}
-            </motion.button>}
+            {!isOwnPost && (
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleFollowSeller(post.sellerId, post.sellerName);
+                }}
+                className={`shrink-0 text-[11px] font-extrabold px-3 py-1.5 rounded-full transition-all border backdrop-blur-md shadow-sm ${
+                  isFollowing
+                    ? 'bg-white/20 text-white border-white/30 hover:bg-white/30'
+                    : 'bg-[#E53935] text-white border-transparent hover:bg-[#d32f2f]'
+                }`}
+              >
+                {isFollowing ? '✓ Obuna' : '+ Obuna'}
+              </motion.button>
+            )}
           </div>
 
-          {/* Row 2: Post Title (if present) */}
+          {/* Row 2: Post Title */}
           {post.title && (
-            <p className="text-white text-xs sm:text-sm font-semibold line-clamp-2 drop-shadow-md pointer-events-auto leading-snug">
+            <p className="text-white text-xs sm:text-sm font-semibold line-clamp-2 drop-shadow-md leading-snug">
               {post.title}
             </p>
           )}
 
           {/* Row 3: Price Tag & Category Badge */}
-          <div className="flex flex-wrap items-center gap-2 pointer-events-auto">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-[#111827]/90 border border-emerald-500/40 px-3 py-1 text-[11px] sm:text-xs font-black text-[#22C55E] shadow-md backdrop-blur-md">
               {post.price}
             </span>
@@ -325,10 +358,11 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
           </div>
 
           {/* Row 4: Contact Action Buttons */}
-          <div className="flex items-center gap-2 pt-1 pointer-events-auto">
+          <div className="flex items-center gap-2 pt-1">
             <motion.a
               href={telLink}
               whileTap={{ scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
               className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#E53935] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors"
             >
               <PhoneCall className="w-3.5 h-3.5 shrink-0" />
@@ -340,6 +374,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
                 target="_blank"
                 rel="noopener noreferrer"
                 whileTap={{ scale: 0.95 }}
+                onClick={(e) => e.stopPropagation()}
                 title="Telegram orqali bog'lanish"
                 className="w-9 h-9 rounded-xl bg-[#0088cc] hover:bg-[#0077bb] text-white flex items-center justify-center shadow-lg shrink-0 transition-colors"
               >
@@ -362,36 +397,46 @@ export const VideoReelsViewer: React.FC = () => {
     closeVideoViewer,
     posts,
   } = useAgroStore();
-  // Feeddagi like/save o'zgarishlari viewer ichidagi post snapshotini ham darhol yangilaydi.
+
+  // Feeddagi like/save o'zgarishlari viewer ichidagi post snapshotini ham darhol yangilaydi
   const liveVideoPosts = videoViewerPosts.map((viewerPost) =>
     posts.find((post) => post.id === viewerPost.id) || viewerPost
   );
+
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Ovozli boshlanadi (foydalanuvchi ekranga bosib kirganligi user-gesture hisoblanadi).
-  // Agar brauzer autoplay siyosati rad etsa, ovozsizga fallback qilinadi.
+  // Ovozli boshlanadi — foydalanuvchi bosib kirdi (user gesture)
   const [globalMuted, setGlobalMuted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const slideRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const isScrolling = useRef(false);
   const wheelTimeout = useRef<number | null>(null);
   const lastWheelTime = useRef(0);
+  const scrollSettleTimer = useRef<number | null>(null);
 
+  // Sync start index when viewer opens & position container cleanly
   useEffect(() => {
-    if (isVideoViewerOpen) {
-      setCurrentIndex(videoViewerStartIndex);
-      // Ovozli boshlanadi — foydalanuvchi bosib kirdi, shuning uchun user gesture mavjud
-      setGlobalMuted(false);
-      isScrolling.current = true;
-      // Instant positioning without smooth-scroll flashing through intermediate videos
+    if (!isVideoViewerOpen) return;
+    setCurrentIndex(videoViewerStartIndex);
+    setGlobalMuted(false);
+
+    isScrolling.current = true;
+    const timer = setTimeout(() => {
       const el = containerRef.current;
       if (el) {
-        const viewportHeight = el.clientHeight || window.innerHeight;
-        el.scrollTop = videoViewerStartIndex * viewportHeight;
+        const targetChild = el.children[videoViewerStartIndex] as HTMLElement;
+        if (targetChild && typeof targetChild.scrollIntoView === 'function') {
+          targetChild.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior });
+        } else {
+          const viewportHeight = el.clientHeight || window.innerHeight;
+          el.scrollTop = videoViewerStartIndex * viewportHeight;
+        }
       }
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         isScrolling.current = false;
-      }, 60);
-      return () => clearTimeout(timer);
-    }
+      }, 100);
+    }, 30);
+
+    return () => clearTimeout(timer);
   }, [isVideoViewerOpen, videoViewerStartIndex]);
 
   // Lock body scroll while viewer is open
@@ -404,81 +449,113 @@ export const VideoReelsViewer: React.FC = () => {
     };
   }, [isVideoViewerOpen]);
 
-  const handleScroll = useCallback(() => {
-    if (isScrolling.current || !containerRef.current) return;
-    const viewportHeight = containerRef.current.getBoundingClientRect().height || window.innerHeight;
-    const idx = Math.max(0, Math.min(Math.round(containerRef.current.scrollTop / viewportHeight), liveVideoPosts.length - 1));
-    if (idx !== currentIndex) {
-      setCurrentIndex(idx);
-    }
-  }, [currentIndex, liveVideoPosts.length]);
+  // IntersectionObserver to observe active slide (threshold 60% visibility)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isVideoViewerOpen || liveVideoPosts.length === 0) return;
 
-  const touchStartY = useRef(0);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (isScrolling.current) return;
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const idxStr = entry.target.getAttribute('data-index');
+            if (idxStr !== null) {
+              const idx = parseInt(idxStr, 10);
+              if (!isNaN(idx) && idx !== currentIndex) {
+                setCurrentIndex(idx);
+              }
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: 0.6, // Firing only when 60% of slide enters viewport
+      }
+    );
 
+    slideRefs.current.forEach((el) => {
+      if (el) observer.observe(el);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVideoViewerOpen, liveVideoPosts.length, currentIndex]);
+
+  // Smoothly scroll to target index (for keyboard, wheel, dot navigation)
   const scrollToIndex = useCallback((idx: number) => {
     const el = containerRef.current;
     if (!el || liveVideoPosts.length === 0) return;
-    // Chegarada to'xtatish — oxirgi e'londan keyin qaytarmaydi
     const targetIdx = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
-    if (targetIdx === currentIndex) return;
+
     isScrolling.current = true;
-    const viewportHeight = el.getBoundingClientRect().height || window.innerHeight;
+    const viewportHeight = el.clientHeight || window.innerHeight;
     el.scrollTo({ top: targetIdx * viewportHeight, behavior: 'smooth' });
     setCurrentIndex(targetIdx);
+
     if (wheelTimeout.current) window.clearTimeout(wheelTimeout.current);
     wheelTimeout.current = window.setTimeout(() => {
       isScrolling.current = false;
       wheelTimeout.current = null;
-    }, 600);
+    }, 500);
+  }, [liveVideoPosts.length]);
+
+  // Native scroll settlement handler for touch & momentum scrolling
+  const handleScroll = useCallback(() => {
+    if (isScrolling.current || !containerRef.current) return;
+
+    // Debounce scroll settlement to update index only when swipe settles
+    if (scrollSettleTimer.current) {
+      window.clearTimeout(scrollSettleTimer.current);
+    }
+    scrollSettleTimer.current = window.setTimeout(() => {
+      if (!containerRef.current || isScrolling.current) return;
+      const el = containerRef.current;
+      const viewportHeight = el.clientHeight || window.innerHeight;
+      if (viewportHeight <= 0) return;
+
+      const settledIdx = Math.max(
+        0,
+        Math.min(Math.round(el.scrollTop / viewportHeight), liveVideoPosts.length - 1)
+      );
+
+      if (settledIdx !== currentIndex) {
+        setCurrentIndex(settledIdx);
+      }
+    }, 80);
   }, [currentIndex, liveVideoPosts.length]);
 
+  // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') return closeVideoViewer();
-      if (e.key === 'ArrowDown') {
+      if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         scrollToIndex(currentIndex + 1);
       }
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault();
         scrollToIndex(currentIndex - 1);
       }
     };
-    window.addEventListener('keydown', onKey);
+    if (isVideoViewerOpen) {
+      window.addEventListener('keydown', onKey);
+    }
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeVideoViewer, currentIndex, scrollToIndex]);
+  }, [closeVideoViewer, currentIndex, isVideoViewerOpen, scrollToIndex]);
 
+  // Mouse wheel navigation (Desktop)
   const handleWheelNav = (e: React.WheelEvent) => {
     if (isScrolling.current) return;
     const now = Date.now();
     if (now - lastWheelTime.current < 400) return;
     lastWheelTime.current = now;
-    const delta = e.deltaY;
-    if (delta > 50) {
+    if (e.deltaY > 40) {
       scrollToIndex(currentIndex + 1);
-    } else if (delta < -50) {
+    } else if (e.deltaY < -40) {
       scrollToIndex(currentIndex - 1);
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.targetTouches[0].clientY;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (isScrolling.current) return;
-    const touchEndY = e.changedTouches[0].clientY;
-    const diffY = touchStartY.current - touchEndY;
-
-    // 40px swipe threshold for up/down navigation
-    if (Math.abs(diffY) > 40) {
-      if (diffY > 0) {
-        // Swiped UP -> Next video
-        scrollToIndex(currentIndex + 1);
-      } else {
-        // Swiped DOWN -> Previous video
-        scrollToIndex(currentIndex - 1);
-      }
     }
   };
 
@@ -490,7 +567,7 @@ export const VideoReelsViewer: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.25 }}
+        transition={{ duration: 0.2 }}
         className="fixed inset-0 z-[100] bg-black"
       >
         {/* Back button */}
@@ -498,18 +575,28 @@ export const VideoReelsViewer: React.FC = () => {
           whileTap={{ scale: 0.9 }}
           onClick={closeVideoViewer}
           className="absolute top-4 left-4 z-30 px-3.5 py-2 rounded-full bg-black/60 backdrop-blur-md text-white font-black text-xs flex items-center gap-2 border border-white/20 shadow-lg hover:bg-black/80"
+          style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Orqaga</span>
         </motion.button>
 
-        {/* Top Controls: Audio toggle */}
-        <div className="absolute top-4 right-4 z-30 flex items-center gap-2">
+        {/* Top Right Controls: Audio + counter */}
+        <div
+          className="absolute right-4 z-30 flex items-center gap-2"
+          style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
+        >
+          {/* Video counter */}
+          <div className="px-2.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-white text-[11px] font-black">
+            {currentIndex + 1} / {liveVideoPosts.length}
+          </div>
+
+          {/* Mute toggle */}
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={() => setGlobalMuted(!globalMuted)}
             className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 shadow-lg hover:bg-black/80 flex items-center justify-center"
-            title={globalMuted ? 'Ovozni yoqish' : 'Ovozni o\'chirish'}
+            title={globalMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
           >
             {globalMuted ? (
               <VolumeX className="w-4 h-4 text-red-400" />
@@ -524,19 +611,31 @@ export const VideoReelsViewer: React.FC = () => {
           ref={containerRef}
           onScroll={handleScroll}
           onWheel={handleWheelNav}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
           className="w-full h-full overflow-y-scroll no-scrollbar"
           style={{
             scrollSnapType: 'y mandatory',
             height: '100dvh',
             WebkitOverflowScrolling: 'touch',
+            overscrollBehaviorY: 'contain',
           }}
         >
           {liveVideoPosts.map((post, idx) => (
             <div
               key={post.id}
-              style={{ scrollSnapAlign: 'start', height: '100dvh' }}
+              data-index={idx}
+              ref={(node) => {
+                if (node) {
+                  slideRefs.current.set(idx, node);
+                } else {
+                  slideRefs.current.delete(idx);
+                }
+              }}
+              style={{
+                scrollSnapAlign: 'start',
+                scrollSnapStop: 'always' as any,
+                height: '100dvh',
+                flexShrink: 0,
+              }}
             >
               <VideoSlide
                 post={post}
@@ -547,8 +646,26 @@ export const VideoReelsViewer: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Bottom dot navigation indicator */}
+        {liveVideoPosts.length > 1 && liveVideoPosts.length <= 10 && (
+          <div
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1.5"
+          >
+            {liveVideoPosts.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => scrollToIndex(idx)}
+                className={`rounded-full transition-all duration-300 ${
+                  idx === currentIndex
+                    ? 'w-1.5 h-5 bg-white'
+                    : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );
 };
-

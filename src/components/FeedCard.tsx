@@ -40,8 +40,9 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
     setEditModalItem,
     deletePost,
     showToast,
-    currentUser,
     incrementPostViews,
+    isAdminUser,
+    setSelectedSellerModal,
   } = useAgroStore();
 
   const isLiked = likedPostIds.includes(post.id);
@@ -74,7 +75,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
     return () => observer.disconnect();
   }, [post.id, incrementPostViews]);
 
-  const isMyPost = Boolean(currentUser?.id && post.sellerId === currentUser.id);
+  const canManage = Boolean(isAdminUser);
 
   const handleDoubleTap = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -109,7 +110,20 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
     >
       {/* ── Post Header ── */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 relative">
-        <div className="flex items-center gap-3">
+        <button
+          className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity active:scale-[0.98]"
+          onClick={() =>
+            setSelectedSellerModal({
+              sellerId: post.sellerId || post.userId,
+              sellerName: post.sellerName,
+              sellerAvatar: post.sellerAvatar,
+              location: post.location,
+              phone: post.phone,
+              telegram: post.telegram,
+              verified: post.verified,
+            })
+          }
+        >
           <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-100 shrink-0">
             <img
               src={post.sellerAvatar}
@@ -129,7 +143,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
               <span>{post.location}</span>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center gap-2 relative">
           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
@@ -147,7 +161,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
 
             {isMenuOpen && (
               <div className="absolute right-0 top-9 z-30 w-44 bg-white rounded-[16px] border border-slate-200 shadow-xl overflow-hidden py-1">
-                {isMyPost ? (
+                {canManage ? (
                   <>
                     <button
                       onClick={() => {

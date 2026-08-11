@@ -91,3 +91,24 @@
 /* Hide scrollbar helper */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Unmute button pulse animation used in VideoReelsViewer */
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.8; transform: translateX(-50%) scale(1.04); }
+}
+
+/* Smooth video reels scroll snap */
+.video-snap-container {
+  scroll-snap-type: y mandatory;
+  overflow-y: scroll;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  height: 100dvh;
+}
+.video-snap-slide {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100dvh;
+  flex-shrink: 0;
+}

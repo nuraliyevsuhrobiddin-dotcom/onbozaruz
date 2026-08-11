@@ -23,8 +23,12 @@ import { CategoryExplorerModal } from './components/CategoryExplorerModal';
 import { EditListingModal } from './components/EditListingModal';
 import { AuthView } from './views/AuthView';
 import { AuthCallbackView } from './views/AuthCallbackView';
+import { AdminView } from './views/AdminView';
+import { SellerProfileModal } from './components/SellerProfileModal';
 import { subscribeToAuthState } from './api/authClient';
 import { InstallAppPrompt } from './components/InstallAppPrompt';
+
+
 
 const pageVariants = {
   initial: { opacity: 0, y: 8 },
@@ -55,7 +59,8 @@ export default function App() {
     clearSession,
     setAuthPromptOpen,
   } = useAgroStore();
-  const showHeader = activeTab !== 'search';
+  const showHeader = activeTab !== 'search' && activeTab !== 'admin';
+
   const isAuthCallback = window.location.pathname === '/auth/callback';
 
   // All hooks MUST run before any early return (Rules of Hooks)
@@ -97,7 +102,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const validTabs: NavTab[] = ['home', 'search', 'market', 'profile'];
+    const validTabs: NavTab[] = ['home', 'search', 'market', 'profile', 'admin'];
 
     const parseHash = (): NavTab => {
       const tab = window.location.hash.replace(/^#/, '') as NavTab;
@@ -149,9 +154,12 @@ export default function App() {
       <AuthView
         onSuccess={(user) => {
           void loginUser(user).then(() => {
-            if (user.email.toLowerCase().trim() === 'nuraliyevsuhrobiddin@gmail.com') {
+            // DB-sourced isAdmin — check after loginUser updates store
+            const { isAdminUser } = useAgroStore.getState();
+            if (isAdminUser) {
+              setActiveTab('admin');
+            } else {
               setActiveTab('profile');
-              setActiveSubView('admin-panel');
             }
           });
           setAuthPromptOpen(false);
@@ -186,11 +194,11 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      {/* в”Ђв”Ђ Main Layout Area (Shifted right by sidebar width 80px) в”Ђв”Ђ */}
+      {/* ─── Main Layout Area (Shifted right by sidebar width 80px) ─── */}
       <div className="flex-1 w-full lg:pl-20 flex justify-center">
-        <div className="w-full max-w-275 flex justify-center gap-5 px-0 sm:px-4 py-1.5 sm:py-3 lg:py-5">
+        <div className={`w-full flex justify-center gap-5 px-0 sm:px-4 py-1.5 sm:py-3 lg:py-5 ${activeTab === 'admin' ? 'max-w-none' : 'max-w-275'}`}>
           {/* Main Feed / Content View */}
-          <main className="flex-1 min-w-0 max-w-150 px-0 sm:px-0 mobile-content-bottom lg:pb-10">
+          <main className={`flex-1 min-w-0 px-0 sm:px-0 mobile-content-bottom lg:pb-10 ${activeTab === 'admin' ? 'max-w-none' : 'max-w-150'}`}>
             <AnimatePresence mode="wait">
               {activeTab === 'home' && (
                 <motion.div
@@ -243,6 +251,19 @@ export default function App() {
                   <ProfileView />
                 </motion.div>
               )}
+
+              {activeTab === 'admin' && (
+                <motion.div
+                  key="admin"
+                  variants={pageVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={pageTransition}
+                >
+                  <AdminView />
+                </motion.div>
+              )}
             </AnimatePresence>
           </main>
 
@@ -262,7 +283,9 @@ export default function App() {
       <CommentSheetModal />
       <ShareModal />
       <ContactSellerModal />
+      <SellerProfileModal />
       <ProductDetailModal />
+
       <NotificationsDrawerModal />
 
       {/* Global Toast Micro-Interaction */}
