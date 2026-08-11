@@ -51,6 +51,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
     savedPostIds,
     followedSellerIds,
     currentUser,
+    setSelectedSellerModal,
   } = useAgroStore();
 
   const isLiked = likedPostIds.includes(post.id);
@@ -296,30 +297,47 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
         <div className="absolute left-3 right-16 bottom-4 sm:left-4 sm:right-20 sm:bottom-6 z-20 flex flex-col gap-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] max-w-[calc(100%-4.75rem)] sm:max-w-[420px]">
           {/* Row 1: Seller Avatar + Name + Obuna Button */}
           <div className="flex items-center gap-2.5">
-            <div className="relative shrink-0">
-              <img
-                src={post.sellerAvatar}
-                alt={post.sellerName}
-                className="w-10 h-10 rounded-full border-2 border-white/40 object-cover shadow-md"
-              />
-              {post.verified && (
-                <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-0.5 text-white">
-                  <CheckCircle2 className="w-3 h-3 fill-blue-500 text-white" />
-                </div>
-              )}
-            </div>
+            {/* Clickable avatar+name opens SellerProfileModal */}
+            <button
+              className="flex items-center gap-2.5 min-w-0 flex-1 text-left hover:opacity-80 transition-opacity active:scale-[0.97]"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedSellerModal({
+                  sellerId: post.sellerId,
+                  sellerName: post.sellerName,
+                  sellerAvatar: post.sellerAvatar,
+                  location: post.location,
+                  phone: post.phone,
+                  telegram: post.telegram,
+                  verified: post.verified,
+                });
+              }}
+            >
+              <div className="relative shrink-0">
+                <img
+                  src={post.sellerAvatar}
+                  alt={post.sellerName}
+                  className="w-10 h-10 rounded-full border-2 border-white/40 object-cover shadow-md"
+                />
+                {post.verified && (
+                  <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-0.5 text-white">
+                    <CheckCircle2 className="w-3 h-3 fill-blue-500 text-white" />
+                  </div>
+                )}
+              </div>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="text-white font-black text-sm sm:text-base drop-shadow-md truncate">
-                  {post.sellerName}
-                </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="text-white font-black text-sm sm:text-base drop-shadow-md truncate">
+                    {post.sellerName}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-white/85 drop-shadow-sm truncate">
+                  <MapPin className="w-3 h-3 shrink-0 text-red-400" />
+                  <span className="truncate">{post.location}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-white/85 drop-shadow-sm truncate">
-                <MapPin className="w-3 h-3 shrink-0 text-red-400" />
-                <span className="truncate">{post.location}</span>
-              </div>
-            </div>
+            </button>
 
             {!isOwnPost && (
               <motion.button
