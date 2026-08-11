@@ -167,6 +167,8 @@ ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS views_count INTEGER DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS handle TEXT DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'seller';
 
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS features TEXT DEFAULT '';
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS seller_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS approval_status approval_status_type DEFAULT 'approved';
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS source product_source_type DEFAULT 'admin';
