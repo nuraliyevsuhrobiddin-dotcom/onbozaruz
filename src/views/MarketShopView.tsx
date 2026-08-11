@@ -78,6 +78,58 @@ export const MarketShopView: React.FC = () => {
   const [sortBy, setSortBy] = useState('popular');
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [checkoutForm, setCheckoutForm] = useState({ name: '', phone: '', address: '' });
+  const [isLocating, setIsLocating] = useState(false);
+
+  // Auto-detect location via GPS + Nominatim reverse geocoding
+  const detectLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Qurilmangiz joylashuvni qo\'llab-quvvatlamaydi');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=uz`,
+            { headers: { 'User-Agent': 'OnBozarApp/1.0' } }
+          );
+          const data = await res.json();
+          const addr = data.address || {};
+          // Build readable address from parts
+          const parts = [
+            addr.road || addr.pedestrian || addr.footway || '',
+            addr.house_number || '',
+            addr.suburb || addr.neighbourhood || '',
+            addr.city || addr.town || addr.village || addr.county || '',
+            addr.state || '',
+          ].filter(Boolean);
+          const formatted = parts.join(', ') || data.display_name || `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+          setCheckoutForm((prev) => ({ ...prev, address: formatted }));
+          showToast('📍 Manzil avtomatik aniqlandi!');
+        } catch {
+          // Fallback: use raw coords if Nominatim fails
+          setCheckoutForm((prev) => ({
+            ...prev,
+            address: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+          }));
+          showToast('📍 Koordinatalar aniqlandi');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        if (err.code === 1) {
+          showToast('Joylashuvga ruxsat berilmadi. Sozlamalardan ruxsat bering.');
+        } else {
+          showToast('Joylashuv aniqlanmadi. Qayta urinib ko\'ring.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
 
   // Market faqat admin tomonidan qo'shilgan va tasdiqlangan mahsulotlarni ko'rsatadi
   const approvedProducts = products.filter(
@@ -275,9 +327,53 @@ export const MarketShopView: React.FC = () => {
 
             <div className="bg-white rounded-[20px] border border-slate-200/80 p-4 shadow-sm space-y-3">
               <h2 className="text-sm font-black text-[#111827]">Yetkazib berish ma'lumotlari</h2>
-              <input value={checkoutForm.name} onChange={(e) => setCheckoutForm({ ...checkoutForm, name: e.target.value })} placeholder="Ism familiya" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
-              <input value={checkoutForm.phone} onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })} placeholder="Telefon raqam" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
-              <input value={checkoutForm.address} onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })} placeholder="Yetkazib berish manzili" className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30" />
+              <input
+                value={checkoutForm.name}
+                onChange={(e) => setCheckoutForm({ ...checkoutForm, name: e.target.value })}
+                placeholder="Ism familiya"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              />
+              <input
+                value={checkoutForm.phone}
+                onChange={(e) => setCheckoutForm({ ...checkoutForm, phone: e.target.value })}
+                placeholder="Telefon raqam"
+                type="tel"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              />
+              {/* Address field with auto-detect button */}
+              <div className="relative">
+                <input
+                  value={checkoutForm.address}
+                  onChange={(e) => setCheckoutForm({ ...checkoutForm, address: e.target.value })}
+                  placeholder="Yetkazib berish manzili"
+                  className="w-full bg-slate-100 rounded-[14px] px-3.5 py-3 pr-[3.5rem] text-[13px] outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                />
+                <button
+                  type="button"
+                  onClick={detectLocation}
+                  disabled={isLocating}
+                  title="Joylashuvni avtomatik aniqlash"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-[11px] flex items-center justify-center transition-all
+                    bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white shadow-sm disabled:opacity-60"
+                >
+                  {isLocating ? (
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" strokeLinecap="round" />
+                      <circle cx="12" cy="12" r="8" strokeDasharray="2 3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
+                <span>📍</span>
+                GPS tugmasini bosib joylashuvingizni avtomatik aniqlating
+              </p>
             </div>
           </>
         ) : (
