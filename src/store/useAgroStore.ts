@@ -4,9 +4,11 @@ import {
   Post,
   Product,
   Order,
+  Category,
   INITIAL_POSTS,
   INITIAL_PRODUCTS,
   INITIAL_ORDERS,
+  CATEGORIES,
 } from '../data/mockAgroData';
 import { CreatePostInput, CreateProductInput } from '../api/types';
 import { type AuthUser, authClient, deleteListingMedia, isSupabaseConfigured } from '../api/authClient';
@@ -15,6 +17,8 @@ import { productsRepository } from '../api/repositories/productsRepository';
 import { ordersRepository } from '../api/repositories/ordersRepository';
 import { userInteractionsRepository } from '../api/repositories/userInteractionsRepository';
 import { cacheManager } from '../utils/cacheManager';
+import { adminRepository } from '../api/adminRepository';
+
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
 
@@ -37,6 +41,8 @@ interface AgroStoreState {
   posts: Post[];
   products: Product[];
   orders: Order[];
+  categories: Category[];
+  setCategories: (categories: Category[]) => void;
   cart: Record<string, CartItem>;
   activeTab: NavTab;
   activeSubView: SubView;
@@ -197,6 +203,8 @@ export const useAgroStore = create<AgroStoreState>()(
         posts: initialPosts,
         products: initialProducts,
         orders: INITIAL_ORDERS,
+        categories: CATEGORIES,
+        setCategories: (categories) => set({ categories }),
         cart: {},
         activeTab: 'home',
         activeSubView: null,
@@ -738,10 +746,23 @@ export const useAgroStore = create<AgroStoreState>()(
         // Step 2: Background da Supabase dan yangiliklari olib kel
         set({ isBackgroundFetching: true });
         try {
-          const [posts, products] = await Promise.all([
+          const [posts, products, dbCategories] = await Promise.all([
             postsRepository.list(),
             productsRepository.list(),
+            adminRepository.getCategories().catch(() => []),
           ]);
+
+          // Combine DB categories with static CATEGORIES to preserve standard icons/ids
+          if (dbCategories && dbCategories.length > 0) {
+            const combinedCats: import('../api/types').Category[] = [
+              ...CATEGORIES,
+              ...dbCategories
+                .filter((c) => c.isActive && !CATEGORIES.some((cat) => cat.id === c.id))
+                .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0' })),
+            ];
+            set({ categories: combinedCats });
+          }
+
           const state = get();
           // Server postlarini lokal ko'rish/like/saqlash ma'lumotlari bilan birlashtirish.
           // Server ko'rish sonini lokal nusxa bilan solishtirish:

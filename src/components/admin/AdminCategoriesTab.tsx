@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Search, Plus, Edit3, Trash2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { adminRepository, CategoryItem } from '../../api/adminRepository';
 import { CATEGORIES } from '../../data/mockAgroData';
+import { useAgroStore } from '../../store/useAgroStore';
+
 
 interface AdminCategoriesTabProps {
   onLogAction: (action: string, targetId: string, oldVal: any, newVal: any) => void;
@@ -38,6 +40,18 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
 
   useEffect(() => { load(); }, [load]);
 
+  const syncStoreCategories = (items: CategoryItem[]) => {
+    const activeCats = items
+      .filter((c) => c.isActive)
+      .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0' }));
+    useAgroStore.setState((prev) => ({
+      categories: [
+        { id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0' },
+        ...activeCats.filter((c) => c.id !== 'all'),
+      ],
+    }));
+  };
+
   const handleSave = async () => {
     if (!editModal?.name?.trim()) { showToast('Kategoriya nomini kiriting'); return; }
     setIsSaving(true);
@@ -46,8 +60,9 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
       await onLogAction(editModal.id ? 'update_category' : 'create_category', saved.id, editModal, saved);
       setCategories((prev) => {
         const idx = prev.findIndex((c) => c.id === saved.id);
-        if (idx >= 0) { const next = [...prev]; next[idx] = saved; return next; }
-        return [...prev, saved];
+        const next = idx >= 0 ? prev.map((c, i) => i === idx ? saved : c) : [...prev, saved];
+        syncStoreCategories(next);
+        return next;
       });
       showToast(editModal.id ? 'Kategoriya yangilandi!' : "Yangi kategoriya qo'shildi!");
       setEditModal(null);
@@ -63,7 +78,11 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
     try {
       await adminRepository.deleteCategory(cat.id);
       await onLogAction('delete_category', cat.id, cat, null);
-      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+      setCategories((prev) => {
+        const next = prev.filter((c) => c.id !== cat.id);
+        syncStoreCategories(next);
+        return next;
+      });
       showToast("Kategoriya o'chirildi");
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
@@ -74,7 +93,11 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
     try {
       const updated = { ...cat, isActive: !cat.isActive };
       await adminRepository.saveCategory(updated);
-      setCategories((prev) => prev.map((c) => c.id === cat.id ? updated : c));
+      setCategories((prev) => {
+        const next = prev.map((c) => c.id === cat.id ? updated : c);
+        syncStoreCategories(next);
+        return next;
+      });
       showToast(updated.isActive ? 'Faollashtirildi' : "O'chirildi");
     } catch (e: any) {
       showToast(e.message || 'Xatolik');
