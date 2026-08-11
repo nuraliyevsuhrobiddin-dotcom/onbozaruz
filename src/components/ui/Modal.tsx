@@ -13,6 +13,7 @@ interface ModalProps {
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  // Body scroll lock
   useEffect(() => {
     if (isOpen) {
       lockBodyScroll();
@@ -22,6 +23,23 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
       unlockBodyScroll();
     };
   }, [isOpen]);
+
+  // History API: push state on open so phone "back" button closes modal instead of exiting app
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Push a fake history entry so back button pops here first
+    history.pushState({ modal: true }, '');
+
+    const handlePopState = () => {
+      onClose();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isOpen, onClose]);
 
   return (
     <AnimatePresence>
@@ -67,3 +85,4 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     </AnimatePresence>
   );
 };
+

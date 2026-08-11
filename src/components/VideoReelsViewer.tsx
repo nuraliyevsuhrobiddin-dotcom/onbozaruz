@@ -467,6 +467,22 @@ export const VideoReelsViewer: React.FC = () => {
     };
   }, [isVideoViewerOpen]);
 
+  // History API: push state when reels open so phone back button closes viewer, not the app
+  useEffect(() => {
+    if (!isVideoViewerOpen) return;
+
+    history.pushState({ reels: true }, '');
+
+    const handlePopState = () => {
+      closeVideoViewer();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isVideoViewerOpen, closeVideoViewer]);
+
   // IntersectionObserver to observe active slide (threshold 60% visibility)
   useEffect(() => {
     const container = containerRef.current;
