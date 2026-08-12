@@ -4,7 +4,7 @@ import { StoryBar, FarmerStory } from '../components/home/StoryBar';
 import { FeedCard } from '../components/FeedCard';
 import { LoadingSkeleton } from '../components/home/LoadingSkeleton';
 import { EmptyState } from '../components/home/EmptyState';
-import { WifiOff, RefreshCw, Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { WifiOff, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export const HomeFeedView: React.FC = () => {

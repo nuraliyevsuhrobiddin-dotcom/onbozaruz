@@ -22,11 +22,19 @@ export const SellerProfileModal: React.FC = () => {
   const totalViews = sellerPosts.reduce((sum, post) => sum + (post.viewsCount || 0), 0);
   const selectItem = (item: Post | Product) => {
     setSelectedSellerModal(null);
-    if ('mediaUrl' in item || 'type' in item) {
-      const sellerVideoPosts = posts.filter(post => post.sellerId === sellerId || post.sellerName === sellerName).filter(post => post.type === 'video');
-      const videoIndex = sellerVideoPosts.findIndex(post => post.id === item.id);
-      openVideoViewer(sellerVideoPosts, Math.max(0, videoIndex));
-    } else setProductDetail(item);
+    if ('type' in item && item.type === 'video') {
+      const sellerVideoPosts = posts.filter(
+        (post) => (post.sellerId === sellerId || post.sellerName === sellerName) && post.type === 'video'
+      );
+      const videoIndex = sellerVideoPosts.findIndex((post) => post.id === item.id);
+      if (sellerVideoPosts.length > 0) {
+        openVideoViewer(sellerVideoPosts, Math.max(0, videoIndex));
+      } else {
+        setProductDetail(item);
+      }
+    } else {
+      setProductDetail(item);
+    }
   };
   return <Modal isOpen onClose={() => setSelectedSellerModal(null)} title="Sotuvchi profili">
     <div className="space-y-4 pb-2">

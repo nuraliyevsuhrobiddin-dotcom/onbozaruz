@@ -156,8 +156,17 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
     >
       {/* Container: full on mobile, centered 9:16 card on desktop */}
       <div
-        className="relative bg-black overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
+        className="relative bg-slate-950 overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
       >
+        {/* Blurred background backdrop */}
+        {(post.posterUrl || post.mediaUrl) && (
+          <div
+            aria-hidden="true"
+            className="absolute inset-[-24px] bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none"
+            style={{ backgroundImage: `url(${post.posterUrl || post.mediaUrl})` }}
+          />
+        )}
+
         {/* Video / Image (tap to play/pause) */}
         {post.type === 'video' ? (
           <video
@@ -171,14 +180,14 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
             onClick={handleClick}
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
-            className="w-full h-full object-cover cursor-pointer"
+            className="relative z-[1] w-full h-full object-cover sm:object-contain cursor-pointer"
           />
         ) : (
           <img
             src={post.mediaUrl || post.posterUrl}
             alt={post.title}
             onClick={handleClick}
-            className="w-full h-full object-cover cursor-pointer"
+            className="relative z-[1] w-full h-full object-cover cursor-pointer"
           />
         )}
 

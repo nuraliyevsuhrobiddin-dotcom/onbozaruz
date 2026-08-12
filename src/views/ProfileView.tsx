@@ -97,12 +97,12 @@ export const ProfileView: React.FC = () => {
 
   // Handle item selection (Post or Product detail)
   const handleSelectDetail = (item: Post | Product) => {
-    if ('mediaUrl' in item || 'type' in item) {
-      const postItem = item as Post;
-      const index = posts.findIndex((p) => p.id === postItem.id);
-      openVideoViewer(posts, index >= 0 ? index : 0);
+    if ('type' in item && item.type === 'video') {
+      const videoPosts = posts.filter((p) => p.type === 'video');
+      const index = videoPosts.findIndex((p) => p.id === item.id);
+      openVideoViewer(videoPosts, index >= 0 ? index : 0);
     } else {
-      setProductDetail(item as Product);
+      setProductDetail(item);
     }
   };
 

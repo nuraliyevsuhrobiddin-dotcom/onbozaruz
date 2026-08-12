@@ -217,34 +217,37 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
         </div>
       </div>
 
-      {/* ── Media Section (9:16 Video / 4:5 Image) ── */}
+      {/* ── Media Section (Consistent 4:5 Aspect Ratio Container) ── */}
       <div
-        className={`relative w-full bg-slate-900 overflow-hidden cursor-pointer ${
-          post.type === 'video' ? 'bg-white' : 'aspect-[4/5] max-h-[500px]'
-        }`}
-        onClick={handleMediaClick}
+        className="relative w-full bg-slate-950 overflow-hidden cursor-pointer aspect-[4/5] max-h-[520px] flex items-center justify-center"
         onDoubleClick={handleDoubleTap}
       >
         {post.type === 'video' ? (
-          <VideoPlayer src={post.mediaUrl} poster={post.posterUrl} fit="auto" />
+          <VideoPlayer
+            src={post.mediaUrl}
+            poster={post.posterUrl}
+            fit="contain"
+            onOpenReels={handleMediaClick}
+          />
         ) : (
           <img
             src={mediaError ? '/logo.png' : post.posterUrl || post.mediaUrl || '/logo.png'}
             alt={post.title}
             loading="lazy"
             onError={() => setMediaError(true)}
+            onClick={() => setProductDetail(post)}
             className="w-full h-full object-cover"
           />
         )}
 
         {/* Price Badge */}
-        <div className="absolute top-3 left-3 bg-[#111111]/90 text-white px-3 py-1.5 rounded-full text-[12px] font-extrabold tracking-tight shadow-md">
+        <div className="absolute top-3 left-3 z-10 bg-[#111111]/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[12px] font-extrabold tracking-tight shadow-md border border-white/10">
           <span className="text-[#22C55E]">{post.price}</span>
         </div>
 
         {/* Double-tap heart */}
         {showHeartAnim && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
             <Heart className="w-24 h-24 text-white fill-[#E53935] drop-shadow-2xl animate-heart-pulse" />
           </div>
         )}

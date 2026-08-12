@@ -17,6 +17,7 @@ import {
   Package,
 } from 'lucide-react';
 import type { Product } from '../api/types';
+import { VideoPlayer } from './ui/VideoPlayer';
 
 export const ProductDetailModal: React.FC = () => {
   const {
@@ -118,24 +119,37 @@ export const ProductDetailModal: React.FC = () => {
           </div>
         )}
 
-        {/* Main Image */}
-        <div className="relative aspect-square rounded-[22px] overflow-hidden bg-slate-100 border border-slate-200">
-          <img
-            src={galleryImages[activeImage] || '/logo.png'}
-            alt={title}
-            onError={(event) => {
-              event.currentTarget.onerror = null;
-              event.currentTarget.src = '/logo.png';
-            }}
-            className="w-full h-full object-cover"
-          />
+        {/* Main Media (Image or Video) */}
+        <div className="relative aspect-square rounded-[22px] overflow-hidden bg-slate-950 border border-slate-200 flex items-center justify-center">
+          {isVideoPost ? (
+            <VideoPlayer
+              src={(productDetail as any).mediaUrl}
+              poster={(productDetail as any).posterUrl}
+              fit="contain"
+              onOpenReels={() => {
+                const videoPost = productDetail as any;
+                setProductDetail(null);
+                openVideoViewer([videoPost], 0);
+              }}
+            />
+          ) : (
+            <img
+              src={galleryImages[activeImage] || '/logo.png'}
+              alt={title}
+              onError={(event) => {
+                event.currentTarget.onerror = null;
+                event.currentTarget.src = '/logo.png';
+              }}
+              className="w-full h-full object-cover"
+            />
+          )}
           {discount && (
-            <span className="absolute left-3 top-3 rounded-full bg-[#E53935] px-3 py-1 text-xs font-black text-white shadow-md">
+            <span className="absolute left-3 top-3 z-10 rounded-full bg-[#E53935] px-3 py-1 text-xs font-black text-white shadow-md">
               {discount}
             </span>
           )}
           {isProductItem && (
-            <span className="absolute right-3 top-3 rounded-full bg-emerald-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-black text-white shadow-md flex items-center gap-1">
+            <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-black text-white shadow-md flex items-center gap-1">
               <Truck className="w-3 h-3" /> OnBozar Yetkazadi
             </span>
           )}

@@ -796,15 +796,17 @@ export const useAgroStore = create<AgroStoreState>()(
           });
           // Optimistic/local moderation items should remain visible in the owner's profile
           // until the backend includes them; marketplace consumers can still filter by status.
-          const localOnlyPending = state.posts.filter(localPost =>
-            localPost.status === 'pending' && !freshPosts.some(serverPost => serverPost.id === localPost.id)
+          const localOnlyPending = state.posts.filter((localPost) =>
+            localPost.status === 'pending' && !freshPosts.some((serverPost) => serverPost.id === localPost.id)
           );
           const mergedPosts = [...localOnlyPending, ...freshPosts];
-          cacheManager.savePostsCache(mergedPosts);
-          cacheManager.saveProductsCache(products);
+          const finalPosts = mergedPosts.length > 0 ? mergedPosts : INITIAL_POSTS;
+          const finalProducts = products.length > 0 ? products : INITIAL_PRODUCTS;
+          cacheManager.savePostsCache(finalPosts);
+          cacheManager.saveProductsCache(finalProducts);
           set({
-            posts: mergedPosts,
-            products,
+            posts: finalPosts,
+            products: finalProducts,
             isHydrating: false,
             isOffline: false,
             fetchError: null,
