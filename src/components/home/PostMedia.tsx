@@ -47,7 +47,7 @@ export const PostMedia: React.FC<PostMediaProps> = ({
             <VideoPlayer
               src={mediaUrl}
               poster={posterUrl}
-              fit="contain"
+              fit="cover"
               onOpenReels={onClickMedia}
             />
           ) : (

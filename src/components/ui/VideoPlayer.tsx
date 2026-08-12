@@ -99,12 +99,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         minHeight: '280px',
       }}
     >
-      {/* Blurred poster background so 9:16 or 16:9 videos blend seamlessly */}
-      {bgPoster && (
+      {/* Blurred poster or video background so 9:16 or 16:9 videos never have pitch black side bars */}
+      {bgPoster ? (
         <div
           aria-hidden="true"
-          className="absolute inset-[-20px] bg-cover bg-center opacity-30 blur-2xl scale-110 pointer-events-none"
+          className="absolute inset-[-20px] bg-cover bg-center opacity-40 blur-2xl scale-110 pointer-events-none z-0"
           style={{ backgroundImage: `url(${bgPoster})` }}
+        />
+      ) : (
+        <video
+          aria-hidden="true"
+          src={src}
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover opacity-40 blur-2xl scale-110 pointer-events-none z-0"
         />
       )}
 
