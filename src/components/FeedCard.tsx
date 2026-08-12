@@ -124,12 +124,15 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
             })
           }
         >
-          <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-100 shrink-0">
-            <img
-              src={post.sellerAvatar}
-              alt={post.sellerName}
-              className="w-full h-full object-cover"
-            />
+          <div className="w-[42px] h-[42px] rounded-full p-[2px] bg-gradient-to-tr from-amber-500 via-[#E53935] to-rose-600 shrink-0 shadow-xs">
+            <div className="w-full h-full rounded-full p-[1.5px] bg-white overflow-hidden">
+              <img
+                src={post.sellerAvatar || '/logo.png'}
+                alt={post.sellerName}
+                className="w-full h-full rounded-full object-cover"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+              />
+            </div>
           </div>
           <div>
             <div className="flex items-center gap-1.5 leading-tight">
@@ -340,7 +343,9 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           onClick={() => setCommentPost(post)}
           className="text-[12px] text-slate-400 hover:text-slate-600 transition-colors font-medium block"
         >
-          Barcha {post.commentsCount} izohni ko'rish
+          {post.commentsCount > 0
+            ? `Barcha ${post.commentsCount} ta izohni ko'rish`
+            : "Izoh qoldirish..."}
         </button>
 
         {/* Date */}
