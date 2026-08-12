@@ -5,7 +5,7 @@ interface VideoPlayerProps {
   src: string;
   poster?: string;
   className?: string;
-  fit?: 'contain' | 'cover';
+  fit?: 'contain' | 'cover' | 'auto';
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
@@ -88,7 +88,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     <div
       ref={containerRef}
       onClick={togglePlay}
-      className={`relative w-full h-full bg-slate-900 overflow-hidden cursor-pointer ${className}`}
+      className={`relative overflow-hidden cursor-pointer ${fit === 'auto' ? 'flex max-h-[600px] justify-center bg-slate-950' : 'h-full bg-slate-900'} ${className}`}
     >
       {fit === 'contain' && poster && (
         <div
@@ -108,7 +108,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onError={() => setHasError(true)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        className={`relative z-[1] w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+        className={`relative z-[1] ${fit === 'auto' ? 'h-auto max-h-[600px] max-w-full w-auto object-contain' : 'h-full w-full'} ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       />
 
       {hasError && (
