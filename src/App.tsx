@@ -182,7 +182,12 @@ export default function App() {
           });
           setAuthPromptOpen(false);
         }}
-        onBack={() => setAuthPromptOpen(false)}
+        onBack={() => {
+          setAuthPromptOpen(false);
+          setActiveSubView(null);
+          setActiveTab('home');
+          window.dispatchEvent(new Event('onbozor:reset-feed'));
+        }}
       />
     );
   }

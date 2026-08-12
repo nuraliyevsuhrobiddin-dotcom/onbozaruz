@@ -21,6 +21,13 @@ export const HomeFeedView: React.FC = () => {
 
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
 
+  // Auth modal/profile flowdan qaytganda eski story filter feedni bo'sh qoldirmasin.
+  useEffect(() => {
+    const resetFeed = () => setSelectedSeller(null);
+    window.addEventListener('onbozor:reset-feed', resetFeed);
+    return () => window.removeEventListener('onbozor:reset-feed', resetFeed);
+  }, []);
+
   // Minimal skeleton faqat birinchi ochilishda ko'rsatiladi
   const [initialDone, setInitialDone] = useState(false);
   useEffect(() => {

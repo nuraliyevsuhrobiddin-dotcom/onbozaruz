@@ -57,7 +57,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         Ushbu mezonlar bo'yicha e'lon topilmadi
       </h3>
       <p className="text-xs text-slate-400 max-w-xs leading-relaxed font-medium">
-        Kategoriyani yoki hudud filtrini o'zgartirib qaytadan urinib ko'ring.
+        Keyinroq qaytadan urinib ko'ring yoki yangi e'lon joylang.
       </p>
       <button
         onClick={onReset}

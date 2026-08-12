@@ -19,11 +19,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [aspectRatio, setAspectRatio] = useState<number | null>(null);
 
   // src o'zgarganda xato va play holatini tiklash
   useEffect(() => {
     setHasError(false);
     setIsPlaying(false);
+    setAspectRatio(null);
   }, [src, poster]);
 
   // IntersectionObserver — feed da avtomatik ijro/to'xtatish
@@ -88,7 +90,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     <div
       ref={containerRef}
       onClick={togglePlay}
-      className={`relative overflow-hidden cursor-pointer ${fit === 'auto' ? 'flex max-h-[600px] justify-center bg-slate-950' : 'h-full bg-slate-900'} ${className}`}
+      className={`relative overflow-hidden cursor-pointer ${fit === 'auto' ? 'flex justify-center bg-slate-950' : 'h-full bg-slate-900'} ${className}`}
+      style={fit === 'auto' && aspectRatio ? { aspectRatio: `${aspectRatio}` } : undefined}
     >
       {fit === 'contain' && poster && (
         <div
@@ -106,9 +109,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         playsInline
         preload="metadata"
         onError={() => setHasError(true)}
+        onLoadedMetadata={(event) => {
+          const video = event.currentTarget;
+          if (fit === 'auto' && video.videoWidth > 0 && video.videoHeight > 0) {
+            setAspectRatio(video.videoWidth / video.videoHeight);
+          }
+        }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        className={`relative z-[1] ${fit === 'auto' ? 'h-auto max-h-[600px] max-w-full w-auto object-contain' : 'h-full w-full'} ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+        className={`relative z-[1] ${fit === 'auto' ? 'h-full w-full object-contain' : 'h-full w-full'} ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       />
 
       {hasError && (
