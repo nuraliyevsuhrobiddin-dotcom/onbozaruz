@@ -90,8 +90,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     <div
       ref={containerRef}
       onClick={togglePlay}
-      className={`relative overflow-hidden cursor-pointer ${fit === 'auto' ? 'flex justify-center bg-slate-950' : 'h-full bg-slate-900'} ${className}`}
-      style={fit === 'auto' && aspectRatio ? { aspectRatio: `${aspectRatio}` } : undefined}
+      className={`relative overflow-hidden cursor-pointer ${fit === 'auto' ? 'flex justify-center bg-white' : 'h-full bg-slate-900'} ${className}`}
+      style={fit === 'auto' && aspectRatio ? { aspectRatio: `${aspectRatio}`, maxHeight: 'calc(100vh - 190px)' } : undefined}
     >
       {fit === 'contain' && poster && (
         <div
@@ -117,7 +117,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        className={`relative z-[1] ${fit === 'auto' ? 'h-full w-full object-contain' : 'h-full w-full'} ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+        className={`relative z-[1] ${fit === 'auto' ? 'h-auto max-h-[calc(100vh-190px)] w-auto max-w-full object-contain' : 'h-full w-full'} ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       />
 
       {hasError && (

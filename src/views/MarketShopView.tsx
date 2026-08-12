@@ -333,7 +333,7 @@ export const MarketShopView: React.FC = () => {
                       </button>
                     </div>
                     <p className="text-[11px] text-slate-400 truncate">Hamkor: {product.seller}</p>
-                    <p className="text-[13px] font-black text-[#E53935]">{formatMoney(product.numericPrice * quantity)}</p>
+                    <p className="text-[13px] font-black text-[#5b35f5]">{formatMoney(product.numericPrice * quantity)}</p>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">OnBozor yetkazadi</span>
                       <div className="flex items-center rounded-full bg-slate-100 p-1">
@@ -364,7 +364,7 @@ export const MarketShopView: React.FC = () => {
                   className={`w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none transition-all ${
                     formErrors.name
                       ? 'border-2 border-red-500 bg-red-50/50 focus:ring-2 focus:ring-red-300'
-                      : 'focus:ring-2 focus:ring-[#E53935]/30'
+                      : 'focus:ring-2 focus:ring-[#5b35f5]/30'
                   }`}
                 />
                 {formErrors.name && (
@@ -384,7 +384,7 @@ export const MarketShopView: React.FC = () => {
                   className={`w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] outline-none transition-all ${
                     formErrors.phone
                       ? 'border-2 border-red-500 bg-red-50/50 focus:ring-2 focus:ring-red-300'
-                      : 'focus:ring-2 focus:ring-[#E53935]/30'
+                      : 'focus:ring-2 focus:ring-[#5b35f5]/30'
                   }`}
                 />
                 {formErrors.phone && (
@@ -405,7 +405,7 @@ export const MarketShopView: React.FC = () => {
                     className={`w-full bg-slate-100 rounded-[14px] px-3.5 py-3 pr-[3.5rem] text-[13px] outline-none transition-all ${
                       formErrors.address
                         ? 'border-2 border-red-500 bg-red-50/50 focus:ring-2 focus:ring-red-300'
-                        : 'focus:ring-2 focus:ring-[#E53935]/30'
+                        : 'focus:ring-2 focus:ring-[#5b35f5]/30'
                     }`}
                   />
                   <button
@@ -463,7 +463,7 @@ export const MarketShopView: React.FC = () => {
               <button
                 onClick={handleOrder}
                 disabled={isSubmittingOrder}
-                className="w-full py-3.5 rounded-2xl bg-[#E53935] hover:bg-[#C62828] active:scale-[0.98] text-white text-sm font-black flex items-center justify-center gap-2 shadow-md transition-all disabled:opacity-60"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] hover:brightness-95 active:scale-[0.98] text-white text-sm font-black flex items-center justify-center gap-2 shadow-md transition-all disabled:opacity-60"
               >
                 {isSubmittingOrder ? (
                   <>
@@ -507,7 +507,7 @@ export const MarketShopView: React.FC = () => {
             </div>
             <h1 className="text-2xl font-black text-white leading-tight">
               OnBozar<br />
-              <span className="text-[#E53935]">Market</span>
+              <span className="text-[#5b35f5]">Market</span>
             </h1>
             <p className="text-[11px] text-white/60 max-w-[200px] leading-relaxed">
               Sertifikatlangan hamkorlardan to'g'ridan-to'g'ri xarid qiling
@@ -527,7 +527,7 @@ export const MarketShopView: React.FC = () => {
             >
               <ShoppingCart className="w-5 h-5" />
               {cartCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-[#E53935] text-white text-[10px] font-black flex items-center justify-center">
+              <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-[#5b35f5] text-white text-[10px] font-black flex items-center justify-center">
                   {cartCount}
                 </span>
               )}
@@ -537,7 +537,7 @@ export const MarketShopView: React.FC = () => {
             {isAdminUser && (
               <button
                 onClick={() => setActiveTab('admin')}
-                className="w-11 h-11 rounded-[16px] bg-[#E53935]/90 text-white flex items-center justify-center border border-[#E53935] hover:bg-[#C62828] transition-colors"
+                className="w-11 h-11 rounded-[16px] bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] text-white flex items-center justify-center border border-[#5b35f5] hover:brightness-95 transition-colors"
                 title="Admin panel — mahsulot qo'shish"
               >
                 <ShieldCheck className="w-5 h-5" />
@@ -566,7 +566,7 @@ export const MarketShopView: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Mahsulot qidirish..."
-              className="w-full bg-white border border-slate-200 rounded-[18px] pl-10 pr-10 py-3 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#E53935]/25"
+              className="w-full bg-white border border-slate-200 rounded-[18px] pl-10 pr-10 py-3 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#5b35f5]/25"
             />
             {searchTerm && (
               <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -597,7 +597,7 @@ export const MarketShopView: React.FC = () => {
                 onClick={() => setSelectedSegment(seg.id)}
                 className={`shrink-0 rounded-full px-3.5 py-2 text-[12px] font-black border transition-all flex items-center gap-1.5 ${
                   selectedSegment === seg.id
-                    ? 'bg-[#111827] text-white border-[#111827]'
+                    ? 'bg-[#5b35f5] text-white border-[#5b35f5] shadow-[0_6px_16px_rgba(91,53,245,.22)]'
                     : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                 }`}
               >
@@ -659,7 +659,7 @@ export const MarketShopView: React.FC = () => {
                     <PartnerIcon className="inline w-3 h-3 mr-1" />{meta.label}
                   </span>
                   {product.discount && (
-                    <span className="absolute left-2 bottom-2 rounded-full bg-[#E53935] px-2 py-1 text-[10px] font-black text-white">
+                    <span className="absolute left-2 bottom-2 rounded-full bg-[#5b35f5] px-2 py-1 text-[10px] font-black text-white">
                       {product.discount}
                     </span>
                   )}
@@ -671,7 +671,7 @@ export const MarketShopView: React.FC = () => {
                       className="absolute right-2 top-2 rounded-full bg-white/90 p-2 shadow-md text-slate-700 hover:bg-white transition-colors"
                       aria-label="Tahrirlash"
                     >
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#E53935]" />
+                      <ShieldCheck className="w-3.5 h-3.5 text-[#5b35f5]" />
                     </button>
                   )}
                 </div>
@@ -685,7 +685,7 @@ export const MarketShopView: React.FC = () => {
                     {product.verified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50 shrink-0" />}
                   </div>
                   <h3 className="h-9 text-[12px] font-bold leading-snug text-[#111827] line-clamp-2">{product.title}</h3>
-                  <p className="text-[13px] font-black text-[#E53935]">{product.price}</p>
+                  <p className="text-[13px] font-black text-[#5b35f5]">{product.price}</p>
                   <div className="flex items-center gap-1 text-[10px] text-amber-500 font-black">
                     <Star className="w-3 h-3 fill-amber-400" />
                     {product.rating}
@@ -694,7 +694,7 @@ export const MarketShopView: React.FC = () => {
                   <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500">
                     <span className="truncate">Min: {product.minOrder}</span>
                     <span className="inline-flex items-center gap-1 truncate">
-                      <MapPin className="w-3 h-3 text-[#E53935]" />
+                      <MapPin className="w-3 h-3 text-[#5b35f5]" />
                       {product.location}
                     </span>
                   </div>
@@ -721,7 +721,7 @@ export const MarketShopView: React.FC = () => {
                   ) : (
                     <button
                       onClick={(e) => handleAddToCart(e, product)}
-                      className="w-full py-2.5 rounded-[14px] bg-[#E53935] text-white text-xs font-black flex items-center justify-center gap-1.5 hover:bg-[#C62828] transition-colors"
+                      className="w-full py-2.5 rounded-[14px] bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] text-white text-xs font-black flex items-center justify-center gap-1.5 hover:brightness-95 transition-colors"
                     >
                       <ShoppingCart className="w-3.5 h-3.5" />
                       Savatga
@@ -744,7 +744,7 @@ export const MarketShopView: React.FC = () => {
           {isAdminUser && (
             <button
               onClick={() => setActiveTab('admin')}
-              className="mt-1 px-5 py-2.5 rounded-[16px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors flex items-center gap-2"
+              className="mt-1 px-5 py-2.5 rounded-[16px] bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] text-white font-black text-xs hover:brightness-95 transition-colors flex items-center gap-2"
             >
               <ShieldCheck className="w-4 h-4" />
               Admin paneldan mahsulot qo'shish
@@ -762,7 +762,7 @@ export const MarketShopView: React.FC = () => {
               className="relative w-12 h-12 rounded-2xl bg-[#111827] text-white flex items-center justify-center shrink-0"
             >
               <ShoppingCart className="w-5 h-5" />
-              <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-[#E53935] text-white text-[10px] font-black flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-[#5b35f5] text-white text-[10px] font-black flex items-center justify-center">
                 {cartCount}
               </span>
             </button>
@@ -772,7 +772,7 @@ export const MarketShopView: React.FC = () => {
             </div>
             <button
               onClick={() => setIsCartOpen(true)}
-              className="px-5 py-3 rounded-2xl bg-[#E53935] text-white text-xs font-black shadow-sm hover:bg-[#C62828] transition-colors"
+              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] text-white text-xs font-black shadow-sm hover:brightness-95 transition-colors"
             >
               Buyurtma
             </button>

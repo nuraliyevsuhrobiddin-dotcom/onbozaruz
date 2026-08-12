@@ -220,7 +220,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
       {/* ── Media Section (9:16 Video / 4:5 Image) ── */}
       <div
         className={`relative w-full bg-slate-900 overflow-hidden cursor-pointer ${
-          post.type === 'video' ? 'bg-slate-950' : 'aspect-[4/5] max-h-[500px]'
+          post.type === 'video' ? 'bg-white' : 'aspect-[4/5] max-h-[500px]'
         }`}
         onClick={handleMediaClick}
         onDoubleClick={handleDoubleTap}

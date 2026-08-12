@@ -32,7 +32,7 @@ const normalizePhone = (value: string) => {
   return `+998${localDigits}`;
 };
 
-const focusRing = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#c94235]/15';
+const focusRing = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#5b35f5]/20';
 
 const GoogleMark = () => (
   <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none">
@@ -57,7 +57,7 @@ const OneIdMark = () => (
     <path d="M13.45 7.25h5.2M13.45 11.95h5.2M13.45 16.65h3.55" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
   </svg>
 );
-const inputClass = `w-full min-h-12 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] py-3.5 pl-11 pr-4 text-sm text-[#26231f] placeholder:text-[#a39a90] shadow-[0_1px_2px_rgba(49,38,26,.03)] transition duration-200 hover:border-[#c9bbae] focus:border-[#c94235] focus:bg-white ${focusRing}`;
+const inputClass = `w-full min-h-12 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] py-3.5 pl-11 pr-4 text-sm text-[#26231f] placeholder:text-[#a39a90] shadow-[0_1px_2px_rgba(49,38,26,.03)] transition duration-200 hover:border-[#c9bbae] focus:border-[#5b35f5] focus:bg-white ${focusRing}`;
 const iconClass = 'text-[#93887d]';
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
@@ -138,7 +138,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f5efe6] px-4 py-6 text-[#26231f] sm:px-6 sm:py-10">
-      <div className="pointer-events-none absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#c94235]/[.07] blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#5b35f5]/[.10] blur-3xl" />
       <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#d6b27c]/[.16] blur-3xl" />
 
       <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[450px] flex-col justify-center">
@@ -156,40 +156,40 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
         <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-[28px] border border-[#e4d9cd] bg-[#fffdfa] p-5 shadow-[0_26px_70px_rgba(63,43,25,.12)] sm:p-8">
           {mode === 'confirmation_pending' ? (
             <div className="py-5 text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#fae9e5] text-[#c94235]">{contactMode === 'email' ? <Mail className="h-8 w-8" /> : <Phone className="h-8 w-8" />}</div>
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#ede9fe] text-[#5b35f5]">{contactMode === 'email' ? <Mail className="h-8 w-8" /> : <Phone className="h-8 w-8" />}</div>
               <h1 className="text-2xl font-black tracking-[-.03em]">{contactMode === 'email' ? 'Emailni tasdiqlang' : 'SMS kodni tasdiqlang'}</h1>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#766b61]">{contactMode === 'email' ? `${identifier} manziliga yuborilgan havolani bosing.` : `${normalizePhone(identifier)} raqamiga yuborilgan SMS kodni kiriting.`}</p>
               {success && <div className="mt-5 flex items-start gap-2 rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-left text-xs font-semibold leading-5 text-[#28643a]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</div>}
-              <button onClick={() => switchMode('login')} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#c94235] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(201,66,53,.22)] transition hover:bg-[#ae352c] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>Tasdiqladim, kirish <ArrowRight className="h-4 w-4" /></button>
-              {contactMode === 'email' && <button onClick={resend} disabled={resending} className={`mt-3 min-h-11 px-3 text-xs font-bold text-[#766b61] transition hover:text-[#c94235] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}>{resending ? 'Yuborilmoqda...' : 'Xat kelmadimi? Qayta yuborish'}</button>}
+              <button onClick={() => switchMode('login')} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>Tasdiqladim, kirish <ArrowRight className="h-4 w-4" /></button>
+              {contactMode === 'email' && <button onClick={resend} disabled={resending} className={`mt-3 min-h-11 px-3 text-xs font-bold text-[#766b61] transition hover:text-[#5b35f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}>{resending ? 'Yuborilmoqda...' : 'Xat kelmadimi? Qayta yuborish'}</button>}
             </div>
           ) : <>
             <div className="mb-6">
-              <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#c94235]">Xush kelibsiz</p>
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#5b35f5]">Xush kelibsiz</p>
               <h1 className="text-[29px] font-black tracking-[-.045em] text-[#26231f]">{mode === 'login' ? 'OnBozorga kiring' : 'Akkaunt yarating'}</h1>
               <p className="mt-2 max-w-sm text-sm leading-6 text-[#766b61]">{mode === 'login' ? "Savdoni davom ettirish uchun ma'lumotlaringizni kiriting." : "Faqat kerakli ma'lumotlar. Keyin profilingizni to'ldirasiz."}</p>
             </div>
 
             <div className="mb-6 grid grid-cols-2 rounded-2xl border border-[#e8dfd5] bg-[#f4eee6] p-1">
-              <button type="button" onClick={() => switchMode('login')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'login' ? 'bg-[#fffdfa] text-[#c94235] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Kirish</button>
-              <button type="button" onClick={() => switchMode('signup')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'signup' ? 'bg-[#fffdfa] text-[#c94235] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Ro'yxatdan o'tish</button>
+              <button type="button" onClick={() => switchMode('login')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'login' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Kirish</button>
+              <button type="button" onClick={() => switchMode('signup')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'signup' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Ro'yxatdan o'tish</button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki fermer nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Anvar Agro" className={inputClass} /></div></label>}
               <div>
-                <div className="mb-1.5 flex items-center justify-between gap-3"><span className="text-xs font-bold text-[#4c433b]">{contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'}</span><div className="flex shrink-0 rounded-lg bg-[#f4eee6] p-0.5 text-[10px] font-black"><button type="button" onClick={() => { setContactMode('email'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'email' ? 'bg-[#fffdfa] text-[#c94235] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Email</button><button type="button" onClick={() => { setContactMode('phone'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'phone' ? 'bg-[#fffdfa] text-[#c94235] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Telefon</button></div></div>
+                <div className="mb-1.5 flex items-center justify-between gap-3"><span className="text-xs font-bold text-[#4c433b]">{contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'}</span><div className="flex shrink-0 rounded-lg bg-[#f4eee6] p-0.5 text-[10px] font-black"><button type="button" onClick={() => { setContactMode('email'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'email' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Email</button><button type="button" onClick={() => { setContactMode('phone'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'phone' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Telefon</button></div></div>
                 <div className="relative"><span className={`absolute left-4 top-4 ${iconClass}`}>{contactMode === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}</span><input id={`auth-${contactMode}`} aria-label={contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'} type={contactMode === 'email' ? 'email' : 'tel'} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={contactMode === 'email' ? 'sizning@emailingiz.uz' : '+998 90 123 45 67'} className={inputClass} /></div>
               </div>
               <label className="block" htmlFor="auth-password"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parol</span><div className="relative"><Lock className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-password" aria-label="Parol" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Kamida 6 ta belgi" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword(v => !v)} className={`absolute right-2 top-1/2 flex min-h-9 min-w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#93887d] transition hover:bg-[#f4eee6] hover:text-[#4c433b] ${focusRing}`} aria-label="Parolni ko'rsatish">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></label>
               {mode === 'signup' && <label className="block"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parolni takrorlang</span><input aria-label="Parolni takrorlang" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Parolni yana kiriting" className={`${inputClass} px-4`} /></label>}
               {error && <div role="alert" className="flex items-start gap-2 rounded-2xl border border-[#f1c9c3] bg-[#fff3f1] p-3 text-xs font-semibold leading-5 text-[#a33229]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
               {success && <div role="status" className="rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-xs font-semibold leading-5 text-[#28643a]">{success}</div>}
-              <button disabled={loading} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#c94235] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(201,66,53,.22)] transition hover:bg-[#ae352c] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>
+              <button disabled={loading} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>
             </form>
 
             <div className="my-6 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.18em] text-[#9a8e82]"><span className="h-px flex-1 bg-[#e8dfd5]" />Yoki<span className="h-px flex-1 bg-[#e8dfd5]" /></div>
-            <div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => handleProvider('google')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#c94235] hover:bg-[#fff8f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><GoogleMark />Google</button><button type="button" onClick={() => handleProvider('oneid')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#c94235] hover:bg-[#fff8f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><OneIdMark />OneID</button></div>
+            <div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => handleProvider('google')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#5b35f5] hover:bg-[#f3f0ff] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><GoogleMark />Google</button><button type="button" onClick={() => handleProvider('oneid')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#5b35f5] hover:bg-[#f3f0ff] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><OneIdMark />OneID</button></div>
           </>}
         </motion.section>
         <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozor — fermerlar va xaridorlar uchun ishonchli bozor</p>
