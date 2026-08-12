@@ -90,6 +90,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       onClick={togglePlay}
       className={`relative w-full h-full bg-slate-900 overflow-hidden cursor-pointer ${className}`}
     >
+      {fit === 'contain' && poster && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-[-28px] bg-cover bg-center opacity-45 blur-2xl scale-110"
+          style={{ backgroundImage: `url(${poster})` }}
+        />
+      )}
       <video
         ref={videoRef}
         src={src}
@@ -101,7 +108,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         onError={() => setHasError(true)}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+        className={`relative z-[1] w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       />
 
       {hasError && (

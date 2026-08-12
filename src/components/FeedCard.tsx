@@ -220,13 +220,13 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
       {/* ── Media Section (9:16 Video / 4:5 Image) ── */}
       <div
         className={`relative w-full bg-slate-900 overflow-hidden cursor-pointer ${
-          post.type === 'video' ? 'aspect-[9/16] max-h-[640px]' : 'aspect-[4/5] max-h-[500px]'
+          post.type === 'video' ? 'aspect-[9/16] max-h-[580px] sm:aspect-[9/14] sm:max-h-[600px]' : 'aspect-[4/5] max-h-[500px]'
         }`}
         onClick={handleMediaClick}
         onDoubleClick={handleDoubleTap}
       >
         {post.type === 'video' ? (
-          <VideoPlayer src={post.mediaUrl} poster={post.posterUrl} />
+          <VideoPlayer src={post.mediaUrl} poster={post.posterUrl} fit="cover" />
         ) : (
           <img
             src={mediaError ? '/logo.png' : post.posterUrl || post.mediaUrl || '/logo.png'}

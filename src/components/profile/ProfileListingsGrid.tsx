@@ -52,10 +52,11 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                 className="relative aspect-square bg-slate-100 overflow-hidden cursor-pointer group rounded-[14px]"
               >
                 <img
-                  src={imageSrc}
+                  src={imageSrc || '/logo.png'}
                   alt={item.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
+                {'status' in item && item.status === 'pending' && <span className="absolute left-1 top-1 rounded-full bg-amber-300 px-1.5 py-0.5 text-[8px] font-black text-amber-950">Kutilmoqda</span>}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2 text-white text-[10px] font-extrabold">
                   {activeGridTab === 'posts' && isAdminUser ? (
                     <div className="flex justify-end gap-1">

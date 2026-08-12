@@ -181,8 +181,8 @@ export const ProfileView: React.FC = () => {
       <ProfileStats
         postsCount={ownPosts.length}
         viewsCount={formatCompact(viewsCountRaw)}
-        followersCount={formatCompact(Math.max(12, ownPosts.length * 5))}
-        followingCount={formatCompact(3)}
+        followersCount={formatCompact(0)}
+        followingCount={formatCompact(0)}
         onTabChange={(tab) => setActiveGridTab(tab)}
         showToast={showToast}
       />

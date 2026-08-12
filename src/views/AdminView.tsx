@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ShieldOff, Home, Menu, X } from 'lucide-react';
+import { ShieldOff, Home, Menu } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { adminRepository } from '../api/adminRepository';
 import { AdminSidebar } from '../components/admin/AdminSidebar';
@@ -34,10 +34,19 @@ export const AdminView: React.FC = () => {
     setCreateModalOpen,
     approvePost,
     rejectPost,
+    updateOrderStatus,
   } = useAgroStore();
 
   const [activeTab, setTab] = useState<AdminTab>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+  const logAction = useCallback(
+    async (action: string, targetId: string, oldVal: any, newVal: any) => {
+      if (!currentUser) return;
+      await adminRepository.logAdminAction(currentUser.email, action, action.split('_').slice(-1)[0] ?? 'unknown', targetId, oldVal, newVal);
+    },
+    [currentUser],
+  );
 
   // ─── Security Guard: UI layer ───────────────────────────────────────────
   // Real protection is enforced at DB level via Supabase RLS policies.
@@ -69,23 +78,9 @@ export const AdminView: React.FC = () => {
     + products.filter((p) => p.approvalStatus === 'pending').length;
 
   // ─── Audit logging helper ──────────────────────────────────────────────
-  const logAction = useCallback(
-    async (action: string, targetId: string, oldVal: any, newVal: any) => {
-      await adminRepository.logAdminAction(
-        currentUser.email,
-        action,
-        action.split('_').slice(-1)[0] ?? 'unknown',
-        targetId,
-        oldVal,
-        newVal,
-      );
-    },
-    [currentUser.email],
-  );
-
   // ─── Order status update handler ──────────────────────────────────────
-  const handleOrderStatusUpdate = (orderId: string, status: string, step: number) => {
-    // Update orders in store — Supabase update done in AdminOrdersTab
+  const handleOrderStatusUpdate = async (orderId: string, status: string, step: number) => {
+    await updateOrderStatus(orderId, status, step);
     showToast(`Buyurtma holati: ${status}`);
   };
 

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAgroStore } from '../store/useAgroStore';
 import { StoryBar, FarmerStory } from '../components/home/StoryBar';
-import { RegionFilter } from '../components/home/RegionFilter';
-import { CategoryFilter } from '../components/home/CategoryFilter';
 import { FeedCard } from '../components/FeedCard';
 import { LoadingSkeleton } from '../components/home/LoadingSkeleton';
 import { EmptyState } from '../components/home/EmptyState';
@@ -21,8 +19,6 @@ export const HomeFeedView: React.FC = () => {
     uploadingPostStatus,
   } = useAgroStore();
 
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedRegion, setSelectedRegion] = useState('all');
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
 
   // Minimal skeleton faqat birinchi ochilishda ko'rsatiladi
@@ -52,20 +48,12 @@ export const HomeFeedView: React.FC = () => {
     ).values()
   );
 
-  const filteredPosts = posts.filter((p) => {
-    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
-    const matchesRegion =
-      selectedRegion === 'all' || p.location.includes(selectedRegion);
-    const matchesSeller = !selectedSeller || p.sellerId === selectedSeller;
-    return matchesCategory && matchesRegion && matchesSeller;
-  });
+  const filteredPosts = posts.filter((p) => !selectedSeller || p.sellerId === selectedSeller);
 
   // Deduplicate posts by id to prevent accidental double renders
   const dedupedPosts = Array.from(new Map(filteredPosts.map((p) => [p.id, p])).values());
 
   const handleReset = () => {
-    setSelectedCategory('all');
-    setSelectedRegion('all');
     setSelectedSeller(null);
   };
 
@@ -202,21 +190,7 @@ export const HomeFeedView: React.FC = () => {
         }}
       />
 
-      {/* 2. Filters Container */}
-      <div className="relative self-start w-full z-50 bg-[#F8FAFC]/95 backdrop-blur-md py-2 -mx-2 sm:-mx-4 px-2 sm:px-4 border-b border-slate-200/60 lg:transform-[translateZ(0)]">
-        <div className="space-y-2">
-          <CategoryFilter
-            selectedCategory={selectedCategory}
-            onSelectCategory={(catId) => setSelectedCategory(catId)}
-          />
-          <RegionFilter
-            selectedRegion={selectedRegion}
-            onSelectRegion={(reg) => setSelectedRegion(reg)}
-          />
-        </div>
-      </div>
-
-      {/* 3. Feed Cards list or Skeleton or EmptyState */}
+      {/* 2. Feed Cards list or Skeleton or EmptyState */}
       {showSkeleton ? (
         <LoadingSkeleton />
       ) : dedupedPosts.length > 0 ? (

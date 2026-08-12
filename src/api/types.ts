@@ -32,6 +32,8 @@ export interface Post {
   date: string;
   condition?: string;
   description?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
 }
 
 export interface Category {

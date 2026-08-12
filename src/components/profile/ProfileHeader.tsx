@@ -48,9 +48,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [coverLoadError, setCoverLoadError] = useState(false);
 
-  const defaultCover =
-    'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1000&auto=format&fit=crop&q=80';
-
   interface MenuItem {
     id: string;
     label: string;
@@ -77,11 +74,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             className="w-full h-full object-cover opacity-90"
           />
         ) : (
-          <img
-            src={defaultCover}
-            alt="Cover Default"
-            className="w-full h-full object-cover opacity-85"
-          />
+          <div className="w-full h-full bg-gradient-to-br from-[#fff1e8] via-[#f7d7c7] to-[#e54b3f]" aria-label="Standart muqova" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 

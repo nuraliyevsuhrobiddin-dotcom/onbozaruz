@@ -1,778 +1,199 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  Mail,
-  Lock,
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
   Eye,
   EyeOff,
+  Loader2,
+  Lock,
+  Mail,
   Phone,
   User,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Building2,
-  MapPin,
-  AtSign,
-  Store,
-  ShoppingBag,
 } from 'lucide-react';
 import { authClient, type AuthUser, type SignUpFields } from '../api/authClient';
-import { REGIONS } from '../data/mockAgroData';
 
 interface AuthViewProps {
   onSuccess: (user: AuthUser) => void;
   onBack?: () => void;
 }
 
-type AuthMode = 'login' | 'signup';
+type AuthMode = 'login' | 'signup' | 'confirmation_pending';
+type ContactMode = 'email' | 'phone';
 
-interface FieldError {
-  name?: string;
-  handle?: string;
-  email?: string;
-  phone?: string;
-  location?: string;
-  businessName?: string;
-  password?: string;
-  confirmPassword?: string;
-}
-
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?998\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2}$/;
 
-function formatPhone(raw: string): string {
-  const digits = raw.replace(/\D/g, '');
-  if (digits.startsWith('998')) {
-    const rest = digits.slice(3);
-    const parts: string[] = [];
-    if (rest.length > 0) parts.push(rest.slice(0, 2));
-    if (rest.length > 2) parts.push(rest.slice(2, 5));
-    if (rest.length > 5) parts.push(rest.slice(5, 7));
-    if (rest.length > 7) parts.push(rest.slice(7, 9));
-    return `+998 ${parts.join(' ')}`.trimEnd();
-  }
-  return raw;
-}
+const normalizePhone = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  const localDigits = digits.startsWith('998') ? digits.slice(3) : digits;
+  return `+998${localDigits}`;
+};
+
+const focusRing = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#c94235]/15';
+
+const GoogleMark = () => (
+  <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+    <path d="M21.35 12.23c0-.72-.06-1.42-.18-2.08H12v3.94h5.23a4.47 4.47 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.92-4.2 2.92-7.25Z" fill="#4285F4" />
+    <path d="M12 21.58c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.55 0-4.7-1.72-5.47-4.03H3.28v2.53A9.75 9.75 0 0 0 12 21.58Z" fill="#34A853" />
+    <path d="M6.53 13.67A5.86 5.86 0 0 1 6.22 12c0-.58.11-1.14.31-1.67V7.8H3.28A9.74 9.74 0 0 0 2.25 12c0 1.57.38 3.05 1.03 4.2l3.25-2.53Z" fill="#FBBC05" />
+    <path d="M12 6.3c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.83 3.39 14.63 2.42 12 2.42a9.75 9.75 0 0 0-8.72 5.38l3.25 2.53C7.3 8.02 9.45 6.3 12 6.3Z" fill="#EA4335" />
+  </svg>
+);
+
+const OneIdMark = () => (
+  <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none">
+    <defs>
+      <linearGradient id="oneid-brand-gradient" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#6D5AE8" />
+        <stop offset="1" stopColor="#3567C8" />
+      </linearGradient>
+    </defs>
+    <rect width="24" height="24" rx="7" fill="url(#oneid-brand-gradient)" />
+    <circle cx="8.2" cy="9" r="2.1" fill="white" />
+    <path d="M4.9 16.65c.38-2.2 1.53-3.38 3.3-3.38s2.92 1.18 3.3 3.38" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="M13.45 7.25h5.2M13.45 11.95h5.2M13.45 16.65h3.55" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+const inputClass = `w-full min-h-12 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] py-3.5 pl-11 pr-4 text-sm text-[#26231f] placeholder:text-[#a39a90] shadow-[0_1px_2px_rgba(49,38,26,.03)] transition duration-200 hover:border-[#c9bbae] focus:border-[#c94235] focus:bg-white ${focusRing}`;
+const iconClass = 'text-[#93887d]';
 
 export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   const [mode, setMode] = useState<AuthMode>('login');
-  const [signupStep, setSignupStep] = useState<1 | 2 | 3>(1);
-  const [loading, setLoading] = useState(false);
-  const [serverError, setServerError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FieldError>({});
+  const [contactMode, setContactMode] = useState<ContactMode>('email');
+  const [identifier, setIdentifier] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const [form, setForm] = useState<SignUpFields & { confirmPassword?: string }>({
-    name: '',
-    handle: '',
-    email: '',
-    phone: '+998 ',
-    location: "Toshkent sh.",
-    businessName: '',
-    role: 'seller',
-    password: '',
-    confirmPassword: '',
-  });
+  const resetMessages = () => { setError(''); setSuccess(''); };
+  const switchMode = (next: AuthMode) => { setMode(next); resetMessages(); };
 
-  const updateField = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
-    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
-    setServerError('');
-    setSuccessMessage('');
+  const validate = () => {
+    if (mode === 'signup' && name.trim().length < 2) return 'Ism yoki fermer nomini kiriting.';
+    if (contactMode === 'email' && !emailRegex.test(identifier.trim())) return "To'g'ri email manzilini kiriting.";
+    if (contactMode === 'phone' && !phoneRegex.test(identifier.replace(/\s/g, ''))) return '+998 XX XXX XX XX formatida telefon kiriting.';
+    if (password.length < 6) return "Parol kamida 6 ta belgidan iborat bo'lsin.";
+    if (mode === 'signup' && password !== confirmPassword) return 'Parollar mos kelmadi.';
+    return '';
   };
 
-  const handlePhoneChange = (raw: string) => {
-    if (raw.length < 5) {
-      updateField('phone', '+998 ');
-      return;
-    }
-    updateField('phone', formatPhone(raw));
-  };
-
-  // Validate specific step for Signup
-  const validateStep = (stepNum: 1 | 2 | 3): boolean => {
-    const errors: FieldError = {};
-
-    if (stepNum === 1) {
-      if (!form.name.trim()) errors.name = 'Ism-familiyangizni kiriting';
-      else if (form.name.trim().length < 2) errors.name = 'Ism kamida 2 ta harf bo\'lsin';
-
-      const cleanHandle = form.handle.trim().replace(/^@/, '');
-      if (!cleanHandle) errors.handle = 'Username (masalan: alisher_agro) kiriting';
-      else if (cleanHandle.length < 3) errors.handle = 'Username kamida 3 ta belgi bo\'lsin';
-    }
-
-    if (stepNum === 2) {
-      if (!phoneRegex.test(form.phone.replace(/\s/g, ''))) {
-        errors.phone = 'O\'zbekiston raqamini kiriting: +998 XX XXX XX XX';
-      }
-
-      if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-        errors.email = 'To\'g\'ri email manzilingizni kiriting';
-      }
-
-      if (!form.location) {
-        errors.location = 'Hududni tanlang';
-      }
-    }
-
-    if (stepNum === 3) {
-      if (!form.password || form.password.length < 6) {
-        errors.password = 'Parol kamida 6 ta belgi bo\'lishi kerak';
-      }
-
-      if (form.password !== form.confirmPassword) {
-        errors.confirmPassword = 'Parollar bir-biriga mos kelmadi';
-      }
-    }
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Validate Login form
-  const validateLogin = (): boolean => {
-    const errors: FieldError = {};
-    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      errors.email = 'Email manzilingizni kiriting';
-    }
-    if (!form.password) {
-      errors.password = 'Parolni kiriting';
-    }
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleNextStep = () => {
-    if (validateStep(signupStep)) {
-      if (signupStep < 3) setSignupStep((s) => (s + 1) as 1 | 2 | 3);
-    }
-  };
-
-  const handlePrevStep = () => {
-    if (signupStep > 1) setSignupStep((s) => (s - 1) as 1 | 2 | 3);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setServerError('');
-
-    if (mode === 'login') {
-      if (!validateLogin()) return;
-    } else {
-      if (!validateStep(3)) return;
-    }
-
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    resetMessages();
+    const validationError = validate();
+    if (validationError) { setError(validationError); return; }
     setLoading(true);
-
     try {
-      let result;
-      if (mode === 'signup') {
-        result = await authClient.signUp({
-          email: form.email,
-          password: form.password,
-          name: form.name,
-          handle: form.handle,
-          phone: form.phone,
-          location: form.location,
-          businessName: form.businessName,
-          role: form.role,
-        });
-      } else {
-        result = await authClient.signIn(form.email, form.password);
-      }
+      const normalizedIdentifier = contactMode === 'phone'
+        ? normalizePhone(identifier)
+        : identifier.trim().toLowerCase();
+      const result = mode === 'signup'
+        ? await authClient.signUp({
+            email: normalizedIdentifier,
+            password,
+            name: name.trim(),
+            handle: '',
+            phone: contactMode === 'phone' ? normalizedIdentifier : '',
+            role: 'seller',
+          } satisfies SignUpFields)
+        : await authClient.signIn(normalizedIdentifier, password);
 
-      if (result.ok && result.user) {
-        window.localStorage.removeItem('onbozor-profile-form');
-        onSuccess(result.user);
-      } else if (result.requiresConfirmation || result.successMessage) {
-        setSuccessMessage(result.successMessage || "Ro'yxatdan o'tish muvaffaqiyatli! Emailingizni tasdiqlang.");
-        setMode('login');
-      } else {
-        setServerError(result.error || 'Xatolik yuz berdi. Qayta urinib ko\'ring.');
-      }
+      if (result.ok && result.user) onSuccess(result.user);
+      else if (result.requiresConfirmation) {
+        setMode('confirmation_pending');
+        setSuccess(result.successMessage || 'Tasdiqlash havolasi yuborildi.');
+      } else setError(result.error || 'Xatolik yuz berdi. Qayta urinib ko\'ring.');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Tarmoq xatosi. Internet aloqasini tekshiring.';
-      setServerError(message);
-    } finally {
-      setLoading(false);
-    }
+      setError(err instanceof Error ? err.message : 'Tarmoq xatosi yuz berdi.');
+    } finally { setLoading(false); }
   };
 
-  const switchMode = (next: AuthMode) => {
-    setMode(next);
-    setSignupStep(1);
-    setServerError('');
-    setSuccessMessage('');
-    setFieldErrors({});
-    setShowPassword(false);
-    setShowConfirm(false);
+  const handleProvider = async (provider: 'google' | 'oneid') => {
+    resetMessages();
+    setLoading(true);
+    try {
+      const result = await authClient.signInWithProvider(provider);
+      if (result.user) onSuccess(result.user);
+      else if (result.successMessage) setSuccess(result.successMessage);
+      else setError(result.error || 'Bu kirish usuli hozircha mavjud emas.');
+    } finally { setLoading(false); }
+  };
+
+  const resend = async () => {
+    if (!identifier || contactMode !== 'email') return;
+    setResending(true); resetMessages();
+    const result = await authClient.resendConfirmationEmail(identifier);
+    if (result.ok) setSuccess(result.successMessage || 'Xat qayta yuborildi.');
+    else setError(result.error || 'Xatni yuborib bo\'lmadi.');
+    setResending(false);
   };
 
   return (
-    <div
-      className="min-h-screen flex bg-[#F8FAFC]"
-      style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
-    >
-      {/* ── Left branding panel ── */}
-      <div className="hidden lg:flex flex-col justify-between w-[390px] xl:w-[440px] shrink-0 bg-white border-r border-slate-200/80 p-8 xl:p-10 relative overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.035]"
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(45deg, #E53935 0, #E53935 1px, transparent 0, transparent 50%)',
-            backgroundSize: '18px 18px',
-          }}
-        />
-        <div className="absolute top-[-80px] right-[-80px] w-[280px] h-[280px] rounded-full bg-red-100/50 blur-2xl pointer-events-none" />
+    <main className="relative min-h-screen overflow-hidden bg-[#f5efe6] px-4 py-6 text-[#26231f] sm:px-6 sm:py-10">
+      <div className="pointer-events-none absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#c94235]/[.07] blur-3xl" />
+      <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#d6b27c]/[.16] blur-3xl" />
 
-        <div className="relative z-10 flex items-center gap-3">
-          <img src="/logo.png" alt="OnBozor" className="w-11 h-11 rounded-[14px] object-cover ring-1 ring-slate-200" />
-          <div>
-            <div className="text-2xl font-black text-[#111827] tracking-tight">OnBozor</div>
-            <div className="text-[10px] text-slate-400 font-semibold tracking-[0.16em] uppercase">Agro Marketplace</div>
-          </div>
-        </div>
-
-        <div className="relative z-10">
-          <div className="mb-5 inline-flex rounded-lg bg-red-50 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#E53935]">Yangi hamkorlar uchun</div>
-          <h1 className="text-[34px] xl:text-[40px] font-black text-[#111827] leading-[1.1] tracking-tight mb-4">
-            Bozoringizga<br />bir necha qadamda<br />ulang
-          </h1>
-          <p className="max-w-[320px] text-slate-500 text-[14px] leading-relaxed">
-            Fermerlar, sotuvchilar va ulgurji xaridorlarni bir joyga bog'laydigan ishonchli agro maydon.
-          </p>
-
-          <div className="mt-8 space-y-3">
-            {[
-              { label: 'Profilingizni yarating', value: '01' },
-              { label: 'Aloqani tasdiqlang', value: '02' },
-              { label: 'Savdoni boshlang', value: '03' },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 px-3.5 py-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-[11px] font-black text-[#E53935] ring-1 ring-slate-200">{s.value}</div>
-                <div className="text-[12px] font-bold text-slate-700">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="relative z-10 text-slate-400 text-[11px]">
-          © 2026 OnBozor — Barcha huquqlar himoyalangan
-        </div>
-      </div>
-
-      {/* ── Right panel: form ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-7 sm:p-10 relative overflow-hidden">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="w-full max-w-[450px] relative z-10"
-        >
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-3 mb-6">
-            <img src="/logo.png" alt="OnBozor" className="w-10 h-10 rounded-[13px] object-cover ring-1 ring-slate-200" />
+      <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[450px] flex-col justify-center">
+        <div className="mb-7 flex items-center justify-between px-1">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="OnBozor" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
             <div>
-              <div className="text-xl font-black text-[#111827] tracking-tight">OnBozor</div>
-              <div className="text-[10px] text-slate-400 font-medium tracking-widest uppercase">Agro Marketplace</div>
+              <div className="text-xl font-black tracking-[-.04em] text-[#26231f]">OnBozor</div>
+              <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.18em] text-[#887c70]">Agro marketplace</div>
             </div>
           </div>
+          {onBack && <button onClick={onBack} className={`flex min-h-11 min-w-11 items-center justify-center rounded-full text-[#766b61] transition hover:bg-white hover:text-[#26231f] ${focusRing}`} aria-label="Ortga"><ArrowLeft className="h-5 w-5" /></button>}
+        </div>
 
-          {onBack && (
-            <button
-              type="button"
-              onClick={onBack}
-              className="absolute top-0 right-0 text-xs font-bold text-slate-500 hover:text-[#E53935] transition-colors"
-            >
-              Ortga qaytish
-            </button>
-          )}
-
-          {/* Heading */}
-          <div className="mb-6">
-            <h2 className="text-[26px] font-black text-[#111827] tracking-tight">
-              {mode === 'login' ? 'Tizimga kirish' : "Ro'yxatdan o'tish"}
-            </h2>
-            <p className="text-slate-500 text-sm mt-1">
-              {mode === 'login'
-                ? 'Email va parolingizni kiriting'
-                : `Bosqichma-bosqich ma'lumotlarni to'ldiring (${signupStep}/3-bosqich)`}
-            </p>
-          </div>
-
-          {/* Mode Switcher */}
-          <div className="flex bg-white border border-slate-200/80 rounded-xl p-1 mb-6 shadow-[0_4px_14px_rgba(15,23,42,0.03)] gap-1">
-            {(['login', 'signup'] as AuthMode[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => switchMode(m)}
-                className={`flex-1 py-2.5 rounded-xl text-[13px] font-bold transition-all duration-200 ${
-                  mode === m
-                    ? 'bg-[#E53935] text-white shadow-sm shadow-red-200'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {m === 'login' ? 'Kirish' : "Ro'yxatdan o'tish"}
-              </button>
-            ))}
-          </div>
-
-          {/* Signup Progress Bar (Step 1, 2, 3) */}
-          {mode === 'signup' && (
+        <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} className="rounded-[28px] border border-[#e4d9cd] bg-[#fffdfa] p-5 shadow-[0_26px_70px_rgba(63,43,25,.12)] sm:p-8">
+          {mode === 'confirmation_pending' ? (
+            <div className="py-5 text-center">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#fae9e5] text-[#c94235]">{contactMode === 'email' ? <Mail className="h-8 w-8" /> : <Phone className="h-8 w-8" />}</div>
+              <h1 className="text-2xl font-black tracking-[-.03em]">{contactMode === 'email' ? 'Emailni tasdiqlang' : 'SMS kodni tasdiqlang'}</h1>
+              <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#766b61]">{contactMode === 'email' ? `${identifier} manziliga yuborilgan havolani bosing.` : `${normalizePhone(identifier)} raqamiga yuborilgan SMS kodni kiriting.`}</p>
+              {success && <div className="mt-5 flex items-start gap-2 rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-left text-xs font-semibold leading-5 text-[#28643a]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</div>}
+              <button onClick={() => switchMode('login')} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#c94235] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(201,66,53,.22)] transition hover:bg-[#ae352c] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>Tasdiqladim, kirish <ArrowRight className="h-4 w-4" /></button>
+              {contactMode === 'email' && <button onClick={resend} disabled={resending} className={`mt-3 min-h-11 px-3 text-xs font-bold text-[#766b61] transition hover:text-[#c94235] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}>{resending ? 'Yuborilmoqda...' : 'Xat kelmadimi? Qayta yuborish'}</button>}
+            </div>
+          ) : <>
             <div className="mb-6">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 mb-2">
-                <span className={signupStep >= 1 ? 'text-[#E53935]' : ''}>01 · Profil</span>
-                <span className={signupStep >= 2 ? 'text-[#E53935]' : ''}>02 · Aloqa</span>
-                <span className={signupStep >= 3 ? 'text-[#E53935]' : ''}>03 · Xavfsizlik</span>
-              </div>
-              <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-[#E53935] transition-all duration-300 rounded-full"
-                  style={{ width: `${(signupStep / 3) * 100}%` }}
-                />
-              </div>
+              <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#c94235]">Xush kelibsiz</p>
+              <h1 className="text-[29px] font-black tracking-[-.045em] text-[#26231f]">{mode === 'login' ? 'OnBozorga kiring' : 'Akkaunt yarating'}</h1>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-[#766b61]">{mode === 'login' ? "Savdoni davom ettirish uchun ma'lumotlaringizni kiriting." : "Faqat kerakli ma'lumotlar. Keyin profilingizni to'ldirasiz."}</p>
             </div>
-          )}
 
-          {/* Form Card */}
-          <div className="bg-white rounded-[20px] border border-slate-200/80 shadow-[0_10px_28px_rgba(15,23,42,0.045)] p-5 sm:p-6">
-            <form onSubmit={handleSubmit} noValidate>
+            <div className="mb-6 grid grid-cols-2 rounded-2xl border border-[#e8dfd5] bg-[#f4eee6] p-1">
+              <button type="button" onClick={() => switchMode('login')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'login' ? 'bg-[#fffdfa] text-[#c94235] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Kirish</button>
+              <button type="button" onClick={() => switchMode('signup')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'signup' ? 'bg-[#fffdfa] text-[#c94235] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Ro'yxatdan o'tish</button>
+            </div>
 
-              {/* ── LOGIN FORM ── */}
-              {mode === 'login' && (
-                <div>
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Email manzil
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => updateField('email', e.target.value)}
-                        placeholder="masalan: foydalanuvchi@gmail.com"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.email ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                    </div>
-                    {fieldErrors.email && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.email}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mb-5">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Parol
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={form.password}
-                        onChange={(e) => updateField('password', e.target.value)}
-                        placeholder="••••••••"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.password ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-11 py-3 text-[#111111] text-[14px] outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {fieldErrors.password && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.password}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ── SIGNUP STEP 1: SHAXSIY MA'LUMOTLAR ── */}
-              {mode === 'signup' && signupStep === 1 && (
-                <motion.div
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {/* Role picker */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-                      Sizning faoliyatingiz
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateField('role', 'seller')}
-                        className={`p-3 rounded-2xl border text-left flex flex-col items-start gap-1 transition-all ${
-                          form.role === 'seller'
-                            ? 'border-[#E53935] bg-red-50/50 text-[#E53935] font-bold shadow-sm'
-                            : 'border-slate-200 bg-slate-50 text-slate-600'
-                        }`}
-                      >
-                        <Store className="w-5 h-5" />
-                        <span className="text-xs">Fermer / Sotuvchi</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => updateField('role', 'buyer')}
-                        className={`p-3 rounded-2xl border text-left flex flex-col items-start gap-1 transition-all ${
-                          form.role === 'buyer'
-                            ? 'border-[#E53935] bg-red-50/50 text-[#E53935] font-bold shadow-sm'
-                            : 'border-slate-200 bg-slate-50 text-slate-600'
-                        }`}
-                      >
-                        <ShoppingBag className="w-5 h-5" />
-                        <span className="text-xs">Xaridor / Ulgurji</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Ism Familiya */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Ism Familiya
-                    </label>
-                    <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => updateField('name', e.target.value)}
-                        placeholder="Masalan: Jasur Nuraliyev"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.name ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] placeholder-slate-300 outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                    </div>
-                    {fieldErrors.name && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.name}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Username (Handle) */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Foydalanuvchi nomi (Username)
-                    </label>
-                    <div className="relative">
-                      <AtSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="text"
-                        value={form.handle}
-                        onChange={(e) => updateField('handle', e.target.value.toLowerCase().replace(/\s/g, ''))}
-                        placeholder="jasur_agro"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.handle ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] placeholder-slate-300 outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                    </div>
-                    {fieldErrors.handle ? (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.handle}
-                      </p>
-                    ) : (
-                      <p className="mt-1 text-[11px] text-slate-400">Profil manzilingiz: onbozor.uz/@{form.handle || 'username'}</p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* ── SIGNUP STEP 2: ALOQA VA MANZIL ── */}
-              {mode === 'signup' && signupStep === 2 && (
-                <motion.div
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {/* Phone */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Telefon raqam
-                    </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="tel"
-                        value={form.phone}
-                        onChange={(e) => handlePhoneChange(e.target.value)}
-                        placeholder="+998 90 123 45 67"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.phone ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] placeholder-slate-300 outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                    </div>
-                    {fieldErrors.phone && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.phone}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Email */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Email manzil
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => updateField('email', e.target.value)}
-                        placeholder="jasur@gmail.com"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.email ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] placeholder-slate-300 outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                    </div>
-                    {fieldErrors.email && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.email}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Location picker */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Hudud (Viloyat)
-                    </label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <select
-                        value={form.location}
-                        onChange={(e) => updateField('location', e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] outline-none focus:border-[#E53935]"
-                      >
-                        {REGIONS.filter((r) => r !== 'Barchasi').map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* ── SIGNUP STEP 3: BIZNES VA PAROL ── */}
-              {mode === 'signup' && signupStep === 3 && (
-                <motion.div
-                  initial={{ opacity: 0, x: 10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  {/* Business Name (Optional) */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Biznes / Fermer xo'jaligi nomi <span className="text-slate-400 font-normal">(Ixtiyoriy)</span>
-                    </label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type="text"
-                        value={form.businessName}
-                        onChange={(e) => updateField('businessName', e.target.value)}
-                        placeholder="Masalan: Vodiy Mevachilik MChJ"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-[#111111] text-[14px] placeholder-slate-300 outline-none focus:border-[#E53935]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Password */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Parol
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={form.password}
-                        onChange={(e) => updateField('password', e.target.value)}
-                        placeholder="Kamida 6 ta belgi"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.password ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-11 py-3 text-[#111111] text-[14px] outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {fieldErrors.password && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.password}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Confirm Password */}
-                  <div className="mb-4">
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                      Parolni tasdiqlang
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                      <input
-                        type={showConfirm ? 'text' : 'password'}
-                        value={form.confirmPassword}
-                        onChange={(e) => updateField('confirmPassword', e.target.value)}
-                        placeholder="Parolni qayta kiriting"
-                        className={`w-full bg-slate-50 border ${
-                          fieldErrors.confirmPassword ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                        } rounded-xl pl-10 pr-11 py-3 text-[#111111] text-[14px] outline-none focus:border-[#E53935] focus:ring-2 focus:ring-[#E53935]/10 transition-all`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirm((v) => !v)}
-                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
-                      >
-                        {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    {fieldErrors.confirmPassword && (
-                      <p className="mt-1.5 text-[11px] text-red-500 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" /> {fieldErrors.confirmPassword}
-                      </p>
-                    )}
-                    {form.confirmPassword && form.password === form.confirmPassword && (
-                      <p className="mt-1.5 text-[11px] text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Parollar mos keldi
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Success / Info message */}
-              <AnimatePresence>
-                {successMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-start gap-2.5"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
-                    <p className="text-[13px] text-emerald-700 font-semibold leading-relaxed">{successMessage}</p>
-                  </motion.div>
-                )}
-
-                {serverError && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-2.5"
-                  >
-                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                    <p className="text-[13px] text-red-600 font-medium">{serverError}</p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Step Actions for Signup */}
-              {mode === 'signup' ? (
-                <div className="flex items-center gap-2 mt-4">
-                  {signupStep > 1 && (
-                    <button
-                      type="button"
-                      onClick={handlePrevStep}
-                      className="px-4 py-3.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors flex items-center gap-1"
-                    >
-                      <ArrowLeft className="w-4 h-4" />
-                      <span>Orqaga</span>
-                    </button>
-                  )}
-
-                  {signupStep < 3 ? (
-                    <button
-                      type="button"
-                      onClick={handleNextStep}
-                      className="flex-1 py-3.5 rounded-xl font-bold text-[14px] text-white bg-[#E53935] hover:bg-[#C62828] transition-all flex items-center justify-center gap-2 shadow-md shadow-red-200"
-                    >
-                      <span>Keyingi bosqich</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 py-3.5 rounded-xl font-bold text-[14px] text-white bg-[#E53935] hover:bg-[#C62828] disabled:opacity-60 transition-all flex items-center justify-center gap-2 shadow-md shadow-red-200"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Yaratilmoqda...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Ro'yxatdan o'tishni yakunlash</span>
-                          <CheckCircle2 className="w-4 h-4" />
-                        </>
-                      )}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                /* Submit for Login */
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 rounded-xl font-bold text-[15px] text-white bg-[#E53935] hover:bg-[#C62828] disabled:opacity-60 transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-200 active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Yuklanmoqda...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Kirish</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              )}
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki fermer nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Anvar Agro" className={inputClass} /></div></label>}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between gap-3"><span className="text-xs font-bold text-[#4c433b]">{contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'}</span><div className="flex shrink-0 rounded-lg bg-[#f4eee6] p-0.5 text-[10px] font-black"><button type="button" onClick={() => { setContactMode('email'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'email' ? 'bg-[#fffdfa] text-[#c94235] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Email</button><button type="button" onClick={() => { setContactMode('phone'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'phone' ? 'bg-[#fffdfa] text-[#c94235] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Telefon</button></div></div>
+                <div className="relative"><span className={`absolute left-4 top-4 ${iconClass}`}>{contactMode === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}</span><input id={`auth-${contactMode}`} aria-label={contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'} type={contactMode === 'email' ? 'email' : 'tel'} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={contactMode === 'email' ? 'sizning@emailingiz.uz' : '+998 90 123 45 67'} className={inputClass} /></div>
+              </div>
+              <label className="block" htmlFor="auth-password"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parol</span><div className="relative"><Lock className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-password" aria-label="Parol" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Kamida 6 ta belgi" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword(v => !v)} className={`absolute right-2 top-1/2 flex min-h-9 min-w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#93887d] transition hover:bg-[#f4eee6] hover:text-[#4c433b] ${focusRing}`} aria-label="Parolni ko'rsatish">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></label>
+              {mode === 'signup' && <label className="block"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parolni takrorlang</span><input aria-label="Parolni takrorlang" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Parolni yana kiriting" className={`${inputClass} px-4`} /></label>}
+              {error && <div role="alert" className="flex items-start gap-2 rounded-2xl border border-[#f1c9c3] bg-[#fff3f1] p-3 text-xs font-semibold leading-5 text-[#a33229]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
+              {success && <div role="status" className="rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-xs font-semibold leading-5 text-[#28643a]">{success}</div>}
+              <button disabled={loading} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-[#c94235] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(201,66,53,.22)] transition hover:bg-[#ae352c] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>
             </form>
-          </div>
 
-          {/* Switch mode link */}
-          <p className="text-center text-[13px] text-slate-400 mt-5">
-            {mode === 'login' ? 'Hali hisobingiz yo\'qmi?' : 'Allaqachon hisobingiz bormi?'}
-            <button
-              type="button"
-              onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-              className="ml-1.5 text-[#E53935] font-bold hover:text-[#C62828] transition-colors"
-            >
-              {mode === 'login' ? "Ro'yxatdan o'ting" : 'Kiring'}
-            </button>
-          </p>
-        </motion.div>
+            <div className="my-6 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.18em] text-[#9a8e82]"><span className="h-px flex-1 bg-[#e8dfd5]" />Yoki<span className="h-px flex-1 bg-[#e8dfd5]" /></div>
+            <div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => handleProvider('google')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#c94235] hover:bg-[#fff8f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><GoogleMark />Google</button><button type="button" onClick={() => handleProvider('oneid')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#c94235] hover:bg-[#fff8f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><OneIdMark />OneID</button></div>
+          </>}
+        </motion.section>
+        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozor — fermerlar va xaridorlar uchun ishonchli bozor</p>
       </div>
-    </div>
+    </main>
   );
 };

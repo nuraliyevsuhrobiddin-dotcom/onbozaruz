@@ -122,6 +122,7 @@ interface AgroStoreState {
   updateProduct: (productId: string, updatedFields: Partial<Product>) => void;
   deleteProduct: (productId: string) => void;
   addOrder: (newOrder: Order) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: string, statusStep: number) => Promise<void>;
   addCommentToPost: (postId: string) => void;
   addToCart: (product: Product) => void;
   updateCartQuantity: (productId: string, nextQuantity: number) => void;
@@ -694,6 +695,14 @@ export const useAgroStore = create<AgroStoreState>()(
         set((state) => ({ orders: [created, ...state.orders] }));
       },
 
+      updateOrderStatus: async (orderId, status, statusStep) => {
+        set((state) => ({
+          orders: state.orders.map((order) =>
+            order.id === orderId ? { ...order, status, statusStep } : order
+          ),
+        }));
+      },
+
       addCommentToPost: (postId) =>
         set((state) => ({
           posts: state.posts.map((p) =>
@@ -785,10 +794,16 @@ export const useAgroStore = create<AgroStoreState>()(
               ),
             };
           });
-          cacheManager.savePostsCache(freshPosts);
+          // Optimistic/local moderation items should remain visible in the owner's profile
+          // until the backend includes them; marketplace consumers can still filter by status.
+          const localOnlyPending = state.posts.filter(localPost =>
+            localPost.status === 'pending' && !freshPosts.some(serverPost => serverPost.id === localPost.id)
+          );
+          const mergedPosts = [...localOnlyPending, ...freshPosts];
+          cacheManager.savePostsCache(mergedPosts);
           cacheManager.saveProductsCache(products);
           set({
-            posts: freshPosts,
+            posts: mergedPosts,
             products,
             isHydrating: false,
             isOffline: false,

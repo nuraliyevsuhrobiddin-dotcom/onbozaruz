@@ -4,7 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { Post, Product } from '../data/mockAgroData';
+import { CATEGORIES } from '../data/mockAgroData';
 import { Order } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -21,6 +21,24 @@ const supabase = isSupabaseConfigured
       auth: { persistSession: true },
     })
   : null;
+
+const MOCK_CATEGORIES_KEY = 'onbozor-admin-categories';
+const MOCK_AUDIT_KEY = 'onbozor-admin-audit-logs';
+
+function readMock<T>(key: string, fallback: T): T {
+  if (typeof localStorage === 'undefined') return fallback;
+  try { return JSON.parse(localStorage.getItem(key) || '') as T; } catch { return fallback; }
+}
+
+function writeMock<T>(key: string, value: T): void {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
+}
+
+function mockCategories(): CategoryItem[] {
+  return readMock<CategoryItem[]>(MOCK_CATEGORIES_KEY, CATEGORIES.map((c, index) => ({
+    id: c.id, name: c.name, icon: c.icon || '', orderIndex: index, isActive: true,
+  })));
+}
 
 export interface AdminStats {
   totalUsers: number;
@@ -150,7 +168,17 @@ export const adminRepository = {
 
   async getUsers(search = '', page = 1, pageSize = 20): Promise<{ users: AdminUserItem[]; total: number }> {
     if (!supabase) {
-      return { users: [], total: 0 };
+      const raw = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
+      const all = Object.values(raw).map((record) => ({
+        ...record.user,
+        postsCount: 0,
+        ordersCount: 0,
+      }));
+      const filtered = search
+        ? all.filter((u) => `${u.name} ${u.email} ${u.phone}`.toLowerCase().includes(search.toLowerCase()))
+        : all;
+      const from = (page - 1) * pageSize;
+      return { users: filtered.slice(from, from + pageSize), total: filtered.length };
     }
 
     try {
@@ -186,7 +214,17 @@ export const adminRepository = {
   },
 
   async updateUserStatus(userId: string, status: 'active' | 'banned', role?: 'seller' | 'buyer'): Promise<void> {
-    if (!supabase) return;
+    if (!supabase) {
+      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
+      for (const key of Object.keys(users)) {
+        if (users[key].user.id === userId) {
+          users[key].user.status = status;
+          if (role) users[key].user.role = role;
+        }
+      }
+      writeMock('onbozor-auth-users', users);
+      return;
+    }
     const updatePayload: Record<string, any> = { status, updated_at: new Date().toISOString() };
     if (role) updatePayload.role = role;
 
@@ -212,7 +250,7 @@ export const adminRepository = {
   },
 
   async getCategories(): Promise<CategoryItem[]> {
-    if (!supabase) return [];
+    if (!supabase) return mockCategories();
     try {
       const { data, error } = await supabase.from('categories').select('*').order('order_index', { ascending: true });
       if (error || !data) return [];
@@ -230,7 +268,19 @@ export const adminRepository = {
   },
 
   async saveCategory(cat: Partial<CategoryItem>): Promise<CategoryItem> {
-    if (!supabase) throw new Error('Supabase ulanishi mavjud emas');
+    if (!supabase) {
+      const saved: CategoryItem = {
+        id: cat.id || `cat-${Date.now()}`,
+        name: cat.name?.trim() || 'Yangi kategoriya',
+        icon: cat.icon || 'tag',
+        orderIndex: cat.orderIndex || 0,
+        isActive: cat.isActive ?? true,
+        createdAt: cat.createdAt || new Date().toISOString(),
+      };
+      const next = mockCategories().filter((item) => item.id !== saved.id);
+      writeMock(MOCK_CATEGORIES_KEY, [...next, saved].sort((a, b) => a.orderIndex - b.orderIndex));
+      return saved;
+    }
     const { data, error } = await supabase.from('categories').upsert({
       id: cat.id || `cat-${Date.now()}`,
       name: cat.name,
@@ -251,7 +301,10 @@ export const adminRepository = {
   },
 
   async deleteCategory(catId: string): Promise<void> {
-    if (!supabase) return;
+    if (!supabase) {
+      writeMock(MOCK_CATEGORIES_KEY, mockCategories().filter((cat) => cat.id !== catId));
+      return;
+    }
     const { error } = await supabase.from('categories').delete().eq('id', catId);
     if (error) throw new Error(`Kategoriya o'chirilmadi: ${error.message}`);
   },
@@ -283,7 +336,7 @@ export const adminRepository = {
   },
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
-    if (!supabase) return [];
+    if (!supabase) return readMock<AdminAuditLog[]>(MOCK_AUDIT_KEY, []);
     try {
       const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
       if (error || !data) return [];
@@ -304,7 +357,15 @@ export const adminRepository = {
   },
 
   async logAdminAction(adminEmail: string, action: string, targetType: string, targetId: string, oldValue?: any, newValue?: any): Promise<void> {
-    if (!supabase) return;
+    if (!supabase) {
+      const log: AdminAuditLog = {
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        adminEmail, action, targetType, targetId, oldValue, newValue,
+        createdAt: new Date().toISOString(),
+      };
+      writeMock(MOCK_AUDIT_KEY, [log, ...readMock<AdminAuditLog[]>(MOCK_AUDIT_KEY, [])].slice(0, 100));
+      return;
+    }
     try {
       const { data: session } = await supabase.auth.getUser();
       await supabase.from('audit_logs').insert({
@@ -381,4 +442,3 @@ export const adminRepository = {
     if (error) throw new Error(`Mahsulot o'chirilmadi: ${error.message}`);
   },
 };
-

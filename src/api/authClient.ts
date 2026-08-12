@@ -28,15 +28,50 @@ const supabase = isSupabaseConfigured
     })
   : null;
 
-const PRODUCTION_AUTH_CALLBACK_URL = 'https://onbozaruz.vercel.app/auth/callback';
+const PRODUCTION_AUTH_CALLBACK_URL = 'https://www.onbozar.uz/auth/callback';
 
 export function getAuthCallbackUrl(): string {
   if (typeof window === 'undefined') return PRODUCTION_AUTH_CALLBACK_URL;
+  return `${window.location.origin}/auth/callback`;
+}
 
-  const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-  return isLocalhost
-    ? `${window.location.origin}/auth/callback`
-    : PRODUCTION_AUTH_CALLBACK_URL;
+export function translateAuthError(message: string): string {
+  if (!message) return "Xatolik yuz berdi. Qayta urinib ko'ring.";
+  const lower = message.toLowerCase();
+
+  if (lower.includes('email not confirmed')) {
+    return "Emailingiz hali tasdiqlanmagan. Iltimos, pochtangizga yuborilgan tasdiqlash havolasini bosing.";
+  }
+  if (lower.includes('invalid login credentials') || lower.includes('invalid_credentials')) {
+    return "Email manzil yoki parol noto'g'ri. Qayta tekshirib kiriting.";
+  }
+  if (
+    lower.includes('already registered') ||
+    lower.includes('already exists') ||
+    lower.includes('user_already_exists')
+  ) {
+    return "Ushbu email bilan allaqachon ro'yxatdan o'tilgan. Iltimos, tizimga kiring.";
+  }
+  if (
+    lower.includes('rate limit') ||
+    lower.includes('over_email_send_rate_limit') ||
+    lower.includes('too many requests')
+  ) {
+    return "Email yuborish limiti oshib ketdi. Bir ozdan keyin qayta urinib ko'ring yoki kiring.";
+  }
+  if (
+    lower.includes('token has expired') ||
+    lower.includes('invalid flow state') ||
+    lower.includes('pkce') ||
+    lower.includes('code_verifier')
+  ) {
+    return "Tasdiqlash havolasi muddati tugagan yoki yaroqsiz. Qayta xat yuborish tugmasini bosing.";
+  }
+  if (lower.includes('password should be at least')) {
+    return "Parol kamida 6 ta belgidan iborat bo'lishi kerak.";
+  }
+
+  return message;
 }
 
 export function subscribeToAuthState(
@@ -51,20 +86,30 @@ export function subscribeToAuthState(
 export async function completeAuthCallback(): Promise<void> {
   if (!supabase) throw new Error('Supabase sozlanmagan');
 
-  const existingSession = await supabase.auth.getSession();
-  if (existingSession.error) throw existingSession.error;
-  // React StrictMode can run the callback effect twice in development. If the
-  // first pass already redeemed the one-time PKCE code, keep the session.
-  if (existingSession.data.session) return;
+  // Check if session is already active
+  const initialSession = await supabase.auth.getSession();
+  if (initialSession.data.session) return;
 
   const code = new URLSearchParams(window.location.search).get('code');
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) throw error;
+    try {
+      const exchange = await supabase.auth.exchangeCodeForSession(code);
+      if (exchange.error) {
+        // Re-check session in case auto-exchange in onAuthStateChange succeeded
+        const recheck = await supabase.auth.getSession();
+        if (recheck.data.session) return;
+        throw new Error(translateAuthError(exchange.error.message));
+      }
+    } catch (err: unknown) {
+      const recheck = await supabase.auth.getSession();
+      if (recheck.data.session) return;
+      const msg = err instanceof Error ? err.message : 'Tasdiqlash kodi yaroqsiz';
+      throw new Error(translateAuthError(msg));
+    }
   }
 
   const { data, error } = await supabase.auth.getSession();
-  if (error) throw error;
+  if (error) throw new Error(translateAuthError(error.message));
   if (!data.session) {
     throw new Error('Tasdiqlash sessiyasi topilmadi. Havola muddati tugagan bo\'lishi mumkin.');
   }
@@ -224,6 +269,8 @@ export interface AuthResult {
   requiresConfirmation?: boolean;
 }
 
+export type OAuthProvider = 'google' | 'oneid';
+
 // ---------- Mock Auth (localStorage) ----------
 const MOCK_USERS_KEY = 'onbozor-auth-users';
 const MOCK_SESSION_KEY = 'onbozor-auth-session';
@@ -260,7 +307,7 @@ function saveMockSession(user: AuthUser | null) {
 async function mockSignUp(fields: SignUpFields): Promise<AuthResult> {
   await new Promise((r) => setTimeout(r, 600)); // simulate network
   const users = getMockUsers();
-  const key = fields.email.toLowerCase().trim();
+  const key = (fields.email || fields.phone).toLowerCase().trim();
 
   if (users[key]) {
     return { ok: false, error: 'Bu email bilan ro\'yxatdan o\'tilgan. Iltimos kiring.' };
@@ -309,6 +356,21 @@ async function mockSignIn(email: string, password: string): Promise<AuthResult> 
   return { ok: true, user: record.user };
 }
 
+async function supabaseSignInWithProvider(provider: OAuthProvider): Promise<AuthResult> {
+  if (!supabase) return { ok: false, error: 'Ijtimoiy kirish hozircha sozlanmagan.' };
+  if (provider === 'oneid') {
+    return { ok: false, error: 'OneID integratsiyasi hali ulanmagan. Email yoki telefon orqali kiring.' };
+  }
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: getAuthCallbackUrl() },
+  });
+  return error
+    ? { ok: false, error: translateAuthError(error.message) }
+    : { ok: true, successMessage: 'Google oynasi ochilmoqda...' };
+}
+
 async function mockSignOut(): Promise<void> {
   await new Promise((r) => setTimeout(r, 200));
   saveMockSession(null);
@@ -330,6 +392,26 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
     .select('*')
     .eq('id', user.id)
     .maybeSingle();
+
+  // If profile is missing in DB (e.g. trigger failed or unconfirmed user logged in), auto-create
+  if (!profile) {
+    try {
+      const cleanHandle = meta?.handle || (user.email || '').split('@')[0];
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        email: user.email || '',
+        name: meta?.name || (user.email || '').split('@')[0],
+        handle: cleanHandle,
+        phone: meta?.phone || '',
+        location: meta?.location || '',
+        business_name: meta?.businessName || '',
+        role: meta?.role || 'seller',
+        updated_at: new Date().toISOString(),
+      });
+    } catch {
+      // Ignore fallback insert error
+    }
+  }
 
   return {
     id: user.id,
@@ -406,21 +488,25 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
   try {
     if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
 
+    const cleanEmail = fields.email.trim().toLowerCase();
     const cleanHandle = fields.handle
       .trim()
       .toLowerCase()
       .replace(/^@/, '')
       .replace(/[^a-z0-9_]/g, '') || `user_${Date.now().toString().slice(-5)}`;
 
+    const contact = cleanEmail.includes('@')
+      ? { email: cleanEmail }
+      : { phone: cleanEmail };
     const { data, error } = await supabase.auth.signUp({
-      email: fields.email.trim().toLowerCase(),
+      ...contact,
       password: fields.password,
       options: {
         emailRedirectTo: getAuthCallbackUrl(),
         data: {
           name: fields.name.trim(),
           handle: cleanHandle,
-          phone: fields.phone.trim(),
+          phone: fields.phone.trim() || (cleanEmail.includes('@') ? '' : cleanEmail),
           location: fields.location || '',
           businessName: fields.businessName || '',
           role: fields.role || 'seller',
@@ -429,22 +515,24 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
     });
 
     if (error) {
-      let normalized = error.message;
-      if (error.message.toLowerCase().includes('rate limit')) {
-        normalized = "Email yuborish limiti tugagan. Bir ozdan keyin qayta urinib ko'ring yoki kiring.";
-      } else if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already exists')) {
-        normalized = "Ushbu email bilan allaqachon ro'yxatdan o'tilgan. Iltimos, tizimga kiring.";
-      }
-      return { ok: false, error: normalized };
+      return { ok: false, error: translateAuthError(error.message) };
     }
     if (!data.user) return { ok: false, error: 'Foydalanuvchi yaratilmadi.' };
 
-    // Update profile table directly if session is created
+    // Check if account already exists (Supabase returns empty identities array in that case)
+    if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      return {
+        ok: false,
+        error: "Ushbu email bilan allaqachon ro'yxatdan o'tilgan. Iltimos, tizimga kiring.",
+      };
+    }
+
+    // Update profile table directly if session is created immediately
     if (data.session) {
       try {
         await supabase.from('profiles').upsert({
           id: data.user.id,
-          email: data.user.email || fields.email,
+          email: data.user.email || cleanEmail,
           name: fields.name.trim(),
           handle: cleanHandle,
           phone: fields.phone.trim(),
@@ -459,7 +547,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
 
       const user: AuthUser = {
         id: data.user.id,
-        email: data.user.email || fields.email,
+        email: data.user.email || cleanEmail,
         name: fields.name.trim(),
         handle: cleanHandle,
         phone: fields.phone.trim(),
@@ -475,11 +563,11 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
     return {
       ok: true,
       requiresConfirmation: true,
-      successMessage: "Ro'yxatdan o'tish muvaffaqiyatli! Emailingizga yuborilgan tasdiqlash havolasini bosing, so'ngra tizimga kiring.",
+      successMessage: "Ro'yxatdan o'tish muvaffaqiyatli! Emailingizga tasdiqlash havolasi yuborildi.",
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
-    return { ok: false, error: message };
+    return { ok: false, error: translateAuthError(message) };
   }
 }
 
@@ -487,9 +575,13 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthResu
   try {
     if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const cleanIdentifier = email.trim().toLowerCase();
+    const credentials = cleanIdentifier.includes('@')
+      ? { email: cleanIdentifier, password }
+      : { phone: cleanIdentifier, password };
+    const { data, error } = await supabase.auth.signInWithPassword(credentials);
 
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: translateAuthError(error.message) };
     if (!data.user) return { ok: false, error: 'Kirish muvaffaqiyatsiz.' };
 
     const meta = data.user.user_metadata as Record<string, string> | undefined;
@@ -507,7 +599,31 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthResu
     return { ok: true, user };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
-    return { ok: false, error: message };
+    return { ok: false, error: translateAuthError(message) };
+  }
+}
+
+async function supabaseResendConfirmation(email: string): Promise<AuthResult> {
+  try {
+    if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
+
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+      options: {
+        emailRedirectTo: getAuthCallbackUrl(),
+      },
+    });
+
+    if (error) return { ok: false, error: translateAuthError(error.message) };
+
+    return {
+      ok: true,
+      successMessage: "Tasdiqlash havolasi emailingizga qayta yuborildi! Pochtani va Spam papkasini tekshiring.",
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
+    return { ok: false, error: translateAuthError(message) };
   }
 }
 
@@ -532,6 +648,18 @@ export const authClient = {
   async signIn(email: string, password: string): Promise<AuthResult> {
     if (isSupabaseConfigured) return supabaseSignIn(email, password);
     return mockSignIn(email, password);
+  },
+
+  async signInWithProvider(provider: OAuthProvider): Promise<AuthResult> {
+    if (isSupabaseConfigured) return supabaseSignInWithProvider(provider);
+    return provider === 'oneid'
+      ? { ok: false, error: 'OneID integratsiyasi hali ulanmagan.' }
+      : { ok: false, error: 'Google kirishi demo rejimida mavjud emas. Email yoki telefon orqali kiring.' };
+  },
+
+  async resendConfirmationEmail(email: string): Promise<AuthResult> {
+    if (isSupabaseConfigured) return supabaseResendConfirmation(email);
+    return { ok: true, successMessage: "Mock rejimida email tasdiqlash talab etilmaydi." };
   },
 
   async signOut(): Promise<void> {

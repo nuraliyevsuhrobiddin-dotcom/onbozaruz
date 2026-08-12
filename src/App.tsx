@@ -155,8 +155,9 @@ export default function App() {
       <AuthCallbackView
         onSuccess={(user) => {
           void loginUser(user).then(() => {
-            window.history.replaceState(null, '', '/#home');
-            window.location.reload();
+            window.history.replaceState(null, '', '/#profile');
+            setActiveTab('profile');
+            setActiveSubView('edit-profile');
           });
         }}
       />
@@ -176,6 +177,7 @@ export default function App() {
               setActiveTab('admin');
             } else {
               setActiveTab('profile');
+              setActiveSubView('edit-profile');
             }
           });
           setAuthPromptOpen(false);
@@ -320,5 +322,3 @@ export default function App() {
     </div>
   );
 }
-
-

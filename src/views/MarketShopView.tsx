@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import type { Product } from '../api/types';
-import { CATEGORIES, REGIONS } from '../data/mockAgroData';
+import { REGIONS } from '../data/mockAgroData';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const sortOptions = [
@@ -191,8 +191,11 @@ export const MarketShopView: React.FC = () => {
   };
 
   // ─── Telegram xabar yuborish ──────────────────────────────────────────────
+  /*
   const sendTelegramMessage = async (chatId: string, text: string) => {
-    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+    return;
+    // Telegram bot credentials must never be sent to the browser.
+    const botToken = '';
     if (!botToken || !chatId) return;
     const cleanChatId = chatId.replace(/^@/, '').replace(/\s+/g, '');
     if (!cleanChatId) return;
@@ -210,6 +213,7 @@ export const MarketShopView: React.FC = () => {
       // Telegram xatosi buyurtmani to'xtatmasin
     }
   };
+  */
 
   const handleOrder = async () => {
     if (!cartCount || isSubmittingOrder) return;
@@ -226,8 +230,6 @@ export const MarketShopView: React.FC = () => {
     }
 
     setIsSubmittingOrder(true);
-    const adminChatId = import.meta.env.VITE_TELEGRAM_WEBHOOK_URL || '';
-    const orderTime = new Date().toLocaleString('uz-UZ', { timeZone: 'Asia/Tashkent' });
 
     try {
       // ── Har bir mahsulot uchun buyurtma ──
@@ -251,7 +253,8 @@ export const MarketShopView: React.FC = () => {
             date: 'Hozirgina',
           });
 
-          // 2. Sotuvchining Telegram'iga xabar
+          /* Telegram notification is intentionally server-side only. */
+          /*
           if (product.telegram) {
             const sellerMsg =
               `🛒 <b>Yangi buyurtma keldi!</b>\n\n` +
@@ -281,17 +284,16 @@ export const MarketShopView: React.FC = () => {
               `🕐 <b>Vaqt:</b> ${orderTime}`;
             await sendTelegramMessage(adminChatId, adminMsg);
           }
+          */
         })
       );
       showToast(`✅ Buyurtma muvaffaqiyatli qabul qilindi: ${formatMoney(total)}`);
       clearCart();
       setCheckoutForm({ name: '', phone: '', address: '' });
       setIsCartOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[handleOrder] error:', err);
-      showToast("Buyurtma rasmiylashtirildi! Operatormiz tez orada bog'lanadi.");
-      clearCart();
-      setIsCartOpen(false);
+      showToast("Buyurtmani saqlashda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
     } finally {
       setIsSubmittingOrder(false);
     }
