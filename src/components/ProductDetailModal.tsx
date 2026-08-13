@@ -12,7 +12,6 @@ import {
   Plus,
   Minus,
   Truck,
-  ShieldCheck,
   Star,
   Package,
 } from 'lucide-react';
@@ -316,8 +315,8 @@ export const ProductDetailModal: React.FC = () => {
                     openVideoViewer([videoPost], 0);
                   }}
                   className="w-11 h-11 rounded-[16px] bg-[#111827] text-white flex items-center justify-center shadow-sm hover:bg-black transition-colors shrink-0"
-                  title="Reels ko'rish"
-                  aria-label="Reels ko'rish"
+                  title="Video ko'rish"
+                  aria-label="Video ko'rish"
                 >
                   <Play className="w-4 h-4 fill-current" />
                 </button>

@@ -13,7 +13,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-import { Product, Post } from '../../data/mockAgroData';
+import { Product } from '../../data/mockAgroData';
 
 interface ProfileAdminSubViewProps {
   onBack: () => void;

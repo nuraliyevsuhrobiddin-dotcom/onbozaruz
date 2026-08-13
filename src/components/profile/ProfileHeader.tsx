@@ -23,8 +23,8 @@ interface ProfileHeaderProps {
     location: string;
     bio: string;
   };
-  isAdminUser: boolean;
-  ordersCount: number;
+  _isAdminUser: boolean;
+  _ordersCount: number;
   isProfileMenuOpen: boolean;
   setProfileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   profileMenuRef: React.RefObject<HTMLDivElement | null>;
@@ -36,8 +36,8 @@ interface ProfileHeaderProps {
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   currentUser,
   profileData,
-  isAdminUser,
-  ordersCount,
+  _isAdminUser,
+  _ordersCount,
   isProfileMenuOpen,
   setProfileMenuOpen,
   profileMenuRef,

@@ -492,10 +492,10 @@ export const MarketShopView: React.FC = () => {
     <div className="w-full max-w-195 mx-auto px-3 py-3 pb-28 select-none space-y-3.5">
 
       {/* ─── Hero Section ─── */}
-      <section className="rounded-[24px] bg-gradient-to-br from-[#111827] to-[#1e293b] p-5 shadow-lg overflow-hidden relative">
+      <section className="rounded-[24px] bg-gradient-to-br from-[#1a132b] via-[#2d1d3d] to-[#0f172a] p-5 shadow-[0_16px_36px_rgba(37,22,63,0.28)] overflow-hidden relative border border-[#f3d6ff]/10">
         {/* Background decorative circles */}
-        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/5 pointer-events-none" />
-        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full bg-white/5 pointer-events-none" />
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-[#8b5cf6]/18 pointer-events-none" />
+        <div className="absolute -bottom-6 -left-6 w-28 h-28 rounded-full bg-[#f59e0b]/12 pointer-events-none" />
 
         <div className="relative flex items-start justify-between gap-3">
           <div className="space-y-2 min-w-0">
@@ -507,15 +507,15 @@ export const MarketShopView: React.FC = () => {
             </div>
             <h1 className="text-2xl font-black text-white leading-tight">
               OnBozar<br />
-              <span className="text-[#5b35f5]">Market</span>
+              <span className="text-[#f7b955]">Market</span>
             </h1>
-            <p className="text-[11px] text-white/60 max-w-[200px] leading-relaxed">
+            <p className="text-[11px] text-white/75 max-w-[220px] leading-relaxed">
               Sertifikatlangan hamkorlardan to'g'ridan-to'g'ri xarid qiling
             </p>
             {/* Official store badge */}
             <div className="flex items-center gap-1.5 mt-1">
-              <BadgeCheck className="w-4 h-4 text-blue-400" />
-              <span className="text-[10px] font-black text-blue-300">Rasmiy OnBozar do'koni</span>
+              <BadgeCheck className="w-4 h-4 text-[#8ef0c7]" />
+              <span className="text-[10px] font-black text-[#d7f9eb]">Rasmiy OnBozar do'koni</span>
             </div>
           </div>
 
@@ -558,28 +558,28 @@ export const MarketShopView: React.FC = () => {
       </section>
 
       {/* ─── Search & Filters ─── */}
-      <div className="relative z-10 space-y-2 bg-[#F8FAFC]/95 backdrop-blur-md py-2">
+      <div className="relative z-10 space-y-2 bg-[#fffaf7]/95 backdrop-blur-md py-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6b7280]" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Mahsulot qidirish..."
-              className="w-full bg-white border border-slate-200 rounded-[18px] pl-10 pr-10 py-3 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#5b35f5]/25"
+              className="w-full bg-[#fffdfb] border-2 border-[#e9dffb] rounded-[18px] pl-10 pr-10 py-3 text-[13px] font-medium text-[#1f2937] outline-none shadow-[0_2px_10px_rgba(109,40,217,0.04)] focus:border-[#7c3aed] focus:ring-2 focus:ring-[#8b5cf6]/20"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6b7280] hover:text-[#111827]">
                 <X className="w-4 h-4" />
               </button>
             )}
           </div>
           <div className="relative">
-            <SlidersHorizontal className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <SlidersHorizontal className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#4b5563] pointer-events-none" />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="appearance-none bg-white border border-slate-200 rounded-[18px] pl-9 pr-8 py-3 text-[12px] font-black outline-none"
+              className="appearance-none bg-[#fffdfb] border-2 border-[#e9dffb] rounded-[18px] pl-9 pr-8 py-3 text-[12px] font-black text-[#1f2937] outline-none shadow-[0_2px_10px_rgba(109,40,217,0.04)]"
             >
               {sortOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </select>
@@ -595,10 +595,10 @@ export const MarketShopView: React.FC = () => {
               <button
                 key={seg.id}
                 onClick={() => setSelectedSegment(seg.id)}
-                className={`shrink-0 rounded-full px-3.5 py-2 text-[12px] font-black border transition-all flex items-center gap-1.5 ${
+                className={`shrink-0 rounded-full px-3.5 py-2 text-[12px] font-black border-2 transition-all flex items-center gap-1.5 ${
                   selectedSegment === seg.id
-                    ? 'bg-[#5b35f5] text-white border-[#5b35f5] shadow-[0_6px_16px_rgba(91,53,245,.22)]'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                    ? 'bg-gradient-to-r from-[#6d28d9] to-[#7c3aed] text-white border-[#6d28d9] shadow-[0_8px_20px_rgba(109,40,217,.26)]'
+                    : 'bg-white text-[#374151] border-[#e5e7eb] hover:bg-[#f6f3ff] hover:border-[#d8c9ff]'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -612,7 +612,7 @@ export const MarketShopView: React.FC = () => {
         <select
           value={selectedRegion}
           onChange={(e) => setSelectedRegion(e.target.value)}
-          className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-black text-slate-600 outline-none"
+          className="shrink-0 rounded-full border-2 border-[#e9dffb] bg-[#fffdfb] px-3 py-1.5 text-[11px] font-black text-[#374151] outline-none shadow-[0_2px_10px_rgba(109,40,217,0.04)]"
         >
           <option value="all">Barcha hududlar</option>
           {REGIONS.filter((r) => r !== 'Barchasi').map((r) => (
@@ -645,7 +645,7 @@ export const MarketShopView: React.FC = () => {
                 key={product.id}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setProductDetail(product)}
-                className="group bg-white rounded-[18px] border border-slate-200/80 overflow-hidden text-left shadow-sm hover:shadow-md transition-all cursor-pointer"
+                className="group bg-[#fffdfb] rounded-[18px] border-2 border-[#f0e7ff] overflow-hidden text-left shadow-[0_10px_28px_rgba(15,23,42,0.08)] hover:shadow-[0_16px_30px_rgba(124,58,237,0.12)] transition-all cursor-pointer"
               >
                 {/* Image */}
                 <div className="relative aspect-square bg-slate-100 overflow-hidden">
@@ -685,11 +685,11 @@ export const MarketShopView: React.FC = () => {
                     {product.verified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50 shrink-0" />}
                   </div>
                   <h3 className="h-9 text-[12px] font-bold leading-snug text-[#111827] line-clamp-2">{product.title}</h3>
-                  <p className="text-[13px] font-black text-[#5b35f5]">{product.price}</p>
-                  <div className="flex items-center gap-1 text-[10px] text-amber-500 font-black">
-                    <Star className="w-3 h-3 fill-amber-400" />
+                  <p className="text-[13px] font-black text-[#dc2626]">{product.price}</p>
+                  <div className="flex items-center gap-1 text-[10px] text-[#f59e0b] font-black">
+                    <Star className="w-3 h-3 fill-[#fbbf24]" />
                     {product.rating}
-                    <span className="text-slate-400 font-bold truncate">{product.seller}</span>
+                    <span className="text-[#6b7280] font-bold truncate">{product.seller}</span>
                   </div>
                   <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500">
                     <span className="truncate">Min: {product.minOrder}</span>
@@ -721,7 +721,7 @@ export const MarketShopView: React.FC = () => {
                   ) : (
                     <button
                       onClick={(e) => handleAddToCart(e, product)}
-                      className="w-full py-2.5 rounded-[14px] bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] text-white text-xs font-black flex items-center justify-center gap-1.5 hover:brightness-95 transition-colors"
+                      className="w-full py-2.5 rounded-[14px] bg-gradient-to-r from-[#6d28d9] to-[#7c3aed] text-white text-xs font-black flex items-center justify-center gap-1.5 hover:brightness-110 transition-colors shadow-[0_8px_16px_rgba(109,40,217,0.22)]"
                     >
                       <ShoppingCart className="w-3.5 h-3.5" />
                       Savatga

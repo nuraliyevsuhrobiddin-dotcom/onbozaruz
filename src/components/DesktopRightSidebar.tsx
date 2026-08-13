@@ -1,6 +1,5 @@
 import React from 'react';
 import { CategoryCard } from './home/CategoryCard';
-import { SuggestedSellerCard } from './home/SuggestedSellerCard';
 import { useAgroStore } from '../store/useAgroStore';
 import { CheckCircle2, User } from 'lucide-react';
 
@@ -40,9 +39,6 @@ export const DesktopRightSidebar: React.FC = () => {
           </button>
         )}
       </div>
-
-      {/* Suggested Farmers */}
-      <SuggestedSellerCard />
 
       {/* Categories Widget */}
       <CategoryCard />

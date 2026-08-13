@@ -4,7 +4,7 @@ import {
   Search, X, SlidersHorizontal, Heart, MessageCircle, Play, MapPin, Video, Image as ImageIcon
 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
-import { CATEGORIES, REGIONS } from '../data/mockAgroData';
+import { REGIONS } from '../data/mockAgroData';
 import { Post } from '../api/types';
 
 /* ─────────────────────────────────────────────
@@ -204,7 +204,7 @@ const ExploreCard: React.FC<{
    Main view
    ───────────────────────────────────────────── */
 export const SearchExploreView: React.FC = () => {
-  const { posts, openVideoViewer, setProductDetail } = useAgroStore();
+  const { posts, openVideoViewer, setProductDetail, categories } = useAgroStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCat, setSelectedCat] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');
@@ -397,7 +397,7 @@ export const SearchExploreView: React.FC = () => {
 
       {/* ── Category Pills ── */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-        {CATEGORIES.map((cat) => (
+        {categories.map((cat) => (
           <motion.button
             key={cat.id}
             whileHover={{ scale: 1.04 }}

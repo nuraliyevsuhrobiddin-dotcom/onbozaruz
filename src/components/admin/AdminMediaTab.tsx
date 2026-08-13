@@ -78,7 +78,6 @@ export const AdminMediaTab: React.FC<AdminMediaTabProps> = ({ posts, products, s
 
   const okCount = results.filter((r) => r.status === 'ok').length;
   const brokenCount = results.filter((r) => r.status === 'broken').length;
-  const checkingCount = results.filter((r) => r.status === 'checking').length;
 
   return (
     <div className="space-y-4 select-none">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle, XCircle, Ban, Trash2, Filter, RefreshCw, AlertCircle } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { Post } from '../../data/mockAgroData';
 import { adminRepository } from '../../api/adminRepository';
 

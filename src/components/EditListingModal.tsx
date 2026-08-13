@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './ui/Modal';
 import { useAgroStore } from '../store/useAgroStore';
-import { CATEGORIES, REGIONS } from '../data/mockAgroData';
+import { REGIONS } from '../data/mockAgroData';
 import { Edit3, Save, Trash2, Tag, MapPin, DollarSign, Package } from 'lucide-react';
 
 export const EditListingModal: React.FC = () => {
-  const { editModalItem, setEditModalItem, updatePost, updateProduct, deletePost, deleteProduct, showToast, isAdminUser } = useAgroStore();
+  const { editModalItem, setEditModalItem, updatePost, updateProduct, deletePost, deleteProduct, showToast, isAdminUser, categories } = useAgroStore();
 
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
@@ -23,13 +23,13 @@ export const EditListingModal: React.FC = () => {
       setTitle(editModalItem.title || '');
       setPrice(editModalItem.price || '');
       setNumericPrice(String(editModalItem.numericPrice || ''));
-      setCategory(editModalItem.category || CATEGORIES[1]?.id || 'fruits');
+      setCategory(editModalItem.category || categories[1]?.id || 'fruits');
       setLocation(editModalItem.location || REGIONS[1] || 'Farg\'ona');
       setMinOrder(editModalItem.minOrder || '1 dona');
       setPhone('phone' in editModalItem ? editModalItem.phone || '' : '');      setImage('image' in editModalItem ? editModalItem.image || '' : '');
       setDescription('description' in editModalItem ? editModalItem.description || '' : '');
       setFeatures('features' in editModalItem ? editModalItem.features || '' : '');    }
-  }, [editModalItem]);
+  }, [editModalItem, categories]);
 
   if (!editModalItem || !isAdminUser) return null;
 
@@ -42,7 +42,7 @@ export const EditListingModal: React.FC = () => {
       return;
     }
 
-    const selectedCategoryObj = CATEGORIES.find((c) => c.id === category);
+    const selectedCategoryObj = categories.find((c) => c.id === category);
 
     if (isPost) {
       updatePost(editModalItem.id, {
@@ -148,7 +148,7 @@ export const EditListingModal: React.FC = () => {
               onChange={(e) => setCategory(e.target.value)}
               className="w-full bg-slate-100 rounded-[14px] px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
             >
-              {CATEGORIES.filter((cat) => cat.id !== 'all').map((cat) => (
+              {categories.filter((cat) => cat.id !== 'all').map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.name}
                 </option>

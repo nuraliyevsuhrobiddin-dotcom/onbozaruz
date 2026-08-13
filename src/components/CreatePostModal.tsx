@@ -30,9 +30,10 @@ import {
   Hexagon,
 } from 'lucide-react';
 import { useCreatePostForm } from './create/useCreatePostForm';
-import { CATEGORIES, REGIONS } from '../data/mockAgroData';
+import { REGIONS } from '../data/mockAgroData';
 import { CONDITION_QUICK, MIN_ORDER_QUICK, PRICE_QUICK } from './create/constants';
 import { VideoPlayer } from './ui/VideoPlayer';
+import { useAgroStore } from '../store/useAgroStore';
 
 const categoryIconMap = {
   apple: Apple,
@@ -81,6 +82,7 @@ const QuickChip: React.FC<{
 );
 
 export const CreatePostModal: React.FC = () => {
+  const { categories } = useAgroStore();
   const {
     isCreateModalOpen,
     step,
@@ -412,7 +414,7 @@ export const CreatePostModal: React.FC = () => {
                       <div className="bg-amber-50 border border-amber-200 rounded-[16px] p-3 flex items-center gap-3">
                         <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
                         <p className="text-[12px] text-amber-700 font-medium">
-                          Video qo'shsangiz ko'proq mijoz jalb qilasiz! Reels uslubida ko'rinadi.
+                          Video qo'shsangiz ko'proq mijoz jalb qilasiz.
                         </p>
                       </div>
                     )}
@@ -435,7 +437,7 @@ export const CreatePostModal: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5">
-                      {CATEGORIES.filter((c) => c.id !== 'all').map((c) => {
+                      {categories.filter((c) => c.id !== 'all').map((c) => {
                         const isSelected = formValues.category === c.id;
                         const CategoryIcon = getCategoryIcon(c.icon);
                         return (
@@ -719,7 +721,7 @@ export const CreatePostModal: React.FC = () => {
                             {formValues.price || 'Narx'}
                           </div>
                           <div className="absolute top-3 right-3 bg-[#E53935]/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold">
-                            {CATEGORIES.find((c) => c.id === formValues.category)?.name || 'Kategoriya'}
+                            {categories.find((c) => c.id === formValues.category)?.name || 'Kategoriya'}
                           </div>
                         </div>
                       ) : (

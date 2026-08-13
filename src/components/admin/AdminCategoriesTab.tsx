@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Search, Plus, Edit3, Trash2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Edit3, Trash2, AlertCircle } from 'lucide-react';
 import { adminRepository, CategoryItem } from '../../api/adminRepository';
 import { CATEGORIES } from '../../data/mockAgroData';
 import { useAgroStore } from '../../store/useAgroStore';
@@ -31,7 +31,9 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
     try {
       const cats = await adminRepository.getCategories();
       setCategories(cats.length > 0 ? cats : DEFAULT_CATS);
-    } catch (e: any) {
+    } catch (error: any) {
+      console.error('Failed to load categories:', error);
+      // Error handled - use default categories
       setCategories(DEFAULT_CATS);
     } finally {
       setLoading(false);
@@ -44,12 +46,12 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
     const activeCats = items
       .filter((c) => c.isActive)
       .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0' }));
-    useAgroStore.setState((prev) => ({
+    useAgroStore.setState({
       categories: [
         { id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0' },
         ...activeCats.filter((c) => c.id !== 'all'),
       ],
-    }));
+    });
   };
 
   const handleSave = async () => {

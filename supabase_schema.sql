@@ -177,14 +177,6 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
 
--- PostgREST uchun frontend ishlatadigan rollarga kerakli jadval huquqlari.
-GRANT SELECT ON public.posts, public.products, public.profiles, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs TO anon, authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.posts, public.products, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs, public.orders TO authenticated;
-GRANT INSERT, UPDATE ON public.profiles TO authenticated;
-
-
-
-
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'approved';
 ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS rejection_reason TEXT DEFAULT '';
@@ -198,6 +190,11 @@ CREATE TABLE IF NOT EXISTS public.categories (
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- PostgREST uchun frontend ishlatadigan rollarga kerakli jadval huquqlari.
+GRANT SELECT ON public.posts, public.products, public.profiles, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs TO anon, authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.posts, public.products, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs, public.orders TO authenticated;
+GRANT INSERT, UPDATE ON public.profiles TO authenticated;
 
 -- REPORTS (Foydalanuvchi va e'lonlar ustidan shikoyatlar)
 CREATE TABLE IF NOT EXISTS public.reports (

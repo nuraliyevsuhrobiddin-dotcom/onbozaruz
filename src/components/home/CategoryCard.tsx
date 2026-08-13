@@ -1,11 +1,10 @@
 ﻿import React from 'react';
 import { Tag } from 'lucide-react';
-import { CATEGORIES } from '../../data/mockAgroData';
 import { useAgroStore } from '../../store/useAgroStore';
 
 export const CategoryCard: React.FC = () => {
-  const { setSelectedCategoryModalId } = useAgroStore();
-  const categories = Array.from(new Map(CATEGORIES.slice(1).map((c) => [c.id, c])).values());
+  const { setSelectedCategoryModalId, categories } = useAgroStore();
+  const categoryList = Array.from(new Map(categories.slice(1).map((c) => [c.id, c])).values());
 
   return (
     <div className="bg-white rounded-[22px] border border-slate-200/80 p-3 shadow-sm space-y-2.5 select-none">
@@ -15,7 +14,7 @@ export const CategoryCard: React.FC = () => {
       </h3>
 
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {categories.map((cat) => (
+        {categoryList.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setSelectedCategoryModalId(cat.id)}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { adminRepository, AdminReport } from '../../api/adminRepository';
-import { RefreshCw, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 
 interface AdminReportsTabProps {
   onLogAction: (action: string, targetId: string, oldVal: any, newVal: any) => void;

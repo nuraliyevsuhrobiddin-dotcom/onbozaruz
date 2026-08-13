@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import { motion } from 'framer-motion';
-import { CATEGORIES } from '../../data/mockAgroData';
+import { useAgroStore } from '../../store/useAgroStore';
 
 interface CategoryFilterProps {
   selectedCategory: string;
@@ -11,8 +11,9 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   selectedCategory,
   onSelectCategory,
 }) => {
+  const { categories } = useAgroStore();
   // ensure categories are unique by id to avoid duplicate chips in UI
-  const uniqueCategories = Array.from(new Map(CATEGORIES.map((c) => [c.id, c])).values());
+  const uniqueCategories = Array.from(new Map(categories.map((c) => [c.id, c])).values());
 
   return (
     <div className="flex flex-wrap items-center gap-2 py-1 px-2">

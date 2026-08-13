@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Edit3, Trash2, CheckCircle, XCircle, Plus, X, PackagePlus, Upload, Image as ImageIcon, Send, Sparkles } from 'lucide-react';
+import { Search, Edit3, Trash2, CheckCircle, XCircle, Plus, X, PackagePlus, Upload, Send } from 'lucide-react';
 import { Product } from '../../data/mockAgroData';
 import { CATEGORIES, REGIONS } from '../../data/mockAgroData';
 import { useAgroStore } from '../../store/useAgroStore';

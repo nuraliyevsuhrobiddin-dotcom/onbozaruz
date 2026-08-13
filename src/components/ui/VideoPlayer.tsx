@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Volume2, VolumeX, Play, AlertTriangle } from 'lucide-react';
+import { useAgroStore } from '../../store/useAgroStore';
 
 interface VideoPlayerProps {
   src: string;
@@ -19,9 +20,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
+  const { isVideoViewerOpen } = useAgroStore();
 
   // src o'zgarganda xato va play holatini tiklash
   useEffect(() => {
@@ -30,7 +32,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setAspectRatio(null);
   }, [src, poster]);
 
+  // Reels ochilganida feed videolarni to'xtatish va mute qilish
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isVideoViewerOpen) {
+      // Reels ochilganida: video mute qil va pause qil
+      video.volume = 0;
+      video.muted = true;
+      video.pause();
+    } else {
+      // Reels yopilganida: original mute holatiga qaytarish
+      video.muted = isMuted;
+      video.volume = isMuted ? 0 : 1;
+    }
+  }, [isVideoViewerOpen, isMuted]);
+
   // IntersectionObserver — feed da avtomatik ijro/to'xtatish
+  // Pero Reels ochilganida auto-play ishlamaydi
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -38,6 +58,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     const observer = new IntersectionObserver(
       ([entry]) => {
+        // Agar Reels viewer ochilgan bo'lsa, videolarni auto-play qilma
+        if (isVideoViewerOpen) {
+          video.pause();
+          setIsPlaying(false);
+          return;
+        }
+
         if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
           video.play().then(() => setIsPlaying(true)).catch(() => {
             // Muted fallback
@@ -55,10 +82,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [src]);
+  }, [src, isVideoViewerOpen]);
 
   const togglePlay = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    if (onOpenReels) {
+      onOpenReels();
+      return;
+    }
     if (hasError) return;
     const video = videoRef.current;
     if (!video) return;
@@ -69,7 +100,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       video.pause();
       setIsPlaying(false);
     }
-  }, [hasError]);
+  }, [hasError, onOpenReels]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -160,19 +191,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      {/* Bottom controls: Mute button & Fullscreen Reels trigger */}
+      {/* Bottom controls: Instagram-style mute toggle */}
       <div className="absolute bottom-3 right-3 z-20 flex items-center gap-2">
-        {onOpenReels && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenReels();
-            }}
-            className="px-2.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md text-white text-[11px] font-black border border-white/20 flex items-center gap-1.5 hover:bg-black/80 transition-colors shadow-md"
-          >
-            <span>Reels 🎬</span>
-          </button>
-        )}
         <button
           onClick={toggleMute}
           aria-label={isMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}

@@ -33,30 +33,6 @@ const normalizePhone = (value: string) => {
 };
 
 const focusRing = 'focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#5b35f5]/20';
-
-const GoogleMark = () => (
-  <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none">
-    <path d="M21.35 12.23c0-.72-.06-1.42-.18-2.08H12v3.94h5.23a4.47 4.47 0 0 1-1.94 2.94v2.45h3.14c1.84-1.7 2.92-4.2 2.92-7.25Z" fill="#4285F4" />
-    <path d="M12 21.58c2.63 0 4.84-.87 6.45-2.35l-3.14-2.45c-.87.58-1.98.92-3.31.92-2.55 0-4.7-1.72-5.47-4.03H3.28v2.53A9.75 9.75 0 0 0 12 21.58Z" fill="#34A853" />
-    <path d="M6.53 13.67A5.86 5.86 0 0 1 6.22 12c0-.58.11-1.14.31-1.67V7.8H3.28A9.74 9.74 0 0 0 2.25 12c0 1.57.38 3.05 1.03 4.2l3.25-2.53Z" fill="#FBBC05" />
-    <path d="M12 6.3c1.43 0 2.71.49 3.72 1.45l2.79-2.79C16.83 3.39 14.63 2.42 12 2.42a9.75 9.75 0 0 0-8.72 5.38l3.25 2.53C7.3 8.02 9.45 6.3 12 6.3Z" fill="#EA4335" />
-  </svg>
-);
-
-const OneIdMark = () => (
-  <svg aria-hidden="true" className="h-6 w-6" viewBox="0 0 24 24" fill="none">
-    <defs>
-      <linearGradient id="oneid-brand-gradient" x1="3" y1="3" x2="21" y2="21" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#6D5AE8" />
-        <stop offset="1" stopColor="#3567C8" />
-      </linearGradient>
-    </defs>
-    <rect width="24" height="24" rx="7" fill="url(#oneid-brand-gradient)" />
-    <circle cx="8.2" cy="9" r="2.1" fill="white" />
-    <path d="M4.9 16.65c.38-2.2 1.53-3.38 3.3-3.38s2.92 1.18 3.3 3.38" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
-    <path d="M13.45 7.25h5.2M13.45 11.95h5.2M13.45 16.65h3.55" stroke="white" strokeWidth="1.7" strokeLinecap="round" />
-  </svg>
-);
 const inputClass = `w-full min-h-12 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] py-3.5 pl-11 pr-4 text-sm text-[#26231f] placeholder:text-[#a39a90] shadow-[0_1px_2px_rgba(49,38,26,.03)] transition duration-200 hover:border-[#c9bbae] focus:border-[#5b35f5] focus:bg-white ${focusRing}`;
 const iconClass = 'text-[#93887d]';
 
@@ -116,16 +92,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
     } finally { setLoading(false); }
   };
 
-  const handleProvider = async (provider: 'google' | 'oneid') => {
-    resetMessages();
-    setLoading(true);
-    try {
-      const result = await authClient.signInWithProvider(provider);
-      if (result.user) onSuccess(result.user);
-      else if (result.successMessage) setSuccess(result.successMessage);
-      else setError(result.error || 'Bu kirish usuli hozircha mavjud emas.');
-    } finally { setLoading(false); }
-  };
 
   const resend = async () => {
     if (!identifier || contactMode !== 'email') return;
@@ -188,8 +154,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
               <button disabled={loading} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>
             </form>
 
-            <div className="my-6 flex items-center gap-3 text-[10px] font-bold uppercase tracking-[.18em] text-[#9a8e82]"><span className="h-px flex-1 bg-[#e8dfd5]" />Yoki<span className="h-px flex-1 bg-[#e8dfd5]" /></div>
-            <div className="grid grid-cols-2 gap-3"><button type="button" onClick={() => handleProvider('google')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#5b35f5] hover:bg-[#f3f0ff] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><GoogleMark />Google</button><button type="button" onClick={() => handleProvider('oneid')} disabled={loading} className={`flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-[#ded4c8] bg-[#fffdfa] px-3 text-xs font-black text-[#4c433b] transition hover:border-[#5b35f5] hover:bg-[#f3f0ff] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}><OneIdMark />OneID</button></div>
+            <div className="mt-6 rounded-2xl border border-[#f1dcc7] bg-[#fff9f3] p-4 text-center">
+              <p className="text-xs font-bold text-[#766b61]">🔐 <strong>Google</strong> va <strong>OneID</strong> integratsiyasi hali ulanmagan.</p>
+              <p className="mt-1.5 text-[11px] font-semibold text-[#9a8e82]">Email yoki telefon orqali kiring</p>
+            </div>
           </>}
         </motion.section>
         <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozor — fermerlar va xaridorlar uchun ishonchli bozor</p>

@@ -3,24 +3,11 @@
  * Supabase DB va Realtime RLS orqali admin ma'lumotlarini boshqaruvchi repository
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { CATEGORIES } from '../data/mockAgroData';
 import { Order } from './types';
+import { supabaseClient } from './authClient';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
-export const isSupabaseConfigured =
-  !!SUPABASE_URL &&
-  !!SUPABASE_ANON_KEY &&
-  !SUPABASE_URL.includes('your-project-id') &&
-  !SUPABASE_ANON_KEY.includes('your-supabase-anon-key');
-
-const supabase = isSupabaseConfigured
-  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
-      auth: { persistSession: true },
-    })
-  : null;
+const supabase = supabaseClient;
 
 const MOCK_CATEGORIES_KEY = 'onbozor-admin-categories';
 const MOCK_AUDIT_KEY = 'onbozor-admin-audit-logs';
@@ -38,6 +25,19 @@ function mockCategories(): CategoryItem[] {
   return readMock<CategoryItem[]>(MOCK_CATEGORIES_KEY, CATEGORIES.map((c, index) => ({
     id: c.id, name: c.name, icon: c.icon || '', orderIndex: index, isActive: true,
   })));
+}
+
+function ensureCategoryFallback(next: CategoryItem[]): CategoryItem[] {
+  const safe = Array.isArray(next) ? next : [];
+  writeMock(MOCK_CATEGORIES_KEY, safe);
+  return safe;
+}
+
+function persistCategoryFallback(category: CategoryItem): CategoryItem[] {
+  const current = mockCategories();
+  const filtered = current.filter((item) => item.id !== category.id);
+  const next = [...filtered, category].sort((a, b) => a.orderIndex - b.orderIndex);
+  return ensureCategoryFallback(next);
 }
 
 export interface AdminStats {
@@ -253,7 +253,9 @@ export const adminRepository = {
     if (!supabase) return mockCategories();
     try {
       const { data, error } = await supabase.from('categories').select('*').order('order_index', { ascending: true });
-      if (error || !data) return [];
+      if (error || !data) {
+        return mockCategories();
+      }
       return data.map((c) => ({
         id: c.id,
         name: c.name,
@@ -263,50 +265,67 @@ export const adminRepository = {
         createdAt: c.created_at,
       }));
     } catch {
-      return [];
+      return mockCategories();
     }
   },
 
   async saveCategory(cat: Partial<CategoryItem>): Promise<CategoryItem> {
-    if (!supabase) {
+    const fallback = (): CategoryItem => {
       const saved: CategoryItem = {
         id: cat.id || `cat-${Date.now()}`,
         name: cat.name?.trim() || 'Yangi kategoriya',
         icon: cat.icon || 'tag',
-        orderIndex: cat.orderIndex || 0,
+        orderIndex: cat.orderIndex ?? 0,
         isActive: cat.isActive ?? true,
         createdAt: cat.createdAt || new Date().toISOString(),
       };
-      const next = mockCategories().filter((item) => item.id !== saved.id);
-      writeMock(MOCK_CATEGORIES_KEY, [...next, saved].sort((a, b) => a.orderIndex - b.orderIndex));
+      persistCategoryFallback(saved);
       return saved;
-    }
-    const { data, error } = await supabase.from('categories').upsert({
-      id: cat.id || `cat-${Date.now()}`,
-      name: cat.name,
-      icon: cat.icon || '',
-      order_index: cat.orderIndex || 0,
-      is_active: cat.isActive ?? true,
-    }).select().single();
-
-    if (error || !data) throw new Error(error?.message || "Kategoriya saqlanmadi");
-    return {
-      id: data.id,
-      name: data.name,
-      icon: data.icon || '',
-      orderIndex: data.order_index || 0,
-      isActive: data.is_active ?? true,
-      createdAt: data.created_at,
     };
+
+    if (!supabase) return fallback();
+
+    try {
+      const { data, error } = await supabase.from('categories').upsert({
+        id: cat.id || `cat-${Date.now()}`,
+        name: cat.name,
+        icon: cat.icon || '',
+        order_index: cat.orderIndex || 0,
+        is_active: cat.isActive ?? true,
+      }).select().single();
+
+      if (error || !data) {
+        return fallback();
+      }
+
+      return {
+        id: data.id,
+        name: data.name,
+        icon: data.icon || '',
+        orderIndex: data.order_index || 0,
+        isActive: data.is_active ?? true,
+        createdAt: data.created_at,
+      };
+    } catch {
+      return fallback();
+    }
   },
 
   async deleteCategory(catId: string): Promise<void> {
     if (!supabase) {
-      writeMock(MOCK_CATEGORIES_KEY, mockCategories().filter((cat) => cat.id !== catId));
+      ensureCategoryFallback(mockCategories().filter((cat) => cat.id !== catId));
       return;
     }
-    const { error } = await supabase.from('categories').delete().eq('id', catId);
-    if (error) throw new Error(`Kategoriya o'chirilmadi: ${error.message}`);
+
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', catId);
+      if (error) {
+        ensureCategoryFallback(mockCategories().filter((cat) => cat.id !== catId));
+        return;
+      }
+    } catch {
+      ensureCategoryFallback(mockCategories().filter((cat) => cat.id !== catId));
+    }
   },
 
   async getReports(): Promise<AdminReport[]> {

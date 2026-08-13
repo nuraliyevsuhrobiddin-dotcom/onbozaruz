@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ChevronDown } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Order } from '../../api/types';
 import { adminRepository } from '../../api/adminRepository';
 

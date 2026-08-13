@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogIn, UserPlus } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { Post, Product } from '../data/mockAgroData';
 import { ProfileHeader } from '../components/profile/ProfileHeader';

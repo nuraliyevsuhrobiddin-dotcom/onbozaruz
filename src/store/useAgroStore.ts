@@ -164,7 +164,7 @@ export const useAgroStore = create<AgroStoreState>()(
       const initialUser = isSupabaseConfigured ? null : authClient.getCurrentUser();
       const initialIsAdmin = initialUser
         ? Boolean(initialUser.isAdmin) || initialUser.email?.toLowerCase().trim() === ADMIN_EMAIL
-        : false;
+        : !isSupabaseConfigured; // Enable admin mode by default in mock/development mode
 
       async function loadUserInteractions(user: AuthUser) {
         try {
@@ -816,7 +816,8 @@ export const useAgroStore = create<AgroStoreState>()(
             const orders = await ordersRepository.list();
             set({ orders });
           }
-        } catch (err) {
+        } catch (error: any) {
+          console.warn('Failed to hydrate data:', error?.message || error);
           // Network xatosi: cache ko'rsatilayotgan bo'lsa, foydalanuvchi hech nima sezmaydi
           const isOfflineNow = typeof navigator !== 'undefined' ? !navigator.onLine : false;
           set({

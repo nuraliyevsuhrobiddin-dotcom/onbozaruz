@@ -17,7 +17,7 @@ export const isSupabaseConfigured =
   !SUPABASE_URL.includes('your-project-id') &&
   !SUPABASE_ANON_KEY.includes('your-supabase-anon-key');
 
-const supabase = isSupabaseConfigured
+export const supabaseClient = isSupabaseConfigured
   ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
       auth: {
         flowType: 'pkce',
@@ -27,6 +27,8 @@ const supabase = isSupabaseConfigured
       },
     })
   : null;
+
+const supabase = supabaseClient;
 
 const PRODUCTION_AUTH_CALLBACK_URL = 'https://www.onbozar.uz/auth/callback';
 
@@ -100,10 +102,10 @@ export async function completeAuthCallback(): Promise<void> {
         if (recheck.data.session) return;
         throw new Error(translateAuthError(exchange.error.message));
       }
-    } catch (err: unknown) {
+    } catch (error: unknown) {
       const recheck = await supabase.auth.getSession();
       if (recheck.data.session) return;
-      const msg = err instanceof Error ? err.message : 'Tasdiqlash kodi yaroqsiz';
+      const msg = error instanceof Error ? error.message : 'Tasdiqlash kodi yaroqsiz';
       throw new Error(translateAuthError(msg));
     }
   }
@@ -139,7 +141,9 @@ export async function uploadListingMedia(
     } else {
       fileOrBlob = input;
     }
-  } catch (e) {
+  } catch (error: unknown) {
+    console.warn('[uploadListingMedia] Error loading media:', error);
+    // Error handled - return input as fallback
     return typeof input === 'string' ? input : '';
   }
 

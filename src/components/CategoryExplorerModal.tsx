@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Filter, CheckCircle2, PhoneCall, Tag, Apple, Wheat, Tractor, Beef, Sprout, Leaf, Package, Hexagon } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
-import { CATEGORIES } from '../data/mockAgroData';
 
 
 const categoryIconMap = {
@@ -25,12 +24,12 @@ interface Props {
 }
 
 export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) => {
-  const { posts, setProductDetail } = useAgroStore();
+  const { posts, setProductDetail, categories } = useAgroStore();
   const [selectedSort, setSelectedSort] = useState<'newest' | 'price_low' | 'price_high'>('newest');
 
   if (!categoryId) return null;
 
-  const categoryObj = CATEGORIES.find((c) => c.id === categoryId) || {
+  const categoryObj = categories.find((c) => c.id === categoryId) || {
     id: categoryId,
     name: 'Agro Kategoriya',
     icon: 'wheat',

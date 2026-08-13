@@ -69,6 +69,22 @@ export default function App() {
     hydrateFromApi();
   }, [hydrateFromApi]);
 
+  // ─── Parse initial route from URL hash ──────────────────────────────────
+  useEffect(() => {
+    if (isAuthCallback) return;
+    
+    const hash = window.location.hash.slice(1); // Remove '#'
+    if (!hash) return;
+    
+    const [tab, subView] = hash.split('/');
+    if (tab && (tab === 'home' || tab === 'search' || tab === 'market' || tab === 'profile' || tab === 'admin')) {
+      setActiveTab(tab as NavTab);
+      if (subView) {
+        setActiveSubView(subView as SubView);
+      }
+    }
+  }, [isAuthCallback, setActiveTab, setActiveSubView]);
+
   // Online/Offline holat kuzatuvchisi
   useEffect(() => {
     const handleOnline = () => {

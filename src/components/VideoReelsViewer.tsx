@@ -30,10 +30,10 @@ interface SlideProps {
   post: Post;
   isActive: boolean;
   globalMuted: boolean;
-  onUnmute: () => void;
+  onUnmute?: () => void;
 }
 
-const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmute }) => {
+const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmute }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showHeart, setShowHeart] = useState(false);
@@ -59,46 +59,70 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
   const isFollowing = followedSellerIds.includes(post.sellerId);
   const isOwnPost = currentUser?.id === post.sellerId;
 
-  // Active slide: play; inactive: pause
+  // Active slide: play; inactive: pause and mute completely
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (isActive) {
-      video.currentTime = 0;
       video.muted = globalMuted;
-      video.volume = 1;
+      video.volume = globalMuted ? 0 : 1;
 
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise
           .then(() => setIsPlaying(true))
           .catch(() => {
-            // Brauzer ovozli autoplayni rad etdi — ovozsizga o'tib qayta urinamiz
+            // Browser policies may block autoplay with sound until the user interacts.
             video.muted = true;
-            video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            video.volume = 0;
+            setIsPlaying(false);
           });
       }
     } else {
+      // Set volume to 0 immediately to prevent audio mixing during swipes
+      video.volume = 0;
+      video.muted = true;
       video.pause();
-      video.currentTime = 0;
       setIsPlaying(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive]);
+  }, [isActive, globalMuted]);
 
-  // globalMuted o'zgarganda faqat aktiv slide da ovozni sinxronlashtirish
+  // Keep audio state aligned when the viewer mute toggle changes.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isActive) return;
+
     video.muted = globalMuted;
+    video.volume = globalMuted ? 0 : 1;
+
+    if (!globalMuted && video.paused) {
+      video.play().catch(() => {
+        video.muted = true;
+        video.volume = 0;
+      });
+    }
   }, [globalMuted, isActive]);
 
-  // Komponent unmount bo'lganda video ni to'xtatish
+  // Extra safety: ensure inactive videos have zero volume
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || isActive) return;
+    
+    // Redundant check to catch edge cases during rapid swiping
+    video.volume = 0;
+    video.muted = true;
+  }, [isActive]);
+
+  // Komponent unmount bo'lganda video ni to'xtatish va ovozni butunlay o'chirish
   useEffect(() => {
     const video = videoRef.current;
     return () => {
-      video?.pause();
+      if (video) {
+        video.volume = 0;
+        video.muted = true;
+        video.pause();
+      }
     };
   }, []);
 
@@ -174,7 +198,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
             src={post.mediaUrl}
             poster={post.posterUrl}
             loop
-            muted={globalMuted}
+            muted={false}
             playsInline
             preload="auto"
             onClick={handleClick}
@@ -209,18 +233,7 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, onUnmut
           </div>
         )}
 
-        {/* Tap-to-unmute indicator (top center) */}
-        {globalMuted && isActive && post.type === 'video' && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onUnmute(); }}
-            className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/70 backdrop-blur-md border border-white/20 shadow-lg text-white text-[12px] font-black hover:bg-black/90 transition-all"
-            style={{ animation: 'pulse 2s ease-in-out infinite' }}
-          >
-            <VolumeX className="w-4 h-4 text-white/80" />
-            <span>Ovozni yoqish</span>
-            <Volume2 className="w-4 h-4 text-emerald-400" />
-          </button>
-        )}
+        {/* Minimal unmute hint is handled by the top-right mute control only */}
 
         {/* Double-tap heart animation */}
         <AnimatePresence>
@@ -433,6 +446,9 @@ export const VideoReelsViewer: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   // Ovozli boshlanadi — foydalanuvchi bosib kirdi (user gesture)
   const [globalMuted, setGlobalMuted] = useState(false);
+  // Floating control visibility: appears on scroll, hides after inactivity
+  const [showFloatingControls, setShowFloatingControls] = useState(true);
+  const floatingControlsTimer = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const isScrolling = useRef(false);
@@ -445,6 +461,7 @@ export const VideoReelsViewer: React.FC = () => {
     if (!isVideoViewerOpen) return;
     setCurrentIndex(videoViewerStartIndex);
     setGlobalMuted(false);
+    setShowFloatingControls(true);
 
     isScrolling.current = true;
     const timer = setTimeout(() => {
@@ -465,6 +482,30 @@ export const VideoReelsViewer: React.FC = () => {
 
     return () => clearTimeout(timer);
   }, [isVideoViewerOpen, videoViewerStartIndex]);
+
+  // Floating controls auto-hide timer
+  useEffect(() => {
+    if (!showFloatingControls) return;
+    
+    if (floatingControlsTimer.current) {
+      window.clearTimeout(floatingControlsTimer.current);
+    }
+    
+    floatingControlsTimer.current = window.setTimeout(() => {
+      setShowFloatingControls(false);
+    }, 3000); // Hide after 3 seconds of inactivity
+    
+    return () => {
+      if (floatingControlsTimer.current) {
+        window.clearTimeout(floatingControlsTimer.current);
+      }
+    };
+  }, [showFloatingControls]);
+
+  // Show controls on any user interaction
+  const revealControls = useCallback(() => {
+    setShowFloatingControls(true);
+  }, []);
 
   // Lock body scroll while viewer is open
   useEffect(() => {
@@ -547,6 +588,8 @@ export const VideoReelsViewer: React.FC = () => {
 
   // Native scroll settlement handler for touch & momentum scrolling
   const handleScroll = useCallback(() => {
+    revealControls();
+    
     if (isScrolling.current || !containerRef.current) return;
 
     // Debounce scroll settlement to update index only when swipe settles
@@ -568,7 +611,7 @@ export const VideoReelsViewer: React.FC = () => {
         setCurrentIndex(settledIdx);
       }
     }, 80);
-  }, [currentIndex, liveVideoPosts.length]);
+  }, [currentIndex, liveVideoPosts.length, revealControls]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -591,6 +634,8 @@ export const VideoReelsViewer: React.FC = () => {
 
   // Mouse wheel navigation (Desktop)
   const handleWheelNav = (e: React.WheelEvent) => {
+    revealControls();
+    
     if (isScrolling.current) return;
     const now = Date.now();
     if (now - lastWheelTime.current < 400) return;
@@ -612,37 +657,51 @@ export const VideoReelsViewer: React.FC = () => {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
         className="fixed inset-0 z-[100] bg-black"
+        onMouseMove={revealControls}
+        onTouchStart={revealControls}
       >
-        {/* Back button */}
+        {/* Back button — always visible */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={closeVideoViewer}
-          className="absolute top-4 left-4 z-30 px-3.5 py-2 rounded-full bg-black/60 backdrop-blur-md text-white font-black text-xs flex items-center gap-2 border border-white/20 shadow-lg hover:bg-black/80"
+          className="absolute left-4 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white shadow-lg hover:bg-black/70"
           style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
+          aria-label="Orqaga"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Orqaga</span>
         </motion.button>
 
-        {/* Top Right Controls: Audio */}
-        <div
-          className="absolute right-4 z-30 flex items-center gap-2"
-          style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
-        >
-          {/* Mute toggle */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setGlobalMuted(!globalMuted)}
-            className="p-2 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/20 shadow-lg hover:bg-black/80 flex items-center justify-center"
-            title={globalMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
-          >
-            {globalMuted ? (
-              <VolumeX className="w-4 h-4 text-red-400" />
-            ) : (
-              <Volume2 className="w-4 h-4 text-white" />
-            )}
-          </motion.button>
-        </div>
+        {/* Floating Audio Control — appears on scroll/interaction, auto-hides after inactivity */}
+        <AnimatePresence>
+          {showFloatingControls && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="absolute right-4 z-30 flex items-center gap-2"
+              style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
+            >
+              {/* Mute toggle */}
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  setGlobalMuted((prev) => !prev);
+                  revealControls();
+                }}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white shadow-lg hover:bg-black/70 transition-colors"
+                title={globalMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
+                aria-label={globalMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
+              >
+                {globalMuted ? (
+                  <VolumeX className="w-4 h-4 text-red-400" />
+                ) : (
+                  <Volume2 className="w-4 h-4 text-white" />
+                )}
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Scroll container */}
         <div

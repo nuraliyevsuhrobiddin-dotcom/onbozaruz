@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAgroStore } from '../../store/useAgroStore';
-import { CATEGORIES, REGIONS } from '../../data/mockAgroData';
+import { REGIONS } from '../../data/mockAgroData';
 import { MEDIA_MAX_SIZE_MB } from './constants';
 import { formatNumeric, formatPhone, parseNumeric } from './formatting';
 import { clearDraft, draftToForm, loadDraft, saveDraft } from './createPostDraft';
@@ -34,6 +34,7 @@ export function useCreatePostForm() {
     setActiveTab,
     currentUser,
     setUploadingPostStatus,
+    categories,
   } = useAgroStore();
   const [step, setStep] = useState<Step>(1);
   const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
@@ -318,7 +319,7 @@ export function useCreatePostForm() {
   // ── Nashr qilish (Instagram-style background upload) ──
   const handlePublish = useCallback(
     async (data: PostFormData) => {
-      const categoryObj = CATEGORIES.find((c) => c.id === data.category);
+      const categoryObj = categories.find((c) => c.id === data.category);
       const numericPrice = parseNumeric(data.price);
       const now = Date.now();
       if (!currentUser || !selectedMediaUrl) {
@@ -432,6 +433,7 @@ export function useCreatePostForm() {
     },
     [
       addPost,
+      categories,
       currentUser,
       isPublishing,
       mediaContentType,
