@@ -115,6 +115,9 @@ interface AgroStoreState {
 
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
+  /** True until the first restoreSession() resolves. Gates profile-dependent UI
+   *  so a previous/stale session never renders before the real one is confirmed. */
+  isAuthLoading: boolean;
   loginUser: (user: AuthUser) => Promise<void>;
   logoutUser: () => Promise<void>;
   clearSession: () => void;
@@ -283,6 +286,10 @@ export const useAgroStore = create<AgroStoreState>()(
         // --- Auth: restore session from localStorage ---
         currentUser: initialUser,
         isAuthenticated: !!initialUser,
+        // Mock mode resolves the session synchronously above; Supabase mode
+        // must wait for the first restoreSession() round-trip before we know
+        // who (if anyone) is really signed in.
+        isAuthLoading: isSupabaseConfigured,
 
         savedPostIds: [],
         likedPostIds: [],
@@ -333,15 +340,30 @@ export const useAgroStore = create<AgroStoreState>()(
         loginUser: async (user: AuthUser) => {
           // isAdmin comes from DB profiles.is_admin field (set in authClient restoreSession/signIn)
           const isAdmin = Boolean(user.isAdmin) || (!isSupabaseConfigured && user.email.toLowerCase().trim() === ADMIN_EMAIL);
-          
-          // Clear any lingering state from previous user session first
+
+          // Only wipe personal state when this is actually a different account
+          // than whatever was previously active in this browser tab — otherwise
+          // a redundant login call (e.g. re-auth as yourself) would blow away
+          // an in-progress cart for no reason.
+          const isNewUser = get().currentUser?.id !== user.id;
+
           set({
             currentUser: user,
             isAuthenticated: true,
             isAdminUser: isAdmin,
-            savedPostIds: [],
-            likedPostIds: [],
-            orders: [],
+            isAuthLoading: false,
+            ...(isNewUser
+              ? {
+                  cart: {},
+                  savedPostIds: [],
+                  likedPostIds: [],
+                  followedSellerIds: [],
+                  viewedPostIds: [],
+                  orders: [],
+                  notifications: [],
+                  unreadNotificationsCount: 0,
+                }
+              : {}),
           });
 
           await Promise.all([
@@ -354,14 +376,40 @@ export const useAgroStore = create<AgroStoreState>()(
 
         restoreSession: async () => {
           const restoredUser = await authClient.restoreSession();
-          if (!restoredUser) return;
+
+          if (!restoredUser) {
+            // No valid session on the server. If the app still thinks someone
+            // is logged in (e.g. a stale/expired session persisted from a
+            // previous visit), that stale identity must not keep showing —
+            // clear it the same way an explicit logout would.
+            if (get().isAuthenticated) {
+              get().clearSession();
+            }
+            set({ isAuthLoading: false });
+            return;
+          }
 
           // isAdmin sourced from profiles.is_admin in Supabase DB — not from email string
           const isAdmin = Boolean(restoredUser.isAdmin) || (!isSupabaseConfigured && restoredUser.email.toLowerCase().trim() === ADMIN_EMAIL);
+          const isNewUser = get().currentUser?.id !== restoredUser.id;
+
           set({
             currentUser: restoredUser,
             isAuthenticated: true,
             isAdminUser: isAdmin,
+            isAuthLoading: false,
+            ...(isNewUser
+              ? {
+                  cart: {},
+                  savedPostIds: [],
+                  likedPostIds: [],
+                  followedSellerIds: [],
+                  viewedPostIds: [],
+                  orders: [],
+                  notifications: [],
+                  unreadNotificationsCount: 0,
+                }
+              : {}),
           });
 
           await loadUserInteractions(restoredUser);
@@ -403,6 +451,7 @@ export const useAgroStore = create<AgroStoreState>()(
             currentUser: null,
             isAuthenticated: false,
             isAdminUser: false,
+            isAuthLoading: false,
             // Reset user-specific state on logout
             savedPostIds: [],
             likedPostIds: [],
@@ -1055,8 +1104,16 @@ export const useAgroStore = create<AgroStoreState>()(
       savedPostIds: state.savedPostIds,
       likedPostIds: state.likedPostIds,
       followedSellerIds: state.followedSellerIds,
-      currentUser: state.currentUser,
-      isAuthenticated: state.isAuthenticated,
+      // In Supabase mode, currentUser/isAuthenticated must never be trusted
+      // from a locally-persisted copy — restoreSession() re-derives them from
+      // a real, freshly-validated session on every load. Persisting a stale
+      // copy here is exactly what let one account's data flash (or, if
+      // restoreSession ever failed silently, permanently stick) on another
+      // account's screen. Mock mode has its own separate session store
+      // (onbozor-auth-session), so it's unaffected by this.
+      ...(isSupabaseConfigured
+        ? {}
+        : { currentUser: state.currentUser, isAuthenticated: state.isAuthenticated }),
     }),
   }
 )

@@ -2,17 +2,14 @@ import React, { useState } from 'react';
 import {
   ArrowLeft,
   ShieldCheck,
-  TrendingUp,
   Package,
   Clock,
   Users,
   CheckCircle,
   XCircle,
   Plus,
-  BarChart3,
   Loader2,
 } from 'lucide-react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { Product } from '../../data/mockAgroData';
 
 interface ProfileAdminSubViewProps {
@@ -41,23 +38,16 @@ export const ProfileAdminSubView: React.FC<ProfileAdminSubViewProps> = ({
 
   const [adminProductForm, setAdminProductForm] = useState({
     title: '',
-    seller: 'Alisher Agro MChJ',
+    seller: '',
     category: 'fruits',
     price: '',
-    numericPrice: 15000,
-    minOrder: '50 kg',
-    location: "Farg'ona",
-    telegram: '@alisher_agro',
-    image: 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
+    numericPrice: 0,
+    minOrder: '1 dona',
+    location: '',
+    telegram: '',
+    image: '',
     description: '',
   });
-
-  const chartData = [
-    { status: 'Qabul', count: 12, fill: '#3B82F6' },
-    { status: "To'lov", count: 8, fill: '#F59E0B' },
-    { status: "Yo'lda", count: 15, fill: '#10B981' },
-    { status: 'Yetdi', count: 24, fill: '#6366F1' },
-  ];
 
   const handleAdminProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,22 +58,26 @@ export const ProfileAdminSubView: React.FC<ProfileAdminSubViewProps> = ({
 
     setIsSubmittingProduct(true);
     try {
+      // This form has no separate numeric-price input — derive it from the
+      // price string the admin actually typed so sorting/cart math isn't
+      // silently left at a stale/zero value that doesn't match what's shown.
+      const parsedNumericPrice = Number(adminProductForm.price.replace(/[^0-9]/g, '')) || 0;
       await onAddAdminProduct({
         ...adminProductForm,
-        numericPrice: adminProductForm.numericPrice,
+        numericPrice: parsedNumericPrice,
         images: [adminProductForm.image],
       });
       setIsAdminProductModalOpen(false);
       setAdminProductForm({
         title: '',
-        seller: 'Alisher Agro MChJ',
+        seller: '',
         category: 'fruits',
         price: '',
-        numericPrice: 15000,
-        minOrder: '50 kg',
-        location: "Farg'ona",
-        telegram: '@alisher_agro',
-        image: 'https://images.unsplash.com/photo-1560493676-04071c5f467b?w=600&auto=format&fit=crop&q=80',
+        numericPrice: 0,
+        minOrder: '1 dona',
+        location: '',
+        telegram: '',
+        image: '',
         description: '',
       });
       showToast("Yangi shartnomaviy mahsulot yaratildi va tasdiqlandi!");
@@ -122,12 +116,11 @@ export const ProfileAdminSubView: React.FC<ProfileAdminSubViewProps> = ({
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         {[
-          { label: 'Kunlik savdo', val: '48.5M', unit: "so'm", icon: TrendingUp, tone: 'text-emerald-600 bg-emerald-50' },
           { label: 'Buyurtmalar', val: ordersCount, unit: 'ta', icon: Package, tone: 'text-blue-600 bg-blue-50' },
           { label: 'Kutayotganlar', val: pendingProducts.length, unit: 'ta bot', icon: Clock, tone: 'text-amber-600 bg-amber-50' },
-          { label: 'Fermerlar', val: approvedProducts.length + 12, unit: 'faol', icon: Users, tone: 'text-rose-600 bg-rose-50' },
+          { label: 'Faol mahsulotlar', val: approvedProducts.length, unit: 'ta', icon: Users, tone: 'text-rose-600 bg-rose-50' },
         ].map((s) => {
           const Icon = s.icon;
           return (
@@ -145,28 +138,6 @@ export const ProfileAdminSubView: React.FC<ProfileAdminSubViewProps> = ({
             </div>
           );
         })}
-      </div>
-
-      {/* Orders Status Chart */}
-      <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm space-y-3">
-        <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
-          <BarChart3 className="w-4 h-4 text-[#E53935]" />
-          Buyurtmalar statusi va dinamikasi
-        </h3>
-        <div className="h-44 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <XAxis dataKey="status" tickLine={false} axisLine={false} tick={{ fontSize: 11, fontWeight: 700 }} />
-              <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fontWeight: 600 }} />
-              <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} />
-              <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
       </div>
 
       {/* Moderation List */}

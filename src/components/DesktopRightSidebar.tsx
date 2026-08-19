@@ -15,12 +15,18 @@ export const DesktopRightSidebar: React.FC = () => {
             onClick={() => setActiveTab('profile')}
             className="flex items-center gap-3 text-left min-w-0 hover:opacity-80 transition-opacity"
           >
-            <img
-              src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
-              alt={currentUser.name}
-              className="w-11 h-11 rounded-full object-cover border-2 border-slate-100 shrink-0 shadow-sm"
-              onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
-            />
+            {currentUser.avatar ? (
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="w-11 h-11 rounded-full object-cover border-2 border-slate-100 shrink-0 shadow-sm"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-full border-2 border-slate-100 shrink-0 shadow-sm bg-gradient-to-br from-[#E53935] via-[#D32F2F] to-[#B71C1C] text-white font-black text-sm flex items-center justify-center">
+                {(currentUser.name || 'U').charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-1">
                 <span className="font-extrabold text-xs text-[#111827] truncate">{currentUser.name}</span>

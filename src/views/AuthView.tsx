@@ -61,6 +61,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
     return '';
   };
 
+  // name → handle: harflar, raqamlar, _; bo'shliqlar → _; boshqa belgilar o'chiriladi
+  const deriveHandle = (rawName: string): string => {
+    return rawName
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      .slice(0, 30)
+      || `user_${Date.now().toString().slice(-5)}`;
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     resetMessages();
@@ -71,12 +82,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
       const normalizedIdentifier = contactMode === 'phone'
         ? normalizePhone(identifier)
         : identifier.trim().toLowerCase();
+
+      // handle: name'dan avtomatik yasaladi (masalan, "Anvar Agro" → "anvar_agro")
+      const autoHandle = deriveHandle(name);
+
       const result = mode === 'signup'
         ? await authClient.signUp({
-            email: normalizedIdentifier,
+            email: contactMode === 'email' ? normalizedIdentifier : '',
             password,
             name: name.trim(),
-            handle: '',
+            handle: autoHandle,
             phone: contactMode === 'phone' ? normalizedIdentifier : '',
             role: 'seller',
           } satisfies SignUpFields)

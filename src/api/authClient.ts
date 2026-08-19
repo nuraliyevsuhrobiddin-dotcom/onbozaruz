@@ -18,6 +18,9 @@ export const isSupabaseConfigured =
   !SUPABASE_URL.includes('your-project-id') &&
   !SUPABASE_ANON_KEY.includes('your-supabase-anon-key');
 
+
+
+
 export const supabaseClient = isSupabaseConfigured
   ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
       auth: {

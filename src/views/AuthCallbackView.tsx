@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { authClient, completeAuthCallback, type AuthUser } from '../api/authClient';
+import { emailService } from '../api/emailService';
 
 interface AuthCallbackViewProps {
   onSuccess: (user: AuthUser) => void;
@@ -17,7 +18,12 @@ export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
         await completeAuthCallback();
         const user = await authClient.restoreSession();
         if (!user) throw new Error('Tasdiqlangan foydalanuvchi sessiyasi olinmadi.');
-        if (active) onSuccess(user);
+        if (active) {
+          if (user.email && user.email.includes('@')) {
+            void emailService.sendWelcomeEmail(user.email, user.name, user.role);
+          }
+          onSuccess(user);
+        }
       } catch (callbackError: unknown) {
         if (active) {
           setError(callbackError instanceof Error ? callbackError.message : 'Email tasdiqlanmadi.');

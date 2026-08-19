@@ -9,7 +9,7 @@
  *   VITE_SUPABASE_ANON_KEY=your-anon-key
  */
 import { ApiResult, mockServer } from './mockServer';
-import { getSupabaseAccessToken } from './authClient';
+import { getSupabaseAccessToken, isSupabaseConfigured } from './authClient';
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true';
 const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
@@ -45,7 +45,7 @@ export async function request<T>(
   body?: unknown,
   options?: RequestOptions
 ): Promise<T> {
-  if (USE_MOCK_API) {
+  if (USE_MOCK_API || !isSupabaseConfigured) {
     return (await requestMock(method, path, body, options)) as T;
   }
   return (await requestSupabase(method, path, body, options)) as T;
@@ -187,7 +187,7 @@ async function requestSupabase(
 
   const accessToken = await getSupabaseAccessToken();
 
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`, {
+  let response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`, {
     method,
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -198,6 +198,17 @@ async function requestSupabase(
     body: body !== undefined ? JSON.stringify(mapObjectKeys(body, toSnakeCase)) : undefined,
   });
 
+  // If a GET request fails with 401 due to an expired/stale accessToken, retry once anonymously
+  if (response.status === 401 && accessToken && method === 'GET') {
+    response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+    });
+  }
+
   if (!response.ok) {
     let message = `Supabase xatolik qaytardi (${response.status})`;
     try {
@@ -205,6 +216,9 @@ async function requestSupabase(
       message = payload?.message || payload?.error || payload?.hint || message;
     } catch {
       // Non-JSON error body: keep default message.
+    }
+    if (import.meta.env.DEV) {
+      console.error(`[Supabase Error] ${method} /${table}:`, message);
     }
     throw new ApiTransportError(response.status, message);
   }

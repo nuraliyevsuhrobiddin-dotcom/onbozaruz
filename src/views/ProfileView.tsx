@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { LogIn } from 'lucide-react';
+import { LogIn, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { Post, Product } from '../data/mockAgroData';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
@@ -30,6 +30,7 @@ export const ProfileView: React.FC = () => {
     deletePost,
     currentUser,
     isAuthenticated,
+    isAuthLoading,
     logoutUser,
     updateUserProfile,
     setAuthPromptOpen,
@@ -49,6 +50,18 @@ export const ProfileView: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Auth Guard: while the real session is still being confirmed, show a
+  // neutral loading state instead of either a stale cached profile or a
+  // premature "please log in" prompt — both were wrong things to show here.
+  if (isAuthLoading) {
+    return (
+      <div className="w-full max-w-lg mx-auto py-24 flex flex-col items-center justify-center gap-3 select-none">
+        <Loader2 className="w-6 h-6 text-slate-400 animate-spin" />
+        <p className="text-xs text-slate-400 font-medium">Profil yuklanmoqda...</p>
+      </div>
+    );
+  }
 
   // Auth Guard: Show auth prompt if not authenticated
   if (!isAuthenticated || !currentUser) {
@@ -77,18 +90,20 @@ export const ProfileView: React.FC = () => {
   }
 
   // ─── Filter items strictly belonging to current authenticated user ─────────
+  // Ownership must be decided by ID only. A name/handle match was used here
+  // previously as a fallback, but two different sellers can share a display
+  // name — that fallback would leak one user's listings into another's
+  // "mine" tab.
   const ownPosts = posts.filter(
     (post) =>
       (post.userId && post.userId === currentUser.id) ||
-      (post.sellerId && post.sellerId === currentUser.id) ||
-      (post.sellerName && currentUser.name && post.sellerName.toLowerCase() === currentUser.name.toLowerCase())
+      (post.sellerId && post.sellerId === currentUser.id)
   );
 
   const ownProducts = products.filter(
     (product) =>
       (product.sellerId && String(product.sellerId) === currentUser.id) ||
-      (product.submittedBy && product.submittedBy === currentUser.id) ||
-      (product.seller && currentUser.name && product.seller.toLowerCase() === currentUser.name.toLowerCase())
+      (product.submittedBy && product.submittedBy === currentUser.id)
   );
 
   const savedPosts = posts.filter((post) => savedPostIds.includes(post.id));
