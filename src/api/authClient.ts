@@ -515,9 +515,13 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
     }).filter(([, value]) => value !== undefined)
   );
 
+  // update (not upsert): the profile row always exists by now — handle_new_user()
+  // creates it at signup. Upsert would also require satisfying the INSERT policy's
+  // WITH CHECK for no reason, since we're never actually inserting here.
   const { data, error } = await supabase
     .from('profiles')
-    .upsert({ id: userId, email: sessionData.user.email || fields.email || '', ...profileUpdate })
+    .update(profileUpdate)
+    .eq('id', userId)
     .select()
     .single();
 
