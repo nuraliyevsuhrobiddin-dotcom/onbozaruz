@@ -62,6 +62,10 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [showHeart, setShowHeart] = useState(false);
+  // True once the open/scroll transition has visually settled. Until then we
+  // avoid eager network fetching so it doesn't compete with the animation —
+  // that competition is what makes opening a video feel like it "freezes".
+  const [hasSettled, setHasSettled] = useState(false);
   // Double-tap detection
   const lastTapTime = useRef(0);
   const singleTapTimer = useRef<number | null>(null);
@@ -91,12 +95,26 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     setIsPlaying(false);
   }, [retryKey, post.mediaUrl]);
 
-  // Active slide: play; inactive: pause + mute completely
+  // Settle timer: waits out the open/scroll transition before this slide is
+  // allowed to start eagerly fetching + decoding video. Resets immediately
+  // when the slide stops being active.
+  useEffect(() => {
+    if (!isActive) {
+      setHasSettled(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setHasSettled(true), 220);
+    return () => window.clearTimeout(timer);
+  }, [isActive]);
+
+  // Active slide: play (once settled); inactive: pause + mute completely
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (isActive) {
+      if (!hasSettled) return;
+
       video.muted = globalMuted;
       video.volume = globalMuted ? 0 : 1;
 
@@ -119,7 +137,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
       setIsPlaying(false);
       setIsBuffering(false);
     }
-  }, [isActive, globalMuted]);
+  }, [isActive, hasSettled, globalMuted]);
 
   // Keep audio state aligned when the viewer mute toggle changes.
   useEffect(() => {
@@ -210,7 +228,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const posterSrc = post.posterUrl || undefined;
 
   // preload attribute mapped to mode
-  const preloadAttr = preloadMode === 'active' ? 'auto' : preloadMode === 'next' ? 'metadata' : 'none';
+  const preloadAttr = preloadMode === 'active' ? (hasSettled ? 'auto' : 'metadata') : preloadMode === 'next' ? 'metadata' : 'none';
 
   return (
     <div
@@ -819,6 +837,11 @@ export const VideoReelsViewer: React.FC = () => {
         >
           {liveVideoPosts.map((post, idx) => {
             const preloadMode = getPreloadMode(idx, currentIndex);
+            // Only mount the real slide (with its <video> element) for the
+            // active slide and its immediate neighbors. Farther slides stay
+            // as cheap placeholders so opening the viewer doesn't force React
+            // to mount every video component in the feed at once.
+            const isNearby = Math.abs(idx - currentIndex) <= 1;
             return (
               <div
                 key={post.id}
@@ -837,13 +860,17 @@ export const VideoReelsViewer: React.FC = () => {
                   flexShrink: 0,
                 }}
               >
-                <VideoSlide
-                  post={post}
-                  isActive={idx === currentIndex}
-                  preloadMode={preloadMode}
-                  globalMuted={globalMuted}
-                  onUnmute={() => setGlobalMuted(false)}
-                />
+                {isNearby ? (
+                  <VideoSlide
+                    post={post}
+                    isActive={idx === currentIndex}
+                    preloadMode={preloadMode}
+                    globalMuted={globalMuted}
+                    onUnmute={() => setGlobalMuted(false)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-black" />
+                )}
               </div>
             );
           })}
