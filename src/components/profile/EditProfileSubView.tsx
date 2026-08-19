@@ -263,27 +263,32 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
         {/* Main Input Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { key: 'name', label: 'Ism / Fermer nomi', icon: Edit3, placeholder: 'Masalan: Anvar Agro' },
-            { key: 'handle', label: 'Username (@handle)', icon: KeyRound, placeholder: 'anvar_agro' },
+            { key: 'name', label: 'Ism / Fermer nomi', icon: Edit3, placeholder: 'Masalan: Anvar Agro', required: true },
+            { key: 'handle', label: 'Username (@handle)', icon: KeyRound, placeholder: 'anvar_agro', required: true },
             { key: 'phone', label: 'Telefon raqam', icon: Phone, placeholder: '+998 90 123 45 67' },
             { key: 'email', label: 'Email manzil', icon: Mail, placeholder: 'namuna@onbozar.uz' },
             { key: 'location', label: 'Hudud / Manzil', icon: MapPin, placeholder: 'Farg\'ona viloyati, Quva' },
-            { key: 'businessName', label: 'Biznes yoki brend nomi', icon: Building2, placeholder: 'Agro Brend MCHJ' },
-            { key: 'website', label: 'Veb-sayt', icon: Globe, placeholder: 'https://mysite.uz' },
-            { key: 'telegram', label: 'Telegram username', icon: Send, placeholder: 'anvar_agro' },
+            { key: 'businessName', label: 'Biznes nomi (ixtiyoriy)', icon: Building2, placeholder: 'Agro Brend MCHJ' },
+            { key: 'website', label: 'Veb-sayt (ixtiyoriy)', icon: Globe, placeholder: 'https://mysite.uz' },
+            { key: 'telegram', label: 'Telegram username (ixtiyoriy)', icon: Send, placeholder: 'anvar_agro' },
           ].map((field) => {
             const Icon = field.icon;
             return (
               <label key={field.key} className="space-y-1.5 block">
-                <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                  <Icon className="w-3.5 h-3.5 text-[#E53935]" />
-                  {field.label}
+                <span className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Icon className="w-3.5 h-3.5 text-slate-400" />
+                    {field.label}
+                  </span>
+                  {field.required && (
+                    <span className="text-[10px] text-amber-600 font-bold">*majburiy</span>
+                  )}
                 </span>
                 <input
                   value={form[field.key as keyof typeof form]}
                   onChange={(e) => updateField(field.key as keyof typeof form, e.target.value)}
                   placeholder={field.placeholder}
-                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-semibold text-[#111827] outline-none focus:border-[#E53935] focus:bg-white transition-colors"
+                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-semibold text-[#111827] outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:bg-white transition-all"
                 />
               </label>
             );
@@ -292,13 +297,15 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
 
         {/* Bio */}
         <label className="space-y-1.5 block">
-          <span className="text-[11px] font-bold text-slate-500">Bio / Sahifa tavsifi</span>
+          <span className="text-[11px] font-bold text-slate-600 flex items-center justify-between">
+            <span>Bio / Sahifa tavsifi (ixtiyoriy)</span>
+          </span>
           <textarea
             value={form.bio}
             onChange={(e) => updateField('bio', e.target.value)}
             rows={3}
             placeholder="O'zingiz, yetishtiradigan mahsulotlaringiz yoki xizmatlaringiz haqida qisqacha yozing..."
-            className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-semibold text-[#111827] outline-none focus:border-[#E53935] focus:bg-white resize-none transition-colors"
+            className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-semibold text-[#111827] outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:bg-white resize-none transition-all"
           />
         </label>
 
