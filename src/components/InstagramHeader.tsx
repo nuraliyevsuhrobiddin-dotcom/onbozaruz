@@ -3,7 +3,7 @@ import { Heart, MessageCircle } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 
 export const InstagramHeader: React.FC = () => {
-  const { setNotificationsOpen, showToast } = useAgroStore();
+  const { setNotificationsOpen, showToast, unreadNotificationsCount } = useAgroStore();
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200/80 mobile-safe-header flex items-center justify-center px-4 select-none shadow-sm">
@@ -22,7 +22,11 @@ export const InstagramHeader: React.FC = () => {
             className="relative p-2 rounded-full text-[#111111] hover:bg-slate-100 transition-colors"
           >
             <Heart className="w-5 h-5 stroke-[1.75]" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#E53935] rounded-full" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E53935] text-white text-[9px] font-black flex items-center justify-center">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </span>
+            )}
           </button>
 
           <button

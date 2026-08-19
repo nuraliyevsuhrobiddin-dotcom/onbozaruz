@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence, type Transition } from 'framer-motion';
 import { useAgroStore, type NavTab, type SubView } from './store/useAgroStore';
 

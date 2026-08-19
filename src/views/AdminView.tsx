@@ -92,7 +92,6 @@ export const AdminView: React.FC = () => {
       case 'users':
         return (
           <AdminUsersTab
-            adminEmail={currentUser.email}
             onLogAction={logAction}
             showToast={showToast}
           />

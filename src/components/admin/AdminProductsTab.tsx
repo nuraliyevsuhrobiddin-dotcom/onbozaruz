@@ -43,6 +43,8 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
     description: '',
     features: '',
     discount: '',
+    phone: '',
+    stock: '',
   });
 
   const filtered = products.filter((p) => {
@@ -172,9 +174,11 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
         minOrder: form.minOrder || '1 dona',
         discount: form.discount?.trim() || '',
         location: form.location,
+        phone: form.phone?.trim() || '',
+        stock: form.stock?.trim() ? Number(form.stock) : null,
       };
 
-      await addProduct(newProd as Product);
+      await addProduct(newProd);
       await onLogAction('create_product', newProd.title, null, newProd);
       showToast("✅ Marketga yangi mahsulot muvaffaqiyatli joylandi!");
       setIsAddModalOpen(false);
@@ -193,6 +197,8 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
         description: '',
         features: '',
         discount: '',
+        phone: '',
+        stock: '',
       });
     } catch (err: any) {
       console.error('[AdminProductsTab] handleAddSubmit error:', err);
@@ -484,6 +490,22 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                     className="w-full mt-1 bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#E53935]/30"
                   />
                 </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600">
+                    Aloqa telefoni <span className="text-slate-400 font-normal">(ixtiyoriy)</span>
+                  </label>
+                  <input
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="+998 90 123 45 67"
+                    type="tel"
+                    className="w-full mt-1 bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                  />
+                  <p className="text-[10px] text-slate-400 font-medium mt-1">
+                    Bo'sh qoldirilsa, buyurtma tafsilotlarida telefon ko'rsatilmaydi.
+                  </p>
+                </div>
               </div>
 
               {/* Price & Numeric Price */}
@@ -558,6 +580,20 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                     className="w-full mt-1 bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#E53935]/30"
                   />
                 </div>
+              </div>
+
+              {/* Stock */}
+              <div>
+                <label className="text-[11px] font-bold text-slate-600">
+                  Zaxira miqdori <span className="text-slate-400 font-normal">(ixtiyoriy — bo'sh qoldirilsa, cheksiz)</span>
+                </label>
+                <input
+                  value={form.stock}
+                  onChange={(e) => setForm({ ...form, stock: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder="Masalan: 50"
+                  inputMode="numeric"
+                  className="w-full mt-1 bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-xs font-semibold outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                />
               </div>
 
               {/* Description */}

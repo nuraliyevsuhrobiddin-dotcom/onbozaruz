@@ -76,6 +76,8 @@ async function requestMock(
         return unwrap(mockServer.listOrders());
       }
       if (resource === 'categories') return unwrap(mockServer.listCategories());
+      if (resource === 'notifications') return [];
+      if (resource === 'product_reviews') return [];
       throw new ApiTransportError(404, `Endpoint topilmadi: GET /${path}`);
     }
     case 'POST': {
@@ -87,6 +89,9 @@ async function requestMock(
       }
       if (resource === 'orders') {
         return unwrap(mockServer.createOrder(body as Parameters<typeof mockServer.createOrder>[0]));
+      }
+      if (resource === 'product_reviews') {
+        return { ...(body as Record<string, unknown>), id: `rev-${Date.now()}`, createdAt: new Date().toISOString() };
       }
       throw new ApiTransportError(404, `Endpoint topilmadi: POST /${path}`);
     }
@@ -100,6 +105,7 @@ async function requestMock(
       if (resource === 'orders' && id) {
         return unwrap(mockServer.updateOrder(id, (body || {}) as Parameters<typeof mockServer.updateOrder>[1]));
       }
+      if (resource === 'notifications' && id) return { id };
       throw new ApiTransportError(404, `Endpoint topilmadi: PATCH /${path}`);
     }
     case 'DELETE': {

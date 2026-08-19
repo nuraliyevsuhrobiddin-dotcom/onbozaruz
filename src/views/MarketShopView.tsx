@@ -23,10 +23,13 @@ import {
   X,
   Lock,
   BadgeCheck,
+  PackagePlus,
 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import type { Product } from '../api/types';
 import { REGIONS } from '../data/mockAgroData';
+import { decrementProductStockOnServer } from '../api/authClient';
+import { BusinessProductSubmitModal } from '../components/BusinessProductSubmitModal';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const sortOptions = [
@@ -77,6 +80,7 @@ export const MarketShopView: React.FC = () => {
   const [selectedSegment, setSelectedSegment] = useState('all');
   const [sortBy, setSortBy] = useState('popular');
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [checkoutForm, setCheckoutForm] = useState({ name: '', phone: '', address: '' });
   const [formErrors, setFormErrors] = useState({ name: false, phone: false, address: false });
   const [isLocating, setIsLocating] = useState(false);
@@ -232,65 +236,66 @@ export const MarketShopView: React.FC = () => {
     setIsSubmittingOrder(true);
 
     try {
-      // ── Har bir mahsulot uchun buyurtma ──
-      await Promise.all(
+      // Bitta xariddagi barcha buyurtmalarni "bitta xarid" sifatida
+      // birlashtirib ko'rsatish uchun umumiy guruh ID.
+      const groupId = crypto.randomUUID();
+      let stockFailCount = 0;
+
+      // Har bir mahsulot uchun alohida buyurtma yoziladi. allSettled ishlatamiz:
+      // bitta mahsulot saqlanmasa ham, muvaffaqiyatli bo'lganlari qayta
+      // yuborilib takrorlanmasin (savatdan faqat haqiqatan saqlanganlari o'chadi).
+      const results = await Promise.allSettled(
         cartItems.map(async (item, idx) => {
           const product = item.product;
           const lineTotal = formatMoney(product.numericPrice * item.quantity);
 
-          // 1. DB ga saqlash
+          // Zaxirani avval atom tarzda kamaytiramiz — agar boshqa xaridor
+          // ulgurib olgan bo'lsa, buyurtma yozilmaydi.
+          const hasStock = await decrementProductStockOnServer(product.id, item.quantity);
+          if (!hasStock) {
+            stockFailCount += 1;
+            throw new Error('Yetarli zaxira yo\'q');
+          }
+
           await addOrder({
             id: `ord-${Date.now()}-${idx}`,
             userId: currentUser?.id,
             productName: product.title,
             sellerName: product.seller,
-            sellerPhone: product.telegram || '+998 90 123 45 67',
+            sellerPhone: product.phone || '',
             image: getProductImage(product),
             totalPrice: lineTotal,
             quantity: `${item.quantity} dona`,
             status: 'Qabul qilindi',
             statusStep: 1,
             date: 'Hozirgina',
+            groupId,
           });
 
-          /* Telegram notification is intentionally server-side only. */
-          /*
-          if (product.telegram) {
-            const sellerMsg =
-              `🛒 <b>Yangi buyurtma keldi!</b>\n\n` +
-              `📦 <b>Mahsulot:</b> ${product.title}\n` +
-              `🔢 <b>Miqdor:</b> ${item.quantity} dona\n` +
-              `💰 <b>Narx:</b> ${lineTotal}\n\n` +
-              `👤 <b>Xaridor:</b> ${checkoutForm.name}\n` +
-              `📞 <b>Telefon:</b> ${checkoutForm.phone}\n` +
-              `📍 <b>Manzil:</b> ${checkoutForm.address}\n\n` +
-              `🕐 <b>Vaqt:</b> ${orderTime}\n` +
-              `🟢 <b>OnBozar Market</b> orqali buyurtma`;
-            await sendTelegramMessage(product.telegram, sellerMsg);
-          }
-
-          // 3. Admin Telegram'iga xabar
-          if (adminChatId) {
-            const adminMsg =
-              `🔔 <b>OnBozar — Yangi buyurtma!</b>\n\n` +
-              `📦 <b>Mahsulot:</b> ${product.title}\n` +
-              `👤 <b>Sotuvchi:</b> ${product.seller}\n` +
-              `🔢 <b>Miqdor:</b> ${item.quantity} dona\n` +
-              `💰 <b>Summa:</b> ${lineTotal}\n\n` +
-              `🛍 <b>Xaridor:</b> ${checkoutForm.name}\n` +
-              `📞 <b>Tel:</b> ${checkoutForm.phone}\n` +
-              `📍 <b>Manzil:</b> ${checkoutForm.address}\n` +
-              `🆔 <b>User ID:</b> ${currentUser?.id || 'Nomaʼlum'}\n\n` +
-              `🕐 <b>Vaqt:</b> ${orderTime}`;
-            await sendTelegramMessage(adminChatId, adminMsg);
-          }
-          */
+          return product.id;
         })
       );
-      showToast(`✅ Buyurtma muvaffaqiyatli qabul qilindi: ${formatMoney(total)}`);
-      clearCart();
-      setCheckoutForm({ name: '', phone: '', address: '' });
-      setIsCartOpen(false);
+
+      const succeededIds = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map((r) => r.value);
+      const failedCount = results.length - succeededIds.length;
+
+      succeededIds.forEach((productId) => updateCartQuantity(productId, 0));
+
+      if (failedCount === 0) {
+        showToast(`✅ Buyurtma muvaffaqiyatli qabul qilindi: ${formatMoney(total)}`);
+        setCheckoutForm({ name: '', phone: '', address: '' });
+        setIsCartOpen(false);
+      } else if (succeededIds.length > 0) {
+        showToast(
+          `⚠️ ${succeededIds.length} ta mahsulot buyurtma qilindi, ${failedCount} tasi saqlanmadi — qolganlarini qayta yuboring`
+        );
+      } else if (stockFailCount === results.length) {
+        showToast("Afsuski, tanlangan mahsulot(lar) zaxirasi tugadi.");
+      } else {
+        showToast("Buyurtmani saqlashda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
+      }
     } catch (err: unknown) {
       console.error('[handleOrder] error:', err);
       showToast("Buyurtmani saqlashda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.");
@@ -546,16 +551,32 @@ export const MarketShopView: React.FC = () => {
           </div>
         </div>
 
-        {/* Admin-only label — non-admins see a lock info */}
-        {!isAdminUser && (
+        {/* Business akkaunt — o'zi mahsulot taklif qila oladi */}
+        {!isAdminUser && currentUser?.role === 'business' && (
+          <button
+            type="button"
+            onClick={() => setIsSubmitModalOpen(true)}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[11px] font-black py-2 transition-colors"
+          >
+            <PackagePlus className="w-3.5 h-3.5" />
+            Mahsulot taklif qilish
+          </button>
+        )}
+
+        {/* Oddiy akkauntlar uchun qulf ma'lumoti */}
+        {!isAdminUser && currentUser?.role !== 'business' && (
           <div className="mt-3 flex items-center gap-1.5 text-white/40">
             <Lock className="w-3 h-3" />
             <span className="text-[10px] font-bold">
-              Mahsulot qo'shish faqat admin huquqi orqali amalga oshiriladi
+              Mahsulot qo'shish faqat admin yoki Biznes akkaunt orqali amalga oshiriladi
             </span>
           </div>
         )}
       </section>
+
+      {isSubmitModalOpen && (
+        <BusinessProductSubmitModal onClose={() => setIsSubmitModalOpen(false)} />
+      )}
 
       {/* ─── Search & Filters ─── */}
       <div className="relative z-10 space-y-2 bg-[#fffaf7]/95 backdrop-blur-md py-2">
@@ -663,6 +684,11 @@ export const MarketShopView: React.FC = () => {
                       {product.discount}
                     </span>
                   )}
+                  {product.stock === 0 && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-slate-800">Tugagan</span>
+                    </div>
+                  )}
                   {/* Admin edit button */}
                   {isAdminUser && (
                     <button
@@ -685,11 +711,21 @@ export const MarketShopView: React.FC = () => {
                     {product.verified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50 shrink-0" />}
                   </div>
                   <h3 className="h-9 text-[12px] font-bold leading-snug text-[#111827] line-clamp-2">{product.title}</h3>
-                  <p className="text-[13px] font-black text-[#dc2626]">{product.price}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[13px] font-black text-[#dc2626]">{product.price}</p>
+                    {product.stock != null && product.stock > 0 && product.stock <= 5 && (
+                      <span className="text-[9px] font-black text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
+                        Faqat {product.stock} dona
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1 text-[10px] text-[#f59e0b] font-black">
                     <Star className="w-3 h-3 fill-[#fbbf24]" />
                     {product.rating}
                     <span className="text-[#6b7280] font-bold truncate">{product.seller}</span>
+                    {product.reviewsCount > 0 && (
+                      <span className="text-[#9ca3af] font-bold">({product.reviewsCount})</span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500">
                     <span className="truncate">Min: {product.minOrder}</span>
@@ -702,7 +738,14 @@ export const MarketShopView: React.FC = () => {
 
                 {/* Cart button */}
                 <div className="px-2.5 pb-2.5">
-                  {inCart > 0 ? (
+                  {product.stock === 0 ? (
+                    <button
+                      disabled
+                      className="w-full py-2.5 rounded-[14px] bg-slate-100 text-slate-400 text-xs font-black flex items-center justify-center gap-1.5 cursor-not-allowed"
+                    >
+                      Tugagan
+                    </button>
+                  ) : inCart > 0 ? (
                     <div className="flex items-center rounded-[14px] bg-slate-100 p-1">
                       <button
                         onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, inCart - 1); }}
@@ -713,7 +756,8 @@ export const MarketShopView: React.FC = () => {
                       <span className="flex-1 text-center text-xs font-black">{inCart} ta</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); updateQuantity(product.id, inCart + 1); }}
-                        className="w-8 h-8 rounded-[12px] bg-white flex items-center justify-center"
+                        disabled={product.stock != null && inCart >= product.stock}
+                        className="w-8 h-8 rounded-[12px] bg-white flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>

@@ -3,12 +3,11 @@ import { Search, ShieldCheck, Ban, UserCheck, RefreshCw, AlertCircle, ChevronLef
 import { adminRepository, AdminUserItem } from '../../api/adminRepository';
 
 interface AdminUsersTabProps {
-  _adminEmail: string;
   onLogAction: (action: string, targetId: string, oldVal: any, newVal: any) => void;
   showToast: (msg: string) => void;
 }
 
-export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ _adminEmail, onLogAction, showToast }) => {
+export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ onLogAction, showToast }) => {
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');

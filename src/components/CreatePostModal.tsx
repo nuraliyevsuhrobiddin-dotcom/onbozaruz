@@ -14,10 +14,12 @@ import {
   CheckCircle2,
   ChevronDown,
   Sparkles,
+  AlignLeft,
   PackageCheck,
   LayoutGrid,
   Camera,
   LocateFixed,
+  Clock,
   Loader2,
   Trash2,
   Apple,
@@ -31,7 +33,7 @@ import {
 } from 'lucide-react';
 import { useCreatePostForm } from './create/useCreatePostForm';
 import { REGIONS } from '../data/mockAgroData';
-import { CONDITION_QUICK, MIN_ORDER_QUICK, PRICE_QUICK } from './create/constants';
+import { CONDITION_QUICK, DURATION_OPTIONS, MIN_ORDER_QUICK, PRICE_QUICK } from './create/constants';
 import { VideoPlayer } from './ui/VideoPlayer';
 import { useAgroStore } from '../store/useAgroStore';
 
@@ -94,6 +96,8 @@ export const CreatePostModal: React.FC = () => {
     mediaType,
     selectedRegion,
     setSelectedRegion,
+    durationDays,
+    setDurationDays,
     isDetectingLocation,
     isPublishing,
     fileInputRef,
@@ -297,7 +301,7 @@ export const CreatePostModal: React.FC = () => {
                       className={`relative w-full rounded-[24px] border-2 border-dashed transition-all cursor-pointer overflow-hidden flex flex-col items-center justify-center group ${
                         selectedMediaUrl
                           ? 'border-transparent aspect-[9/16] max-h-[500px]'
-                          : 'border-slate-200 hover:border-[#E53935] bg-slate-50 aspect-[4/3]'
+                          : 'border-slate-200 hover:border-slate-300 bg-slate-50 aspect-[4/3]'
                       }`}
                     >
                       {selectedMediaUrl ? (
@@ -348,8 +352,8 @@ export const CreatePostModal: React.FC = () => {
                         </>
                       ) : (
                         <div className="text-center space-y-3 px-6 py-8">
-                          <div className="w-20 h-20 rounded-[20px] bg-gradient-to-br from-[#E53935]/10 to-[#E53935]/20 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
-                            <ImageIcon className="w-10 h-10 text-[#E53935]" />
+                          <div className="w-20 h-20 rounded-[20px] bg-slate-100 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                            <ImageIcon className="w-10 h-10 text-slate-400" />
                           </div>
                           <div>
                             <p className="font-extrabold text-[15px] text-[#111111]">Galereya yoki Kamera</p>
@@ -381,7 +385,7 @@ export const CreatePostModal: React.FC = () => {
                         onClick={openGallery}
                         className="py-3.5 rounded-[16px] bg-slate-100 hover:bg-slate-200 text-[#111111] font-bold text-[13px] flex items-center justify-center gap-2 transition-colors"
                       >
-                        <LayoutGrid className="w-4 h-4 text-[#E53935]" />
+                        <LayoutGrid className="w-4 h-4 text-slate-500" />
                         Galereya
                       </motion.button>
                       <motion.button
@@ -451,7 +455,9 @@ export const CreatePostModal: React.FC = () => {
                                 : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'
                             }`}
                           >
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[#E53935]">
+                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                              isSelected ? 'bg-red-100 text-[#E53935]' : 'bg-slate-100 text-slate-500'
+                            }`}>
                               <CategoryIcon className="h-5 w-5" />
                             </span>
                             <div className="flex-1 min-w-0">
@@ -472,7 +478,7 @@ export const CreatePostModal: React.FC = () => {
                     <div className="space-y-2 pt-2">
                       <h3 className="font-black text-[13px] text-[#111111]">Viloyat</h3>
                       <div className="relative">
-                        <MapPin className="w-4 h-4 text-[#E53935] absolute left-3.5 top-1/2 -translate-y-1/2 z-10" />
+                        <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 z-10" />
                         <select
                           value={selectedRegion}
                           onChange={(e) => setSelectedRegion(e.target.value)}
@@ -508,7 +514,7 @@ export const CreatePostModal: React.FC = () => {
                     {/* Title */}
                     <div className="space-y-1">
                       <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
-                        <FileText className="w-3.5 h-3.5 text-[#E53935]" />
+                        <FileText className="w-3.5 h-3.5 text-slate-400" />
                         E'lon sarlavhasi *
                       </label>
                       <textarea
@@ -525,7 +531,7 @@ export const CreatePostModal: React.FC = () => {
                     {/* Price */}
                     <div className="space-y-1">
                       <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
-                        <DollarSign className="w-3.5 h-3.5 text-[#E53935]" />
+                        <DollarSign className="w-3.5 h-3.5 text-slate-400" />
                         Narx *
                       </label>
                       <input
@@ -587,7 +593,7 @@ export const CreatePostModal: React.FC = () => {
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2">
                           <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-[#E53935]" />
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
                             Joylashuv *
                           </label>
                           <button
@@ -617,7 +623,7 @@ export const CreatePostModal: React.FC = () => {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
-                          <Phone className="w-3.5 h-3.5 text-[#E53935]" />
+                          <Phone className="w-3.5 h-3.5 text-slate-400" />
                           Telefon *
                         </label>
                         <input
@@ -634,8 +640,8 @@ export const CreatePostModal: React.FC = () => {
 
                       <div className="space-y-1">
                         <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
-                          <span className="text-[#E53935]">@</span>
-                          Telegram foydalanuvchi nomi *
+                          <span className="text-slate-400">@</span>
+                          Telegram foydalanuvchi nomi <span className="text-slate-400 font-normal">(ixtiyoriy)</span>
                         </label>
                         <input
                           type="text"
@@ -677,6 +683,42 @@ export const CreatePostModal: React.FC = () => {
                           />
                         ))}
                       </div>
+                    </div>
+
+                    {/* Muddat */}
+                    <div className="space-y-1">
+                      <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        E'lon muddati
+                      </label>
+                      <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
+                        {DURATION_OPTIONS.map((option) => (
+                          <QuickChip
+                            key={option.label}
+                            label={option.label}
+                            isActive={durationDays === option.days}
+                            onPick={() => setDurationDays(option.days)}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium">
+                        Muddat tugagach e'lon avtomatik ro'yxatdan olib tashlanadi.
+                      </p>
+                    </div>
+
+                    {/* Description */}
+                    <div className="space-y-1">
+                      <label className="text-[12px] font-bold text-slate-600 flex items-center gap-1.5">
+                        <AlignLeft className="w-3.5 h-3.5 text-slate-400" />
+                        Tavsif <span className="text-slate-400 font-normal">(ixtiyoriy)</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        placeholder="Mahsulot haqida batafsil: hosil sifati, yetkazib berish sharti, qadoqlash va h.k."
+                        value={formValues.description || ''}
+                        onChange={(e) => setValue('description', e.target.value)}
+                        className={`${inputBase} focus:ring-[#E53935]/30`}
+                      />
                     </div>
 
                     <div className="bg-blue-50 border border-blue-200 rounded-[14px] p-3 flex items-start gap-2.5">
@@ -741,8 +783,14 @@ export const CreatePostModal: React.FC = () => {
                           </p>
                         </div>
 
+                        {formValues.description && (
+                          <p className="text-[12px] text-slate-500 leading-relaxed line-clamp-3">
+                            {formValues.description}
+                          </p>
+                        )}
+
                         <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
-                          <MapPin className="w-3.5 h-3.5 text-[#E53935]" />
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
                           <span>
                             {formValues.location
                               ? `${formValues.location}, ${selectedRegion}`
@@ -751,18 +799,21 @@ export const CreatePostModal: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
-                          <Phone className="w-3.5 h-3.5 text-[#E53935]" />
+                          <Phone className="w-3.5 h-3.5 text-slate-400" />
                           <span>{formValues.phone || "Telefon yo'q"}</span>
                         </div>
 
                         <div className="flex items-center gap-1.5 text-[12px] text-slate-500 font-medium">
-                          <span className="text-[#E53935] font-bold">@</span>
+                          <span className="text-slate-400 font-bold">@</span>
                           <span>{formValues.telegram ? formValues.telegram.trim() : "Telegram yo'q"}</span>
                         </div>
 
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-bold">
                             Min: {formValues.minOrder || '-'}
+                          </span>
+                          <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-[11px] font-bold">
+                            Muddat: {DURATION_OPTIONS.find((o) => o.days === durationDays)?.label || 'Cheksiz'}
                           </span>
                           {formValues.condition && (
                             <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full text-[11px] font-bold">

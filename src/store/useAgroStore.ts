@@ -10,12 +10,16 @@ import {
   INITIAL_ORDERS,
   CATEGORIES,
 } from '../data/mockAgroData';
-import { CreatePostInput, CreateProductInput } from '../api/types';
+import { CreatePostInput, CreateProductInput, Notification, ProductReview } from '../api/types';
 import { type AuthUser, authClient, deleteListingMedia, isSupabaseConfigured } from '../api/authClient';
 import { postsRepository } from '../api/repositories/postsRepository';
 import { productsRepository } from '../api/repositories/productsRepository';
 import { ordersRepository } from '../api/repositories/ordersRepository';
 import { userInteractionsRepository } from '../api/repositories/userInteractionsRepository';
+import { notificationsRepository } from '../api/repositories/notificationsRepository';
+import { productReviewsRepository } from '../api/repositories/productReviewsRepository';
+import { subscribeToNotifications } from '../api/notificationsRealtime';
+import { playNotificationSound } from '../utils/notificationSound';
 import { cacheManager } from '../utils/cacheManager';
 import { adminRepository } from '../api/adminRepository';
 
@@ -84,6 +88,14 @@ interface AgroStoreState {
 
   isAuthPromptOpen: boolean;
   isNotificationsOpen: boolean;
+  notifications: Notification[];
+  unreadNotificationsCount: number;
+  fetchNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  productReviews: Record<string, ProductReview[]>;
+  fetchProductReviews: (productId: string) => Promise<void>;
+  submitProductReview: (productId: string, rating: number, comment: string) => Promise<void>;
   commentPost: Post | null;
   sharePost: Post | null;
   contactSellerData: { name: string; phone: string; telegram?: string; title?: string } | null;
@@ -101,12 +113,12 @@ interface AgroStoreState {
 
   editModalItem: Post | Product | null;
 
-  // --- Auth ---
   currentUser: AuthUser | null;
   isAuthenticated: boolean;
   loginUser: (user: AuthUser) => Promise<void>;
   logoutUser: () => Promise<void>;
   clearSession: () => void;
+  deleteAccount: () => Promise<void>;
   updateUserProfile: (updatedFields: Partial<AuthUser>) => Promise<void>;
   restoreSession: () => Promise<void>;
 
@@ -118,7 +130,7 @@ interface AgroStoreState {
   addPost: (newPost: Post) => Promise<void>;
   updatePost: (postId: string, updatedFields: Partial<Post>) => void;
   deletePost: (postId: string) => void;
-  addProduct: (newProduct: Product) => Promise<void>;
+  addProduct: (newProduct: Partial<Product>) => Promise<void>;
   updateProduct: (productId: string, updatedFields: Partial<Product>) => void;
   deleteProduct: (productId: string) => void;
   addOrder: (newOrder: Order) => Promise<void>;
@@ -158,6 +170,29 @@ interface AgroStoreState {
 // ADMIN_EMAIL is kept only as a fallback for mock-mode (no Supabase). Real admin check comes from profiles.is_admin in DB.
 const ADMIN_EMAIL = 'nuraliyevsuhrobiddin@gmail.com';
 
+// Realtime subscription handle — lives outside Zustand state since it's a side-effect handle, not serializable.
+let notificationsUnsubscribe: (() => void) | null = null;
+
+function isNotificationSoundEnabled(): boolean {
+  try {
+    const saved = localStorage.getItem('onbozor-app-settings');
+    if (!saved) return true;
+    const parsed = JSON.parse(saved) as { pushNotifications?: boolean };
+    return parsed.pushNotifications !== false;
+  } catch {
+    return true;
+  }
+}
+
+// E'lon muddati: expiresAt yo'q (cheksiz) yoki hali kelmagan bo'lsa — faol.
+function isPostActive(post: Post): boolean {
+  return !post.expiresAt || new Date(post.expiresAt).getTime() > Date.now();
+}
+
+function filterActivePosts(posts: Post[]): Post[] {
+  return posts.filter(isPostActive);
+}
+
 export const useAgroStore = create<AgroStoreState>()(
   persist(
     (set, get) => {
@@ -187,10 +222,38 @@ export const useAgroStore = create<AgroStoreState>()(
         }
       }
 
+      async function fetchNotificationsList() {
+        try {
+          const rows = await notificationsRepository.list();
+          const sorted = [...rows].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          set({
+            notifications: sorted,
+            unreadNotificationsCount: sorted.filter((n) => !n.isRead).length,
+          });
+        } catch {
+          // Keep previously loaded notifications if the fetch fails.
+        }
+      }
+
+      function startNotificationsSubscription(userId: string) {
+        notificationsUnsubscribe?.();
+        notificationsUnsubscribe = subscribeToNotifications(userId, (notification) => {
+          set((state) => ({
+            notifications: [notification, ...state.notifications],
+            unreadNotificationsCount: state.unreadNotificationsCount + 1,
+          }));
+          if (isNotificationSoundEnabled()) playNotificationSound();
+        });
+      }
+
       const cachedPostsResult = cacheManager.loadPostsCache();
       const cachedProductsResult = cacheManager.loadProductsCache();
 
-      const initialPosts = cachedPostsResult?.posts?.length ? cachedPostsResult.posts : INITIAL_POSTS;
+      const initialPosts = filterActivePosts(
+        cachedPostsResult?.posts?.length ? cachedPostsResult.posts : INITIAL_POSTS
+      );
       const initialProducts = cachedProductsResult?.products?.length ? cachedProductsResult.products : INITIAL_PRODUCTS;
 
       const markPostFlags = (posts: Post[], savedPostIds: string[], likedPostIds: string[]) =>
@@ -233,6 +296,9 @@ export const useAgroStore = create<AgroStoreState>()(
 
         isAuthPromptOpen: false,
         isNotificationsOpen: false,
+        notifications: [],
+        unreadNotificationsCount: 0,
+        productReviews: {},
         commentPost: null,
         sharePost: null,
         contactSellerData: null,
@@ -267,13 +333,23 @@ export const useAgroStore = create<AgroStoreState>()(
         loginUser: async (user: AuthUser) => {
           // isAdmin comes from DB profiles.is_admin field (set in authClient restoreSession/signIn)
           const isAdmin = Boolean(user.isAdmin) || (!isSupabaseConfigured && user.email.toLowerCase().trim() === ADMIN_EMAIL);
+          
+          // Clear any lingering state from previous user session first
           set({
             currentUser: user,
             isAuthenticated: true,
             isAdminUser: isAdmin,
+            savedPostIds: [],
+            likedPostIds: [],
+            orders: [],
           });
 
-          await loadUserInteractions(user);
+          await Promise.all([
+            loadUserInteractions(user),
+            get().hydrateFromApi(),
+          ]);
+          void fetchNotificationsList();
+          startNotificationsSubscription(user.id);
         },
 
         restoreSession: async () => {
@@ -289,6 +365,11 @@ export const useAgroStore = create<AgroStoreState>()(
           });
 
           await loadUserInteractions(restoredUser);
+          if (get().posts.length === 0) {
+            void get().hydrateFromApi();
+          }
+          void fetchNotificationsList();
+          startNotificationsSubscription(restoredUser.id);
         },
 
         logoutUser: async () => {
@@ -296,7 +377,29 @@ export const useAgroStore = create<AgroStoreState>()(
           get().clearSession();
         },
 
-        clearSession: () => set({
+        deleteAccount: async () => {
+          await authClient.deleteAccount();
+          get().clearSession();
+          set({ toastMessage: "Akkauntingiz muvaffaqiyatli o'chirildi" });
+        },
+
+        clearSession: () => {
+          notificationsUnsubscribe?.();
+          notificationsUnsubscribe = null;
+
+          try {
+            // Clean user draft & profile keys in localStorage
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const key = localStorage.key(i);
+              if (key && (key.startsWith('onbozor-draft-') || key.startsWith('onbozor-profile-'))) {
+                localStorage.removeItem(key);
+              }
+            }
+          } catch {
+            // Ignore
+          }
+
+          set((state) => ({
             currentUser: null,
             isAuthenticated: false,
             isAdminUser: false,
@@ -307,9 +410,16 @@ export const useAgroStore = create<AgroStoreState>()(
             viewedPostIds: [],
             cart: {},
             orders: [],
-            posts: INITIAL_POSTS,
+            notifications: [],
+            unreadNotificationsCount: 0,
+            // Keep public listings active for guests; just reset personal flags:
+            posts: state.posts.map((p) => ({ ...p, isSaved: false, isLiked: false })),
             activeSubView: null,
-          }),
+          }));
+          if (get().posts.length === 0) {
+            void get().hydrateFromApi();
+          }
+        },
 
         updateUserProfile: async (updatedFields) => {
           const updatedUser = await authClient.updateUser(updatedFields);
@@ -475,6 +585,8 @@ export const useAgroStore = create<AgroStoreState>()(
           mediaUrl: newPost.mediaUrl,
           posterUrl: newPost.posterUrl,
           condition: newPost.condition,
+          description: newPost.description,
+          expiresAt: newPost.expiresAt,
         };
 
         // Faqat server postni qabul qilgandan keyin e'lon lentaga qo'shiladi.
@@ -591,23 +703,26 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       addProduct: async (newProduct) => {
-        if (!get().isAdminUser) {
-          throw new Error('Market mahsulotini faqat admin qo\'sha oladi. Iltimos, admin hisobidan kiring.');
+        const { isAdminUser, currentUser } = get();
+        const canSubmit = isAdminUser || currentUser?.role === 'business';
+        if (!canSubmit) {
+          throw new Error('Market mahsulotini faqat admin yoki Biznes akkaunt qo\'sha oladi.');
         }
 
         const input: CreateProductInput = {
-          title: newProduct.title,
+          title: newProduct.title || '',
           sellerId: newProduct.sellerId,
-          seller: newProduct.seller,
-          verified: newProduct.verified,
-          category: newProduct.category,
-          price: newProduct.price,
-          numericPrice: newProduct.numericPrice,
-          image: newProduct.image,
+          seller: newProduct.seller || '',
+          verified: newProduct.verified ?? false,
+          category: newProduct.category || '',
+          price: newProduct.price || '',
+          numericPrice: newProduct.numericPrice ?? 0,
+          image: newProduct.image || '',
           images: newProduct.images,
-          minOrder: newProduct.minOrder,
+          minOrder: newProduct.minOrder || '',
           discount: newProduct.discount,
-          location: newProduct.location,
+          location: newProduct.location || '',
+          phone: newProduct.phone,
           telegram: newProduct.telegram,
           description: newProduct.description,
           features: newProduct.features,
@@ -617,11 +732,10 @@ export const useAgroStore = create<AgroStoreState>()(
           submittedAt: newProduct.submittedAt,
           approvedAt: newProduct.approvedAt,
           rejectedAt: newProduct.rejectedAt,
+          stock: newProduct.stock,
         };
 
-        console.log('[addProduct] Supabase ga yuborilmoqda:', input);
         const created = await productsRepository.create(input);
-        console.log('[addProduct] Supabase dan qaytdi:', created);
         set((state) => ({
           products: [created, ...state.products],
           toastMessage:
@@ -713,9 +827,13 @@ export const useAgroStore = create<AgroStoreState>()(
       addToCart: (product) =>
         set((state) => {
           const existing = state.cart[product.id];
-          const quantity = existing ? existing.quantity + 1 : 1;
+          const desired = existing ? existing.quantity + 1 : 1;
+          const inStock = product.stock == null || desired <= product.stock;
+          if (!inStock) {
+            return { toastMessage: `Faqat ${product.stock} dona qoldi` };
+          }
           return {
-            cart: { ...state.cart, [product.id]: { product, quantity } },
+            cart: { ...state.cart, [product.id]: { product, quantity: desired } },
             toastMessage: "Savatga qo'shildi",
           };
         }),
@@ -726,11 +844,15 @@ export const useAgroStore = create<AgroStoreState>()(
             const { [productId]: _removed, ...rest } = state.cart;
             return { cart: rest };
           }
+          const existing = state.cart[productId];
+          const stock = existing?.product.stock;
+          const clamped = stock == null ? nextQuantity : Math.min(nextQuantity, stock);
           return {
             cart: {
               ...state.cart,
-              [productId]: { ...state.cart[productId], quantity: nextQuantity },
+              [productId]: { ...state.cart[productId], quantity: clamped },
             },
+            ...(clamped < nextQuantity ? { toastMessage: `Faqat ${stock} dona qoldi` } : {}),
           };
         }),
 
@@ -747,7 +869,7 @@ export const useAgroStore = create<AgroStoreState>()(
           const state = get();
           if (cachedPosts?.posts?.length) {
             set({
-              posts: markPostFlags(cachedPosts.posts, state.savedPostIds, state.likedPostIds),
+              posts: filterActivePosts(markPostFlags(cachedPosts.posts, state.savedPostIds, state.likedPostIds)),
               isHydrating: false,
             });
           }
@@ -800,7 +922,7 @@ export const useAgroStore = create<AgroStoreState>()(
             localPost.status === 'pending' && !freshPosts.some((serverPost) => serverPost.id === localPost.id)
           );
           const mergedPosts = [...localOnlyPending, ...freshPosts];
-          const finalPosts = mergedPosts.length > 0 ? mergedPosts : INITIAL_POSTS;
+          const finalPosts = filterActivePosts(mergedPosts.length > 0 ? mergedPosts : INITIAL_POSTS);
           const finalProducts = products.length > 0 ? products : INITIAL_PRODUCTS;
           cacheManager.savePostsCache(finalPosts);
           cacheManager.saveProductsCache(finalProducts);
@@ -842,6 +964,74 @@ export const useAgroStore = create<AgroStoreState>()(
         ),
       setAuthPromptOpen: (open) => set({ isAuthPromptOpen: open }),
       setNotificationsOpen: (open) => set({ isNotificationsOpen: open }),
+
+      fetchNotifications: async () => {
+        if (!get().currentUser) return;
+        await fetchNotificationsList();
+      },
+
+      markNotificationRead: async (id) => {
+        const target = get().notifications.find((n) => n.id === id);
+        if (!target || target.isRead) return;
+        set((state) => ({
+          notifications: state.notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+          unreadNotificationsCount: Math.max(0, state.unreadNotificationsCount - 1),
+        }));
+        try {
+          await notificationsRepository.markRead(id);
+        } catch {
+          // Local state is already updated optimistically; ignore server failure.
+        }
+      },
+
+      markAllNotificationsRead: async () => {
+        const unread = get().notifications.filter((n) => !n.isRead);
+        if (unread.length === 0) return;
+        set((state) => ({
+          notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
+          unreadNotificationsCount: 0,
+        }));
+        try {
+          await Promise.all(unread.map((n) => notificationsRepository.markRead(n.id)));
+        } catch {
+          // Local state is already updated optimistically; ignore partial server failures.
+        }
+      },
+
+      fetchProductReviews: async (productId) => {
+        try {
+          const reviews = await productReviewsRepository.list(productId);
+          set((state) => ({
+            productReviews: { ...state.productReviews, [productId]: reviews },
+          }));
+        } catch {
+          // Sharhlar yuklanmasa ham mahsulot sahifasi ishlashda davom etadi.
+        }
+      },
+
+      submitProductReview: async (productId, rating, comment) => {
+        const { currentUser } = get();
+        if (!currentUser) {
+          set({ toastMessage: 'Sharh qoldirish uchun tizimga kiring' });
+          return;
+        }
+        const review = await productReviewsRepository.create({
+          productId,
+          userId: currentUser.id,
+          userName: currentUser.businessName?.trim() || currentUser.name || currentUser.handle,
+          userAvatar: currentUser.avatar || '',
+          rating,
+          comment: comment.trim(),
+        });
+        set((state) => ({
+          productReviews: {
+            ...state.productReviews,
+            [productId]: [review, ...(state.productReviews[productId] || [])],
+          },
+          toastMessage: 'Sharhingiz uchun rahmat!',
+        }));
+      },
+
       setCommentPost: (post) => set({ commentPost: post }),
       setSharePost: (post) => set({ sharePost: post }),
       setContactSellerData: (data) => set({ contactSellerData: data }),
@@ -871,3 +1061,15 @@ export const useAgroStore = create<AgroStoreState>()(
   }
 )
 );
+
+// Muddati tugagan e'lonlarni faol ro'yxatdan olib tashlaydi — sahifa ochiq
+// turgan paytda ham (masalan, "1 kunlik" e'lon kun davomida tugab qolsa).
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    const state = useAgroStore.getState();
+    const active = filterActivePosts(state.posts);
+    if (active.length !== state.posts.length) {
+      useAgroStore.setState({ posts: active });
+    }
+  }, 60000);
+}

@@ -3,9 +3,7 @@ import { LogIn } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { Post, Product } from '../data/mockAgroData';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
-import { ProfileStats } from '../components/profile/ProfileStats';
-import { ProfileQuickNav } from '../components/profile/ProfileQuickNav';
-import { ProfileListingsGrid } from '../components/profile/ProfileListingsGrid';
+import { ProfileListingsGrid, ProfileTabType } from '../components/profile/ProfileListingsGrid';
 import { EditProfileSubView } from '../components/profile/EditProfileSubView';
 import { ProfileOrdersSubView } from '../components/profile/ProfileOrdersSubView';
 import { ProfileSettingsSubView } from '../components/profile/ProfileSettingsSubView';
@@ -19,7 +17,7 @@ export const ProfileView: React.FC = () => {
     orders,
     activeSubView,
     setActiveSubView,
-    setActiveTab,
+    setActiveTab: _setActiveTab,
     setCreateModalOpen,
     setProductDetail,
     openVideoViewer,
@@ -37,7 +35,7 @@ export const ProfileView: React.FC = () => {
     setAuthPromptOpen,
   } = useAgroStore();
 
-  const [activeGridTab, setActiveGridTab] = useState('posts');
+  const [activeGridTab, setActiveGridTab] = useState<ProfileTabType>('posts');
   const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +66,7 @@ export const ProfileView: React.FC = () => {
         <div className="flex items-center justify-center gap-3 pt-2">
           <button
             onClick={() => setAuthPromptOpen(true)}
-            className="px-6 py-3.5 rounded-[18px] bg-[#E53935] hover:bg-[#C62828] text-white font-black text-xs shadow-lg transition-colors flex items-center gap-2"
+            className="px-6 py-3.5 rounded-[18px] bg-[#E53935] hover:bg-[#C62828] text-white font-black text-xs shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
             <span>Kirish / Ro'yxatdan o'tish</span>
@@ -78,31 +76,49 @@ export const ProfileView: React.FC = () => {
     );
   }
 
-  // Filter posts belonging to current logged in user
+  // ─── Filter items strictly belonging to current authenticated user ─────────
   const ownPosts = posts.filter(
-    (post) => post.sellerId === currentUser.id || post.userId === currentUser.id
+    (post) =>
+      (post.userId && post.userId === currentUser.id) ||
+      (post.sellerId && post.sellerId === currentUser.id) ||
+      (post.sellerName && currentUser.name && post.sellerName.toLowerCase() === currentUser.name.toLowerCase())
   );
-  const savedPosts = posts.filter((post) => savedPostIds.includes(post.id));
-  const gridItems = activeGridTab === 'posts' ? ownPosts : savedPosts;
 
-  const viewsCountRaw = ownPosts.reduce((sum, p) => sum + (p.viewsCount || 0), 0);
-  const formatCompact = (val: number) => {
-    if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
-    if (val >= 1000) return `${(val / 1000).toFixed(1)}K`;
-    return String(val);
-  };
+  const ownProducts = products.filter(
+    (product) =>
+      (product.sellerId && String(product.sellerId) === currentUser.id) ||
+      (product.submittedBy && product.submittedBy === currentUser.id) ||
+      (product.seller && currentUser.name && product.seller.toLowerCase() === currentUser.name.toLowerCase())
+  );
+
+  const savedPosts = posts.filter((post) => savedPostIds.includes(post.id));
 
   const pendingProducts = products.filter((p) => p.approvalStatus === 'pending');
   const approvedProducts = products.filter((p) => p.approvalStatus === 'approved');
 
-  // Handle item selection (Post or Product detail)
-  const handleSelectDetail = (item: Post | Product) => {
-    if ('type' in item && item.type === 'video') {
-      const videoPosts = posts.filter((p) => p.type === 'video');
-      const index = videoPosts.findIndex((p) => p.id === item.id);
-      openVideoViewer(videoPosts, index >= 0 ? index : 0);
+  // Handle post/reel/product selection
+  const handleSelectPost = (post: Post) => {
+    if (post.type === 'video') {
+      const allVideos = posts.filter((p) => p.type === 'video');
+      const idx = allVideos.findIndex((p) => p.id === post.id);
+      openVideoViewer(allVideos, Math.max(0, idx));
     } else {
-      setProductDetail(item);
+      setProductDetail(post);
+    }
+  };
+
+  const handleSelectProduct = (product: Product) => {
+    setProductDetail(product);
+  };
+
+  const handleShareProfile = () => {
+    const handle = currentUser.handle || currentUser.name;
+    const url = `${window.location.origin}/#profile/${handle}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+      showToast("Profil havolasi nusxalandi! 📋");
+    } else {
+      showToast(url);
     }
   };
 
@@ -135,7 +151,6 @@ export const ProfileView: React.FC = () => {
         showToast={showToast}
         onLogout={logoutUser}
       />
-
     );
   }
 
@@ -154,58 +169,47 @@ export const ProfileView: React.FC = () => {
     );
   }
 
-  // Main Profile View Dashboard
   return (
     <div className="w-full max-w-xl mx-auto py-3 px-3.5 space-y-3.5 select-none pb-20">
       <ProfileHeader
         currentUser={currentUser}
         profileData={{
           name: currentUser.name || 'Fermer',
-          handle: currentUser.handle || currentUser.email.split('@')[0],
+          handle: currentUser.handle || (currentUser.email ? currentUser.email.split('@')[0] : 'user'),
           avatar: currentUser.avatar || '',
           cover: currentUser.cover || '',
           verified: true,
           location: currentUser.location || "O'zbekiston",
-          bio: currentUser.bio || (currentUser.businessName ? `${currentUser.businessName} rasmiy agro sahifasi` : ''),
+          bio: currentUser.bio || '',
+          businessName: currentUser.businessName || '',
+          role: currentUser.role || 'seller',
+          website: currentUser.website || '',
+          telegram: currentUser.telegram || '',
         }}
+        postsCount={ownPosts.length}
+        productsCount={ownProducts.length}
+        savedCount={savedPosts.length}
+        viewsCount={ownPosts.reduce((sum, post) => sum + (post.viewsCount || 0), 0)}
         isAdminUser={isAdminUser}
         ordersCount={orders.length}
         isProfileMenuOpen={isProfileMenuOpen}
         setProfileMenuOpen={setProfileMenuOpen}
         profileMenuRef={profileMenuRef}
         onNavigateSubView={(subView) => setActiveSubView(subView)}
+        onSelectGridTab={(tab) => setActiveGridTab(tab)}
         onOpenCreateModal={() => setCreateModalOpen(true)}
-        onLogout={logoutUser}
-      />
-
-      <ProfileStats
-        postsCount={ownPosts.length}
-        viewsCount={formatCompact(viewsCountRaw)}
-        followersCount={formatCompact(0)}
-        followingCount={formatCompact(0)}
-        onTabChange={(tab) => setActiveGridTab(tab)}
-        showToast={showToast}
-      />
-
-      <ProfileQuickNav
-        ordersCount={orders.length}
-        isAdminUser={isAdminUser}
-        onNavigateSubView={(subView) => {
-          if (subView === 'admin-panel') {
-            // Navigate to full admin tab instead of subview
-            setActiveTab('admin');
-          } else {
-            setActiveSubView(subView);
-          }
-        }}
+        onShareProfile={handleShareProfile}
       />
 
       <ProfileListingsGrid
         activeGridTab={activeGridTab}
-        gridItems={gridItems}
+        posts={ownPosts}
+        products={ownProducts}
+        savedPosts={savedPosts}
         isAdminUser={isAdminUser}
         onTabChange={(tab) => setActiveGridTab(tab)}
-        onSelectDetail={handleSelectDetail}
+        onSelectPost={handleSelectPost}
+        onSelectProduct={handleSelectProduct}
         onEditItem={(item) => setEditModalItem(item)}
         onDeleteItem={(id) => deletePost(id)}
         onOpenCreateModal={() => setCreateModalOpen(true)}

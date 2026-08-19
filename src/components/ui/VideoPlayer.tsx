@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Volume2, VolumeX, Play, AlertTriangle } from 'lucide-react';
+import { Volume2, VolumeX, Play, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 
 interface VideoPlayerProps {
@@ -22,6 +22,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const { isVideoViewerOpen } = useAgroStore();
 
@@ -29,8 +31,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   useEffect(() => {
     setHasError(false);
     setIsPlaying(false);
+    setIsBuffering(false);
     setAspectRatio(null);
-  }, [src, poster]);
+  }, [src, poster, retryKey]);
 
   // Reels ochilganida feed videolarni to'xtatish va mute qilish
   useEffect(() => {
@@ -75,6 +78,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         } else {
           video.pause();
           setIsPlaying(false);
+          // Bufferingni to'xtatish viewport'dan chiqqanda
+          setIsBuffering(false);
         }
       },
       { threshold: 0.4 }
@@ -82,7 +87,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [src, isVideoViewerOpen]);
+  }, [src, retryKey, isVideoViewerOpen]);
+
+  const handleRetry = useCallback(() => {
+    setRetryKey((k) => k + 1);
+  }, []);
 
   const togglePlay = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -138,26 +147,29 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           style={{ backgroundImage: `url(${bgPoster})` }}
         />
       ) : (
-        <video
+        // Do not create a second video element here. It would download and decode
+        // the same file twice for every card in the feed.
+        <div
           aria-hidden="true"
-          src={src}
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover opacity-40 blur-2xl scale-110 pointer-events-none z-0"
+          className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#334155,_#020617_72%)] pointer-events-none z-0"
         />
       )}
 
-      {/* Video Element */}
+      {/* Video Element — key={retryKey} forces a clean element on retry */}
       <video
+        key={retryKey}
         ref={videoRef}
         src={src}
         poster={poster}
         loop
         muted={isMuted}
         playsInline
+        // Feed cards only need a small amount of data until they become visible.
         preload="metadata"
-        onError={() => setHasError(true)}
+        onError={() => { setHasError(true); setIsBuffering(false); }}
+        onWaiting={() => setIsBuffering(true)}
+        onCanPlay={() => setIsBuffering(false)}
+        onPlaying={() => { setIsPlaying(true); setIsBuffering(false); }}
         onLoadedMetadata={(event) => {
           const video = event.currentTarget;
           if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -171,19 +183,35 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }`}
       />
 
-      {/* Error display */}
+      {/* Error display with retry */}
       {hasError && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-900/90 text-white text-center px-4">
-          <div className="space-y-2">
+          <div className="space-y-3">
             <AlertTriangle className="mx-auto w-10 h-10 text-amber-400" />
             <p className="text-sm font-bold">Video yuklanmadi</p>
             <p className="text-[11px] text-slate-300">Video formatini yoki aloqani tekshiring</p>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleRetry(); }}
+              className="flex items-center gap-2 mx-auto px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 text-white text-xs font-bold transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Qayta yuklash
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Buffering spinner */}
+      {isBuffering && !hasError && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+          <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center">
+            <Loader2 className="w-6 h-6 text-white animate-spin" />
           </div>
         </div>
       )}
 
       {/* Paused indicator overlay */}
-      {!isPlaying && !hasError && (
+      {!isPlaying && !hasError && !isBuffering && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none bg-black/20 backdrop-blur-[1px]">
           <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/20">
             <Play className="w-7 h-7 text-white fill-white translate-x-0.5" />
@@ -204,4 +232,3 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     </div>
   );
 };
-

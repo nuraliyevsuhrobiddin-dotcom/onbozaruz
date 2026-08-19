@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { lockBodyScroll, unlockBodyScroll } from '../utils/scrollLock';
 import {
@@ -14,6 +14,9 @@ import {
   PhoneCall,
   Tag,
   Play,
+  AlertTriangle,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { Post } from '../data/mockAgroData';
 import { useAgroStore } from '../store/useAgroStore';
@@ -26,16 +29,38 @@ const TelegramSVG = () => (
   </svg>
 );
 
+// ---------------------------------------------------------------------------
+// Preload strategy helper
+// ---------------------------------------------------------------------------
+type PreloadMode = 'active' | 'next' | 'none';
+
+function getPreloadMode(idx: number, currentIndex: number): PreloadMode {
+  if (idx === currentIndex) return 'active';
+  // Only preload the next video (forward direction), not the previous one.
+  // This conserves RAM and avoids downloading content the user scrolled past.
+  if (idx === currentIndex + 1) return 'next';
+  return 'none';
+}
+
+// ---------------------------------------------------------------------------
+// VideoSlide
+// ---------------------------------------------------------------------------
 interface SlideProps {
   post: Post;
   isActive: boolean;
+  preloadMode: PreloadMode;
   globalMuted: boolean;
   onUnmute?: () => void;
 }
 
-const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmute }) => {
+// memo prevents re-renders when the parent's state changes but this slide's
+// props haven't changed (e.g. globalMuted toggle causes full list re-render).
+const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted, onUnmute: _onUnmute }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [showHeart, setShowHeart] = useState(false);
   // Double-tap detection
   const lastTapTime = useRef(0);
@@ -59,7 +84,14 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
   const isFollowing = followedSellerIds.includes(post.sellerId);
   const isOwnPost = currentUser?.id === post.sellerId;
 
-  // Active slide: play; inactive: pause and mute completely
+  // Reset error when retryKey or src changes
+  useEffect(() => {
+    setHasError(false);
+    setIsBuffering(false);
+    setIsPlaying(false);
+  }, [retryKey, post.mediaUrl]);
+
+  // Active slide: play; inactive: pause + mute completely
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -73,18 +105,19 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
         playPromise
           .then(() => setIsPlaying(true))
           .catch(() => {
-            // Browser policies may block autoplay with sound until the user interacts.
+            // Browser policies may block autoplay with sound until user interaction.
             video.muted = true;
             video.volume = 0;
-            setIsPlaying(false);
+            video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
           });
       }
     } else {
-      // Set volume to 0 immediately to prevent audio mixing during swipes
+      // Immediately silence and pause inactive slides to prevent audio mixing.
       video.volume = 0;
       video.muted = true;
       video.pause();
       setIsPlaying(false);
+      setIsBuffering(false);
     }
   }, [isActive, globalMuted]);
 
@@ -104,16 +137,6 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
     }
   }, [globalMuted, isActive]);
 
-  // Extra safety: ensure inactive videos have zero volume
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || isActive) return;
-    
-    // Redundant check to catch edge cases during rapid swiping
-    video.volume = 0;
-    video.muted = true;
-  }, [isActive]);
-
   // Komponent unmount bo'lganda video ni to'xtatish va ovozni butunlay o'chirish
   useEffect(() => {
     const video = videoRef.current;
@@ -122,8 +145,14 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
         video.volume = 0;
         video.muted = true;
         video.pause();
+        // Remove src to release memory for slides far from current index
+        if (!video.paused) video.pause();
       }
     };
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    setRetryKey((k) => k + 1);
   }, []);
 
   const handleDoubleTap = useCallback(() => {
@@ -135,17 +164,16 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
 
   const handleSingleTap = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || hasError) return;
     if (video.paused) {
       video.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, []);
+  }, [hasError]);
 
   // Double-tap detection: 300ms window
-  // Single tap fires only if no second tap arrives within 300ms
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const now = Date.now();
@@ -153,14 +181,12 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
     lastTapTime.current = now;
 
     if (delta < 300) {
-      // Double tap detected — cancel pending single tap
       if (singleTapTimer.current !== null) {
         clearTimeout(singleTapTimer.current);
         singleTapTimer.current = null;
       }
       handleDoubleTap();
     } else {
-      // Schedule single tap — cancelled if double tap comes
       singleTapTimer.current = window.setTimeout(() => {
         singleTapTimer.current = null;
         handleSingleTap();
@@ -173,6 +199,19 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
   const telegramLink = cleanTelegram ? `https://t.me/${cleanTelegram}` : undefined;
   const telLink = `tel:${cleanPhone}`;
 
+  // Determine video src: only attach for active + next slides.
+  // Removing src from distant slides lets the browser reclaim memory and
+  // network connections. preload="none" alone is not always honored.
+  const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
+
+  // Poster: use only the dedicated thumbnail, not the video URL itself.
+  // Using the video URL as a poster causes a second network request for the
+  // same resource, doubling network usage on mobile.
+  const posterSrc = post.posterUrl || undefined;
+
+  // preload attribute mapped to mode
+  const preloadAttr = preloadMode === 'active' ? 'auto' : preloadMode === 'next' ? 'metadata' : 'none';
+
   return (
     <div
       className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none"
@@ -182,28 +221,35 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
       <div
         className="relative bg-slate-950 overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
       >
-        {/* Blurred background backdrop */}
-        {(post.posterUrl || post.mediaUrl) && (
+        {/* Blurred background backdrop — use only poster, never the video URL */}
+        {posterSrc && (
           <div
             aria-hidden="true"
             className="absolute inset-[-24px] bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none"
-            style={{ backgroundImage: `url(${post.posterUrl || post.mediaUrl})` }}
+            style={{ backgroundImage: `url(${posterSrc})` }}
           />
         )}
 
-        {/* Video / Image (tap to play/pause) */}
+        {/* Video / Image */}
         {post.type === 'video' ? (
+          // key={retryKey} forces a fresh <video> element on retry,
+          // clearing any stalled network state from the previous attempt.
           <video
+            key={retryKey}
             ref={videoRef}
-            src={post.mediaUrl}
-            poster={post.posterUrl}
+            src={videoSrc}
+            poster={posterSrc}
             loop
             muted={false}
             playsInline
-            preload="auto"
+            preload={preloadAttr}
             onClick={handleClick}
-            onPlay={() => setIsPlaying(true)}
+            onPlay={() => { setIsPlaying(true); setIsBuffering(false); }}
             onPause={() => setIsPlaying(false)}
+            onWaiting={() => { if (isActive) setIsBuffering(true); }}
+            onCanPlay={() => setIsBuffering(false)}
+            onPlaying={() => { setIsPlaying(true); setIsBuffering(false); }}
+            onError={() => { setHasError(true); setIsBuffering(false); }}
             className="relative z-[1] w-full h-full object-cover sm:object-contain cursor-pointer"
           />
         ) : (
@@ -224,8 +270,17 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
           }}
         />
 
-        {/* Play/Pause center indicator — shows briefly */}
-        {post.type === 'video' && isActive && !isPlaying && (
+        {/* Buffering spinner — only shown on the active slide */}
+        {post.type === 'video' && isActive && isBuffering && !hasError && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div className="w-14 h-14 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+              <Loader2 className="w-7 h-7 text-white animate-spin" />
+            </div>
+          </div>
+        )}
+
+        {/* Play/Pause center indicator — shows when paused and not buffering */}
+        {post.type === 'video' && isActive && !isPlaying && !isBuffering && !hasError && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
             <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
               <Play className="w-8 h-8 text-white fill-white translate-x-0.5" />
@@ -233,7 +288,24 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
           </div>
         )}
 
-        {/* Minimal unmute hint is handled by the top-right mute control only */}
+        {/* Error state with retry */}
+        {post.type === 'video' && hasError && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 bg-black/60 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-3 px-6 text-center">
+              <AlertTriangle className="w-10 h-10 text-amber-400" />
+              <p className="text-white text-sm font-bold">Video yuklanmadi</p>
+              <p className="text-white/70 text-xs">Internet aloqangizni tekshirib, qayta urinib ko'ring</p>
+              <motion.button
+                whileTap={{ scale: 0.93 }}
+                onClick={(e) => { e.stopPropagation(); handleRetry(); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 border border-white/30 text-white text-sm font-bold backdrop-blur-md transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Qayta yuklash
+              </motion.button>
+            </div>
+          </div>
+        )}
 
         {/* Double-tap heart animation */}
         <AnimatePresence>
@@ -426,7 +498,9 @@ const VideoSlide: React.FC<SlideProps> = ({ post, isActive, globalMuted, _onUnmu
       </div>
     </div>
   );
-};
+});
+
+VideoSlide.displayName = 'VideoSlide';
 
 // -- Main Fullscreen Video Reels Viewer -----------------------------------------
 export const VideoReelsViewer: React.FC = () => {
@@ -455,11 +529,19 @@ export const VideoReelsViewer: React.FC = () => {
   const wheelTimeout = useRef<number | null>(null);
   const lastWheelTime = useRef(0);
   const scrollSettleTimer = useRef<number | null>(null);
+  // Keep a ref to currentIndex so the IntersectionObserver callback can read
+  // the latest value without being recreated on every index change.
+  const currentIndexRef = useRef(currentIndex);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
 
   // Sync start index when viewer opens & position container cleanly
   useEffect(() => {
     if (!isVideoViewerOpen) return;
     setCurrentIndex(videoViewerStartIndex);
+    currentIndexRef.current = videoViewerStartIndex;
     setGlobalMuted(false);
     setShowFloatingControls(true);
 
@@ -486,15 +568,15 @@ export const VideoReelsViewer: React.FC = () => {
   // Floating controls auto-hide timer
   useEffect(() => {
     if (!showFloatingControls) return;
-    
+
     if (floatingControlsTimer.current) {
       window.clearTimeout(floatingControlsTimer.current);
     }
-    
+
     floatingControlsTimer.current = window.setTimeout(() => {
       setShowFloatingControls(false);
-    }, 3000); // Hide after 3 seconds of inactivity
-    
+    }, 3000);
+
     return () => {
       if (floatingControlsTimer.current) {
         window.clearTimeout(floatingControlsTimer.current);
@@ -517,7 +599,7 @@ export const VideoReelsViewer: React.FC = () => {
     };
   }, [isVideoViewerOpen]);
 
-  // History API: push state when reels open so phone back button closes viewer, not the app
+  // History API: push state when reels open so phone back button closes viewer
   useEffect(() => {
     if (!isVideoViewerOpen) return;
 
@@ -533,7 +615,11 @@ export const VideoReelsViewer: React.FC = () => {
     };
   }, [isVideoViewerOpen, closeVideoViewer]);
 
-  // IntersectionObserver to observe active slide (threshold 60% visibility)
+  // IntersectionObserver to detect active slide (threshold 60% visibility).
+  // IMPORTANT: This effect does NOT depend on `currentIndex` — it uses the
+  // `currentIndexRef` instead. This prevents the observer from being torn
+  // down and recreated on every scroll step, which caused jitter and missed
+  // updates on slow devices.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !isVideoViewerOpen || liveVideoPosts.length === 0) return;
@@ -541,21 +627,28 @@ export const VideoReelsViewer: React.FC = () => {
     const observer = new IntersectionObserver(
       (entries) => {
         if (isScrolling.current) return;
-        entries.forEach((entry) => {
+        let bestEntry: IntersectionObserverEntry | null = null;
+        for (const entry of entries) {
           if (entry.isIntersecting) {
-            const idxStr = entry.target.getAttribute('data-index');
-            if (idxStr !== null) {
-              const idx = parseInt(idxStr, 10);
-              if (!isNaN(idx) && idx !== currentIndex) {
-                setCurrentIndex(idx);
-              }
+            if (!bestEntry || entry.intersectionRatio > bestEntry.intersectionRatio) {
+              bestEntry = entry;
             }
           }
-        });
+        }
+        if (bestEntry) {
+          const idxStr = bestEntry.target.getAttribute('data-index');
+          if (idxStr !== null) {
+            const idx = parseInt(idxStr, 10);
+            if (!isNaN(idx) && idx !== currentIndexRef.current) {
+              currentIndexRef.current = idx;
+              setCurrentIndex(idx);
+            }
+          }
+        }
       },
       {
         root: container,
-        threshold: 0.6, // Firing only when 60% of slide enters viewport
+        threshold: [0.5, 0.6, 0.7], // Multiple thresholds for more reliable detection
       }
     );
 
@@ -566,7 +659,10 @@ export const VideoReelsViewer: React.FC = () => {
     return () => {
       observer.disconnect();
     };
-  }, [isVideoViewerOpen, liveVideoPosts.length, currentIndex]);
+    // liveVideoPosts.length is intentionally the only dep: the observer is
+    // rebuilt only when the list grows (infinite scroll), not on every swipe.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVideoViewerOpen, liveVideoPosts.length]);
 
   // Smoothly scroll to target index (for keyboard, wheel, dot navigation)
   const scrollToIndex = useCallback((idx: number) => {
@@ -577,6 +673,7 @@ export const VideoReelsViewer: React.FC = () => {
     isScrolling.current = true;
     const viewportHeight = el.clientHeight || window.innerHeight;
     el.scrollTo({ top: targetIdx * viewportHeight, behavior: 'smooth' });
+    currentIndexRef.current = targetIdx;
     setCurrentIndex(targetIdx);
 
     if (wheelTimeout.current) window.clearTimeout(wheelTimeout.current);
@@ -586,13 +683,14 @@ export const VideoReelsViewer: React.FC = () => {
     }, 500);
   }, [liveVideoPosts.length]);
 
-  // Native scroll settlement handler for touch & momentum scrolling
+  // Native scroll settlement handler for touch & momentum scrolling.
+  // 120ms debounce (vs 80ms before) gives momentum scroll time to settle
+  // on mid-range Android devices before we commit to an index.
   const handleScroll = useCallback(() => {
     revealControls();
-    
+
     if (isScrolling.current || !containerRef.current) return;
 
-    // Debounce scroll settlement to update index only when swipe settles
     if (scrollSettleTimer.current) {
       window.clearTimeout(scrollSettleTimer.current);
     }
@@ -607,11 +705,12 @@ export const VideoReelsViewer: React.FC = () => {
         Math.min(Math.round(el.scrollTop / viewportHeight), liveVideoPosts.length - 1)
       );
 
-      if (settledIdx !== currentIndex) {
+      if (settledIdx !== currentIndexRef.current) {
+        currentIndexRef.current = settledIdx;
         setCurrentIndex(settledIdx);
       }
-    }, 80);
-  }, [currentIndex, liveVideoPosts.length, revealControls]);
+    }, 120);
+  }, [liveVideoPosts.length, revealControls]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -619,31 +718,31 @@ export const VideoReelsViewer: React.FC = () => {
       if (e.key === 'Escape') return closeVideoViewer();
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
-        scrollToIndex(currentIndex + 1);
+        scrollToIndex(currentIndexRef.current + 1);
       }
       if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault();
-        scrollToIndex(currentIndex - 1);
+        scrollToIndex(currentIndexRef.current - 1);
       }
     };
     if (isVideoViewerOpen) {
       window.addEventListener('keydown', onKey);
     }
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeVideoViewer, currentIndex, isVideoViewerOpen, scrollToIndex]);
+  }, [closeVideoViewer, isVideoViewerOpen, scrollToIndex]);
 
   // Mouse wheel navigation (Desktop)
   const handleWheelNav = (e: React.WheelEvent) => {
     revealControls();
-    
+
     if (isScrolling.current) return;
     const now = Date.now();
     if (now - lastWheelTime.current < 400) return;
     lastWheelTime.current = now;
     if (e.deltaY > 40) {
-      scrollToIndex(currentIndex + 1);
+      scrollToIndex(currentIndexRef.current + 1);
     } else if (e.deltaY < -40) {
-      scrollToIndex(currentIndex - 1);
+      scrollToIndex(currentIndexRef.current - 1);
     }
   };
 
@@ -718,33 +817,36 @@ export const VideoReelsViewer: React.FC = () => {
             msOverflowStyle: 'none',
           } as React.CSSProperties}
         >
-
-          {liveVideoPosts.map((post, idx) => (
-            <div
-              key={post.id}
-              data-index={idx}
-              ref={(node) => {
-                if (node) {
-                  slideRefs.current.set(idx, node);
-                } else {
-                  slideRefs.current.delete(idx);
-                }
-              }}
-              style={{
-                scrollSnapAlign: 'start',
-                scrollSnapStop: 'always' as any,
-                height: '100dvh',
-                flexShrink: 0,
-              }}
-            >
-              <VideoSlide
-                post={post}
-                isActive={idx === currentIndex}
-                globalMuted={globalMuted}
-                onUnmute={() => setGlobalMuted(false)}
-              />
-            </div>
-          ))}
+          {liveVideoPosts.map((post, idx) => {
+            const preloadMode = getPreloadMode(idx, currentIndex);
+            return (
+              <div
+                key={post.id}
+                data-index={idx}
+                ref={(node) => {
+                  if (node) {
+                    slideRefs.current.set(idx, node);
+                  } else {
+                    slideRefs.current.delete(idx);
+                  }
+                }}
+                style={{
+                  scrollSnapAlign: 'start',
+                  scrollSnapStop: 'always' as const,
+                  height: '100dvh',
+                  flexShrink: 0,
+                }}
+              >
+                <VideoSlide
+                  post={post}
+                  isActive={idx === currentIndex}
+                  preloadMode={preloadMode}
+                  globalMuted={globalMuted}
+                  onUnmute={() => setGlobalMuted(false)}
+                />
+              </div>
+            );
+          })}
         </div>
 
       </motion.div>

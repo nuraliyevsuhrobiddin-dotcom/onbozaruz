@@ -406,7 +406,6 @@ export const adminRepository = {
     const { error } = await supabase.from('orders').update({
       status,
       status_step: statusStep,
-      updated_at: new Date().toISOString(),
     }).eq('id', orderId);
 
     if (error) throw new Error(`Buyurtma statusi yangilanmadi: ${error.message}`);
@@ -446,7 +445,6 @@ export const adminRepository = {
     if (!supabase) return;
     const updatePayload: Record<string, any> = {
       approval_status: approvalStatus,
-      updated_at: new Date().toISOString(),
     };
     if (approvalStatus === 'approved') updatePayload.approved_at = new Date().toISOString();
     if (approvalStatus === 'rejected') updatePayload.rejected_at = new Date().toISOString();

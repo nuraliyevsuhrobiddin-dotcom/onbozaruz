@@ -7,6 +7,7 @@
  */
 
 import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
+import { processAndCompressImage } from '../utils/avatarUtils';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -129,7 +130,7 @@ export async function uploadListingMedia(
   contentType: string
 ): Promise<string> {
   if (!input) return '';
-  if (typeof input === 'string' && (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('data:'))) {
+  if (typeof input === 'string' && (input.startsWith('http://') || input.startsWith('https://'))) {
     return input;
   }
 
@@ -143,10 +144,10 @@ export async function uploadListingMedia(
     }
   } catch (error: unknown) {
     console.warn('[uploadListingMedia] Error loading media:', error);
-    // Error handled - return input as fallback
     return typeof input === 'string' ? input : '';
   }
 
+  let storageError = '';
   if (supabase) {
     try {
       const { error } = await supabase.storage.from('listing-media').upload(path, fileOrBlob, {
@@ -158,13 +159,19 @@ export async function uploadListingMedia(
       if (!error) {
         return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
       }
+      storageError = error.message;
       console.warn('[uploadListingMedia] Supabase Storage upload warning:', error.message);
     } catch (err) {
+      storageError = err instanceof Error ? err.message : 'Storage bilan bog\'lanib bo\'lmadi';
       console.warn('[uploadListingMedia] Storage upload exception:', err);
     }
+
+    throw new Error(
+      `Media yuklanmadi${storageError ? `: ${storageError}` : ''}. Internetni tekshirib, qayta urinib ko'ring.`
+    );
   }
 
-  // Fallback: If Supabase Storage upload fails or is not available, convert image to Data URL if small, or create Object URL
+  // Fallback: convert small image to Data URL or Object URL
   try {
     if (fileOrBlob.size < 3 * 1024 * 1024) {
       return await new Promise<string>((resolve) => {
@@ -204,8 +211,6 @@ export async function uploadProfileMedia(
   if (!input) return '';
 
   let fileOrBlob: Blob;
-  let extension = 'jpg';
-  let contentType = 'image/jpeg';
 
   if (typeof input === 'string') {
     if (input.startsWith('http://') || input.startsWith('https://')) {
@@ -213,27 +218,40 @@ export async function uploadProfileMedia(
     }
     const response = await fetch(input);
     fileOrBlob = await response.blob();
-    contentType = fileOrBlob.type || 'image/jpeg';
-    if (contentType.includes('png')) extension = 'png';
-    else if (contentType.includes('webp')) extension = 'webp';
   } else {
     fileOrBlob = input;
-    contentType = input.type || 'image/jpeg';
-    const fileExt = input.name.split('.').pop()?.toLowerCase();
-    if (fileExt && ['jpg', 'jpeg', 'png', 'webp'].includes(fileExt)) {
-      extension = fileExt;
-    } else if (contentType.includes('png')) extension = 'png';
-    else if (contentType.includes('webp')) extension = 'webp';
   }
 
-  const path = `${userId}/profile-${target}-${Date.now()}.${extension}`;
-  return uploadListingMedia(fileOrBlob, path, contentType);
+  // Compress and optimize avatar (square 512x512) or cover (max 1280px)
+  try {
+    fileOrBlob = await processAndCompressImage(fileOrBlob, {
+      maxDimension: target === 'avatar' ? 512 : 1280,
+      quality: 0.85,
+      squareCrop: target === 'avatar',
+    });
+  } catch {
+    // Fallback to original blob if canvas fails
+  }
+
+  const path = `${userId}/profile-${target}-${Date.now()}.webp`;
+  return uploadListingMedia(fileOrBlob, path, 'image/webp');
 }
 
 export async function incrementPostViewsOnServer(postId: string): Promise<void> {
   if (!supabase) return;
   const { error } = await supabase.rpc('increment_post_views', { p_post_id: postId });
   if (error) throw new Error(`Ko'rishlar soni saqlanmadi: ${error.message}`);
+}
+
+/** Zaxirani atom tarzda kamaytiradi. Mock rejimda har doim muvaffaqiyat qaytaradi. */
+export async function decrementProductStockOnServer(productId: string, quantity: number): Promise<boolean> {
+  if (!supabase) return true;
+  const { data, error } = await supabase.rpc('decrement_product_stock', {
+    p_product_id: productId,
+    p_quantity: quantity,
+  });
+  if (error) throw new Error(`Zaxira yangilanmadi: ${error.message}`);
+  return Boolean(data);
 }
 
 // ---------- Types ----------
@@ -246,9 +264,13 @@ export interface AuthUser {
   location?: string;
   businessName?: string;
   bio?: string;
-  role?: 'seller' | 'buyer';
+  role?: 'seller' | 'buyer' | 'business';
   avatar?: string;
   cover?: string;
+  website?: string;
+  telegram?: string;
+  lat?: number;
+  lng?: number;
   createdAt: string;
   isAdmin?: boolean;
   status?: 'active' | 'banned';
@@ -262,7 +284,7 @@ export interface SignUpFields {
   phone: string;
   location?: string;
   businessName?: string;
-  role?: 'seller' | 'buyer';
+  role?: 'seller' | 'buyer' | 'business';
 }
 
 export interface AuthResult {
@@ -309,7 +331,7 @@ function saveMockSession(user: AuthUser | null) {
 
 // ---------- Mock Auth Implementation ----------
 async function mockSignUp(fields: SignUpFields): Promise<AuthResult> {
-  await new Promise((r) => setTimeout(r, 600)); // simulate network
+  await new Promise((r) => setTimeout(r, 400));
   const users = getMockUsers();
   const key = (fields.email || fields.phone).toLowerCase().trim();
 
@@ -332,8 +354,9 @@ async function mockSignUp(fields: SignUpFields): Promise<AuthResult> {
     location: fields.location || '',
     businessName: fields.businessName || '',
     role: fields.role || 'seller',
-    bio: fields.businessName ? `${fields.businessName} rasmiy va tasdiqlangan agro sahifasi` : '',
+    bio: fields.businessName ? `${fields.businessName} rasmiy agro sahifasi` : '',
     createdAt: new Date().toISOString(),
+    status: 'active',
   };
 
   users[key] = { password: fields.password, user };
@@ -344,7 +367,7 @@ async function mockSignUp(fields: SignUpFields): Promise<AuthResult> {
 }
 
 async function mockSignIn(email: string, password: string): Promise<AuthResult> {
-  await new Promise((r) => setTimeout(r, 600)); // simulate network
+  await new Promise((r) => setTimeout(r, 400));
   const users = getMockUsers();
   const key = email.toLowerCase().trim();
   const record = users[key];
@@ -376,7 +399,6 @@ async function supabaseSignInWithProvider(provider: OAuthProvider): Promise<Auth
 }
 
 async function mockSignOut(): Promise<void> {
-  await new Promise((r) => setTimeout(r, 200));
   saveMockSession(null);
 }
 
@@ -397,7 +419,7 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
     .eq('id', user.id)
     .maybeSingle();
 
-  // If profile is missing in DB (e.g. trigger failed or unconfirmed user logged in), auto-create
+  // If profile is missing in DB, auto-create
   if (!profile) {
     try {
       const cleanHandle = meta?.handle || (user.email || '').split('@')[0];
@@ -428,10 +450,42 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
     bio: profile?.bio || '',
     avatar: profile?.avatar_url || '',
     cover: profile?.cover_url || '',
-    role: (profile?.role as 'seller' | 'buyer') || (meta?.role as 'seller' | 'buyer') || 'seller',
+    role: (profile?.role as 'seller' | 'buyer' | 'business') || (meta?.role as 'seller' | 'buyer' | 'business') || 'seller',
+    website: profile?.website || '',
+    telegram: profile?.telegram || '',
     createdAt: user.created_at || new Date().toISOString(),
     isAdmin: profile?.is_admin ?? (user.email?.toLowerCase().trim() === 'nuraliyevsuhrobiddin@gmail.com'),
     status: (profile?.status as 'active' | 'banned') || 'active',
+  };
+}
+
+async function supabaseGetUserProfile(userId: string): Promise<AuthUser | null> {
+  if (!supabase) return null;
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !profile) return null;
+
+  return {
+    id: profile.id,
+    email: profile.email || '',
+    name: profile.name || '',
+    handle: profile.handle || '',
+    phone: profile.phone || '',
+    location: profile.location || '',
+    businessName: profile.business_name || '',
+    bio: profile.bio || '',
+    role: (profile.role as 'seller' | 'buyer' | 'business') || 'seller',
+    avatar: profile.avatar_url || '',
+    cover: profile.cover_url || '',
+    website: profile.website || '',
+    telegram: profile.telegram || '',
+    createdAt: profile.created_at || new Date().toISOString(),
+    isAdmin: Boolean(profile.is_admin),
+    status: (profile.status as 'active' | 'banned') || 'active',
   };
 }
 
@@ -455,6 +509,8 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
       role: fields.role,
       avatar_url: fields.avatar,
       cover_url: fields.cover,
+      website: fields.website,
+      telegram: fields.telegram,
       updated_at: new Date().toISOString(),
     }).filter(([, value]) => value !== undefined)
   );
@@ -478,9 +534,11 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
     location: data.location || '',
     businessName: data.business_name || '',
     bio: data.bio || '',
-    role: (data.role as 'seller' | 'buyer') || 'seller',
+    role: (data.role as 'seller' | 'buyer' | 'business') || 'seller',
     avatar: data.avatar_url || '',
     cover: data.cover_url || '',
+    website: data.website || '',
+    telegram: data.telegram || '',
     createdAt: data.created_at || new Date().toISOString(),
     isAdmin: Boolean(data.is_admin),
     status: (data.status as 'active' | 'banned') || 'active',
@@ -523,7 +581,6 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
     }
     if (!data.user) return { ok: false, error: 'Foydalanuvchi yaratilmadi.' };
 
-    // Check if account already exists (Supabase returns empty identities array in that case)
     if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       return {
         ok: false,
@@ -531,7 +588,6 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
       };
     }
 
-    // Update profile table directly if session is created immediately
     if (data.session) {
       try {
         await supabase.from('profiles').upsert({
@@ -559,11 +615,11 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
         businessName: fields.businessName || '',
         role: fields.role || 'seller',
         createdAt: data.user.created_at,
+        status: 'active',
       };
       return { ok: true, user };
     }
 
-    // Confirmation email sent case
     return {
       ok: true,
       requiresConfirmation: true,
@@ -586,61 +642,47 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthResu
     const { data, error } = await supabase.auth.signInWithPassword(credentials);
 
     if (error) return { ok: false, error: translateAuthError(error.message) };
-    if (!data.user) return { ok: false, error: 'Kirish muvaffaqiyatsiz.' };
+    if (!data.user) return { ok: false, error: 'Foydalanuvchi topilmadi' };
 
-    const meta = data.user.user_metadata as Record<string, string> | undefined;
-    const user: AuthUser = {
-      id: data.user.id,
-      email: data.user.email || email,
-      name: meta?.name || '',
-      handle: meta?.handle || (data.user.email || email).split('@')[0],
-      phone: meta?.phone || '',
-      location: meta?.location || '',
-      businessName: meta?.businessName || '',
-      role: (meta?.role as 'seller' | 'buyer') || 'seller',
-      createdAt: data.user.created_at,
-    };
+    const user = await supabaseRestoreSession();
+    if (!user) return { ok: false, error: 'Profil ma\'lumotlarini yuklab bo\'lmadi' };
+
     return { ok: true, user };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
+    const message = err instanceof Error ? err.message : 'Tizimga kirishda xatolik yuz berdi';
     return { ok: false, error: translateAuthError(message) };
   }
 }
 
 async function supabaseResendConfirmation(email: string): Promise<AuthResult> {
-  try {
-    if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
-
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: email.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: getAuthCallbackUrl(),
-      },
-    });
-
-    if (error) return { ok: false, error: translateAuthError(error.message) };
-
-    return {
-      ok: true,
-      successMessage: "Tasdiqlash havolasi emailingizga qayta yuborildi! Pochtani va Spam papkasini tekshiring.",
-    };
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
-    return { ok: false, error: translateAuthError(message) };
-  }
+  if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.trim().toLowerCase(),
+    options: { emailRedirectTo: getAuthCallbackUrl() },
+  });
+  return error
+    ? { ok: false, error: translateAuthError(error.message) }
+    : { ok: true, successMessage: 'Tasdiqlash havolasi qayta yuborildi.' };
 }
 
 async function supabaseSignOut(): Promise<void> {
+  if (!supabase) return;
   try {
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
+    await supabase.auth.signOut();
   } catch {
     // Ignore signout errors
   }
 }
 
+async function supabaseDeleteAccount(): Promise<void> {
+  if (!supabase) return;
+  const { data: sessionData } = await supabase.auth.getUser();
+  if (sessionData?.user) {
+    await supabase.from('profiles').delete().eq('id', sessionData.user.id);
+    await supabase.auth.signOut();
+  }
+}
 
 // ---------- Unified Auth API ----------
 export const authClient = {
@@ -676,6 +718,15 @@ export const authClient = {
     return mockGetCurrentUser();
   },
 
+  async getUserProfile(userId: string): Promise<AuthUser | null> {
+    if (isSupabaseConfigured) return supabaseGetUserProfile(userId);
+    const users = getMockUsers();
+    for (const record of Object.values(users)) {
+      if (record.user.id === userId) return record.user;
+    }
+    return null;
+  },
+
   async updateUser(fields: Partial<AuthUser>): Promise<AuthUser | null> {
     if (isSupabaseConfigured) {
       return supabaseUpdateUser(fields);
@@ -695,8 +746,21 @@ export const authClient = {
     return updated;
   },
 
+  async deleteAccount(): Promise<void> {
+    if (isSupabaseConfigured) {
+      return supabaseDeleteAccount();
+    }
+    const current = getMockSession();
+    if (current) {
+      const users = getMockUsers();
+      delete users[current.email.toLowerCase().trim()];
+      saveMockUsers(users);
+      saveMockSession(null);
+    }
+  },
+
   getCurrentUser(): AuthUser | null {
-    if (isSupabaseConfigured) return null; // Supabase session async — store'dan o'qiladi
+    if (isSupabaseConfigured) return null;
     return mockGetCurrentUser();
   },
 };

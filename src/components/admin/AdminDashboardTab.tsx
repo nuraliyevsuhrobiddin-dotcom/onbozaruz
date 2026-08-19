@@ -127,7 +127,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
               <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10, fontWeight: 600 }} />
               <Tooltip
                 contentStyle={{ borderRadius: 14, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 700 }}
-                formatter={(val: number) => [val, 'Buyurtma']}
+                formatter={(val) => [val, 'Buyurtma']}
               />
               <Area type="monotone" dataKey="orders" stroke="#E53935" strokeWidth={2.5} fill="url(#gOrders)" dot={{ r: 3, fill: '#E53935' }} />
             </AreaChart>

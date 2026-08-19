@@ -13,10 +13,12 @@ export interface PostDraft {
   phone: string;
   telegram: string;
   condition: string;
+  description: string;
   selectedRegion: string;
   mediaUrl: string;
   mediaType: 'image' | 'video';
   mediaMode: 'image' | 'video';
+  durationDays: number | null;
   updatedAt: number;
 }
 
@@ -31,10 +33,12 @@ const EMPTY_DRAFT: Omit<PostDraft, 'updatedAt'> = {
   phone: '',
   telegram: '',
   condition: '',
+  description: '',
   selectedRegion: '',
   mediaUrl: '',
   mediaType: 'image',
   mediaMode: 'video',
+  durationDays: 30,
 };
 
 export function loadDraft(): PostDraft | null {
@@ -77,6 +81,7 @@ export function draftToForm(draft: PostDraft) {
     phone: draft.phone,
     telegram: draft.telegram,
     condition: draft.condition,
+    description: draft.description,
   };
 }
 

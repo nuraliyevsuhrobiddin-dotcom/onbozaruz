@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useAgroStore } from '../../store/useAgroStore';
 import { REGIONS } from '../../data/mockAgroData';
 import { MEDIA_MAX_SIZE_MB } from './constants';
-import { formatNumeric, formatPhone, parseNumeric } from './formatting';
+import { formatNumeric, formatPhone, isPhoneComplete, parseNumeric } from './formatting';
 import { clearDraft, draftToForm, loadDraft, saveDraft } from './createPostDraft';
 import { uploadListingMedia } from '../../api/authClient';
 
@@ -15,9 +15,10 @@ export const postSchema = z.object({
   price: z.string().min(2, 'Narxni kiriting'),
   minOrder: z.string().min(1, 'Minimal buyurtmani kiriting'),
   location: z.string().min(2, 'Joylashuvni kiriting'),
-  phone: z.string().min(6, "Telefon raqamini kiriting"),
-  telegram: z.string().min(2, "Telegram foydalanuvchi nomini kiriting"),
+  phone: z.string().refine(isPhoneComplete, "To'liq telefon raqamini kiriting"),
+  telegram: z.string().optional(),
   condition: z.string().optional(),
+  description: z.string().optional(),
 });
 
 export type PostFormData = z.infer<typeof postSchema>;
@@ -44,6 +45,7 @@ export function useCreatePostForm() {
   const [mediaContentType, setMediaContentType] = useState('image/jpeg');
   const [mediaMode, setMediaMode] = useState<'image' | 'video'>('video');
   const [selectedRegion, setSelectedRegion] = useState(DEFAULT_REGION);
+  const [durationDays, setDurationDays] = useState<number | null>(30);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const shouldDetectLocationRef = useRef(false);
@@ -69,6 +71,7 @@ export function useCreatePostForm() {
       phone: '+998 ',
       telegram: '',
       condition: '',
+      description: '',
     },
   });
 
@@ -87,6 +90,7 @@ export function useCreatePostForm() {
       setMediaType(draft.mediaType || 'image');
       setMediaContentType(draft.mediaType === 'video' ? 'video/webm' : 'image/jpeg');
       setMediaMode(draft.mediaMode || draft.mediaType || 'video');
+      setDurationDays(draft.durationDays !== undefined ? draft.durationDays : 30);
     }
     // Yangi e'lon uchun manzilni foydalanuvchi ruxsati bilan avtomatik olamiz.
     // Mavjud draftdagi qo'lda yozilgan manzilni hech qachon almashtirmaymiz.
@@ -103,12 +107,14 @@ export function useCreatePostForm() {
     phone: formValues.phone,
     telegram: formValues.telegram || '',
     condition: formValues.condition || '',
+    description: formValues.description || '',
     selectedRegion,
     // Katta media fayl localStorage limitini tez to'ldiradi. Draftda faqat
     // forma qiymatlari saqlanadi; media oynani qayta ochganda qayta tanlanadi.
     mediaUrl: '',
     mediaType,
     mediaMode,
+    durationDays,
   };
 
   // ── Draft: o'zgarganda saqlash ──
@@ -217,7 +223,7 @@ export function useCreatePostForm() {
     try {
       const position = await getCurrentPosition();
       const { latitude, longitude } = position.coords;
-      let locationLabel = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      let locationLabel = '';
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 6000);
       try {
@@ -232,7 +238,7 @@ export function useCreatePostForm() {
             address.city || address.town || address.village || address.county || address.suburb;
           const region = address.state || address.region;
           locationLabel =
-            [district, region].filter(Boolean).join(', ') || data.display_name || locationLabel;
+            [district, region].filter(Boolean).join(', ') || data.display_name || '';
           const matchedRegion = REGIONS.find(
             (item) =>
               item !== 'Barchasi' && locationLabel.toLowerCase().includes(item.toLowerCase())
@@ -240,12 +246,17 @@ export function useCreatePostForm() {
           if (matchedRegion) setSelectedRegion(matchedRegion);
         }
       } catch {
-        // Koordinatalar yetarli — reverse geocoding ishlamasa ham davom etamiz.
+        // Reverse geocoding ishlamadi — manzil bo'sh qoladi, pastda qo'lda kiritish so'raladi.
       } finally {
         window.clearTimeout(timeout);
       }
-      setValue('location', locationLabel, { shouldDirty: true, shouldValidate: true });
-      showToast('Manzil avtomatik olindi');
+      if (locationLabel) {
+        setValue('location', locationLabel, { shouldDirty: true, shouldValidate: true });
+        showToast('Manzil avtomatik olindi');
+      } else {
+        // Xom "lat, lng" koordinatalarini hech qachon manzil sifatida ko'rsatmaymiz.
+        showToast("Aniq manzilni avtomatik topib bo'lmadi. Iltimos, qo'lda kiriting");
+      }
     } catch (error) {
       const denied =
         typeof error === 'object' && error !== null && 'code' in error &&
@@ -293,8 +304,7 @@ export function useCreatePostForm() {
         formValues.price &&
         formValues.minOrder &&
         formValues.location &&
-        formValues.phone &&
-        formValues.telegram?.trim().length >= 2
+        isPhoneComplete(formValues.phone || '')
       );
     }
     return true;
@@ -334,6 +344,7 @@ export function useCreatePostForm() {
       // Instagram-style UX: Nashr bosilgan zahoti modal yopiladi va Bosh sahifaga o'tiladi
       const postTitle = data.title.trim();
       const fileToUpload = selectedMediaFile || selectedMediaUrl;
+      const previewMediaUrl = selectedMediaUrl;
       const posterToUpload = selectedPosterUrl;
       const mediaTypeToUpload = mediaType;
       const mediaContentTypeToUpload = mediaContentType;
@@ -343,6 +354,9 @@ export function useCreatePostForm() {
       const location = data.location.toLowerCase().includes(selectedRegion.toLowerCase())
         ? data.location.trim()
         : `${data.location.trim()}, ${selectedRegion}`;
+      const expiresAt = durationDays
+        ? new Date(now + durationDays * 24 * 60 * 60 * 1000).toISOString()
+        : null;
 
       // Instantly close modal, switch tab to home feed & show top progress bar
       setCreateModalOpen(false);
@@ -360,6 +374,7 @@ export function useCreatePostForm() {
         phone: '+998 ',
         telegram: '',
         condition: '',
+        description: '',
       });
       setStep(1);
       setSelectedMediaFile(null);
@@ -368,6 +383,7 @@ export function useCreatePostForm() {
       setMediaType('image');
       setMediaContentType('image/jpeg');
       setSelectedRegion(DEFAULT_REGION);
+      setDurationDays(30);
 
       // Background upload process
       try {
@@ -406,6 +422,8 @@ export function useCreatePostForm() {
           isSaved: false,
           date: 'Hozirgina',
           condition: data.condition?.trim(),
+          description: data.description?.trim() || undefined,
+          expiresAt,
         });
 
         // Upload finished successfully
@@ -428,6 +446,9 @@ export function useCreatePostForm() {
             : "E'lon saqlanmadi. Internet aloqasi va server sozlamalarini tekshirib qayta urinib ko'ring."
         );
       } finally {
+        if (previewMediaUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(previewMediaUrl);
+        }
         setIsPublishing(false);
       }
     },
@@ -435,6 +456,7 @@ export function useCreatePostForm() {
       addPost,
       categories,
       currentUser,
+      durationDays,
       isPublishing,
       mediaContentType,
       mediaType,
@@ -465,8 +487,7 @@ export function useCreatePostForm() {
     if (!values.price || values.price.trim().length < 2) missing.push('Narx');
     if (!values.minOrder || values.minOrder.trim().length < 1) missing.push('Min. buyurtma');
     if (!values.location || values.location.trim().length < 2) missing.push('Joylashuv');
-    if (!values.phone || values.phone.replace(/\D/g, '').length < 9) missing.push('Telefon raqami');
-    if (!values.telegram || values.telegram.trim().length < 2) missing.push('Telegram');
+    if (!values.phone || !isPhoneComplete(values.phone)) missing.push('Telefon raqami');
 
     if (missing.length > 0) {
       showToast(`To'ldirilmagan: ${missing.join(', ')}`);
@@ -488,6 +509,8 @@ export function useCreatePostForm() {
     mediaType,
     selectedRegion,
     setSelectedRegion,
+    durationDays,
+    setDurationDays,
     isDetectingLocation,
     isPublishing,
     fileInputRef,

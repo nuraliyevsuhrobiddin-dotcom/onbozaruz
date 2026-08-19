@@ -34,6 +34,8 @@ export interface Post {
   description?: string;
   status?: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
+  /** Muddati tugagan sana (ISO). null/undefined = cheksiz. */
+  expiresAt?: string | null;
 }
 
 export interface Category {
@@ -45,7 +47,7 @@ export interface Category {
 }
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-export type ProductSource = 'admin' | 'telegram_bot';
+export type ProductSource = 'admin' | 'telegram_bot' | 'user';
 
 export interface Product {
   id: string;
@@ -65,6 +67,7 @@ export interface Product {
   location: string;
   description?: string;
   features?: string;
+  phone?: string;
   telegram?: string;
   approvalStatus?: ApprovalStatus;
   source?: ProductSource;
@@ -72,6 +75,8 @@ export interface Product {
   submittedAt?: string;
   approvedAt?: string;
   rejectedAt?: string;
+  /** Zaxiradagi miqdor. null/undefined = cheklanmagan (cheksiz). */
+  stock?: number | null;
 }
 
 export interface Order {
@@ -86,10 +91,48 @@ export interface Order {
   status: string;
   statusStep: number;
   date: string;
+  /** Bitta xariddagi barcha buyurtmalarni birlashtirib ko'rsatish uchun. */
+  groupId?: string;
+}
+
+export interface ProductReview {
+  id: string;
+  productId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
 }
 
 export type CreatePostInput = Omit<Post, 'id' | 'likesCount' | 'commentsCount' | 'viewsCount' | 'isLiked' | 'isSaved' | 'date'>;
 export type CreateProductInput = Omit<Product, 'id' | 'rating' | 'reviewsCount'>;
+export type CreateProductReviewInput = Omit<ProductReview, 'id' | 'createdAt'>;
+
+export type NotificationType =
+  | 'comment'
+  | 'like'
+  | 'order_status'
+  | 'post_approved'
+  | 'post_rejected'
+  | 'product_approved'
+  | 'product_rejected';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  targetType?: 'post' | 'order' | 'product' | '';
+  targetId?: string;
+  actorId?: string;
+  actorName?: string;
+  actorAvatar?: string;
+  isRead: boolean;
+  createdAt: string;
+}
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile';
 export type SubView =

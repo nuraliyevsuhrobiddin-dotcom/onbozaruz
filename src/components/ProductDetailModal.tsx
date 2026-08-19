@@ -34,13 +34,27 @@ export const ProductDetailModal: React.FC = () => {
     currentUser,
     setAuthPromptOpen,
     setSelectedSellerModal,
+    productReviews,
+    fetchProductReviews,
+    submitProductReview,
   } = useAgroStore();
 
   const [activeImage, setActiveImage] = useState(0);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   useEffect(() => {
     setActiveImage(0);
   }, [productDetail?.id]);
+
+  const isProductItemForFetch = productDetail ? !('mediaUrl' in productDetail || 'type' in productDetail) : false;
+  useEffect(() => {
+    if (productDetail && isProductItemForFetch) {
+      void fetchProductReviews(productDetail.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productDetail?.id, isProductItemForFetch]);
 
   if (!productDetail) return null;
 
@@ -55,9 +69,11 @@ export const ProductDetailModal: React.FC = () => {
   const seller = 'seller' in productDetail ? productDetail.seller : productDetail.sellerName;
   const location = productDetail.location;
   const minOrder = productDetail.minOrder || '1 dona';
-  const phone = 'phone' in productDetail ? productDetail.phone : '+998 90 123 45 67';
+  const phone = ('phone' in productDetail ? productDetail.phone : '') || '';
   const discount = 'discount' in productDetail ? productDetail.discount : undefined;
   const rating = 'rating' in productDetail ? productDetail.rating : 5;
+  const reviewsCount = 'reviewsCount' in productDetail ? productDetail.reviewsCount : 0;
+  const stock = 'stock' in productDetail ? productDetail.stock : undefined;
 
   const canManage = Boolean(isAdminUser);
   const telegram = ('telegram' in productDetail ? productDetail.telegram : undefined)?.replace(/^@/, '').replace(/\s+/g, '');
@@ -253,7 +269,106 @@ export const ProductDetailModal: React.FC = () => {
               <Package className="w-3.5 h-3.5 text-slate-400" />
               <span>Minimum buyurtma: <b className="text-[#111827]">{minOrder}</b></span>
             </div>
+            {isProductItem && stock != null && (
+              <div className="flex items-center gap-1.5 text-xs font-medium pt-1">
+                <Package className="w-3.5 h-3.5 text-slate-400" />
+                {stock > 0 ? (
+                  <span className={stock <= 5 ? 'text-amber-700 font-bold' : 'text-slate-600'}>
+                    Zaxirada: <b>{stock} dona</b>
+                  </span>
+                ) : (
+                  <span className="text-rose-600 font-bold">Zaxira tugagan</span>
+                )}
+              </div>
+            )}
           </div>
+
+          {/* Reviews */}
+          {isProductItem && (
+            <div className="bg-slate-50 rounded-[18px] p-3.5 border border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  Sharhlar {reviewsCount > 0 ? `(${reviewsCount})` : ''}
+                </span>
+                <span className="flex items-center gap-1 text-xs font-black text-[#f59e0b]">
+                  <Star className="w-3.5 h-3.5 fill-[#fbbf24]" />
+                  {rating}
+                </span>
+              </div>
+
+              {(productReviews[productDetail.id] || []).length > 0 ? (
+                <div className="space-y-2.5 max-h-48 overflow-y-auto no-scrollbar">
+                  {(productReviews[productDetail.id] || []).map((review) => (
+                    <div key={review.id} className="bg-white rounded-[14px] p-2.5 border border-slate-200">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#111827] truncate">{review.userName}</span>
+                        <span className="flex items-center gap-0.5 text-[10px] font-black text-[#f59e0b] shrink-0">
+                          <Star className="w-3 h-3 fill-[#fbbf24]" />
+                          {review.rating}
+                        </span>
+                      </div>
+                      {review.comment && (
+                        <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">{review.comment}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 font-medium">Hali sharhlar yo'q — birinchi bo'lib yozing.</p>
+              )}
+
+              {currentUser ? (
+                <div className="space-y-2 pt-1 border-t border-slate-200">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setReviewRating(n)}
+                        className="p-0.5"
+                        aria-label={`${n} yulduz`}
+                      >
+                        <Star className={`w-5 h-5 ${n <= reviewRating ? 'fill-[#fbbf24] text-[#f59e0b]' : 'text-slate-300'}`} />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      placeholder="Fikringizni yozing (ixtiyoriy)"
+                      className="flex-1 bg-white rounded-[12px] px-3 py-2 text-xs font-medium outline-none border border-slate-200 focus:ring-2 focus:ring-[#5b35f5]/20"
+                    />
+                    <button
+                      type="button"
+                      disabled={isSubmittingReview}
+                      onClick={async () => {
+                        setIsSubmittingReview(true);
+                        try {
+                          await submitProductReview(productDetail.id, reviewRating, reviewComment);
+                          setReviewComment('');
+                          setReviewRating(5);
+                        } finally {
+                          setIsSubmittingReview(false);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-[12px] bg-[#5b35f5] text-white text-xs font-black disabled:opacity-50 shrink-0"
+                    >
+                      Yuborish
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAuthPromptOpen(true)}
+                  className="text-[11px] font-bold text-[#5b35f5]"
+                >
+                  Sharh qoldirish uchun tizimga kiring
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons: Uzum/Ozon Cart vs Phone Call */}
@@ -274,7 +389,8 @@ export const ProductDetailModal: React.FC = () => {
                     <span className="w-12 text-center text-sm font-black text-[#111827]">{inCart} ta</span>
                     <button
                       onClick={() => handleUpdateQuantity(inCart + 1)}
-                      className="w-10 h-10 rounded-[14px] bg-white text-slate-800 flex items-center justify-center shadow-xs font-black active:scale-95 transition-transform"
+                      disabled={stock != null && inCart >= stock}
+                      className="w-10 h-10 rounded-[14px] bg-white text-slate-800 flex items-center justify-center shadow-xs font-black active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -292,6 +408,13 @@ export const ProductDetailModal: React.FC = () => {
                     <span>Savatda ({inCart} ta) — Rasmiylashtirish</span>
                   </button>
                 </div>
+              ) : stock === 0 ? (
+                <button
+                  disabled
+                  className="w-full py-4 rounded-[20px] bg-slate-100 text-slate-400 font-black text-sm flex items-center justify-center gap-2 cursor-not-allowed"
+                >
+                  <span>Zaxira tugagan</span>
+                </button>
               ) : (
                 /* Add to Cart Button */
                 <button

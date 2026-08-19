@@ -15,6 +15,10 @@ export const parseNumeric = (value: string): number => {
   return digits ? parseInt(digits, 10) : 0;
 };
 
+/** To'liq O'zbekiston mobil raqami kiritilganini tekshiradi (9 ta raqam). */
+export const isPhoneComplete = (value: string): boolean =>
+  value.replace(/\D/g, '').length >= 9;
+
 /**
  * Telefon raqamini O'zbekiston formatiga keltiradi:
  * "+998 90 123 45 67" va h.k.

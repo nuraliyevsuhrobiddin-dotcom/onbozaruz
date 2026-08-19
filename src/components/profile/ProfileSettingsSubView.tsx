@@ -14,8 +14,11 @@ import {
   Moon,
   Save,
   LogOut,
+  Trash2,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
-
+import { useAgroStore } from '../../store/useAgroStore';
 
 interface ProfileSettingsSubViewProps {
   onBack: () => void;
@@ -28,6 +31,11 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   showToast,
   onLogout,
 }) => {
+  const { deleteAccount } = useAgroStore();
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
   // Load saved settings from localStorage or fallback to defaults
   const [settingsForm, setSettingsForm] = useState(() => {
     try {
@@ -71,19 +79,37 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
   const handleSaveSettings = () => {
     localStorage.setItem('onbozor-app-settings', JSON.stringify(settingsForm));
-    showToast('Sozlamalar saqlandi va yangilandi!');
+    showToast('Sozlamalar saqlandi!');
     onBack();
   };
 
   const handleClearCache = () => {
     try {
-      localStorage.removeItem('onbozor-comments-cache');
-      localStorage.removeItem('onbozor-posts-cache');
-      localStorage.removeItem('onbozor-products-cache');
-      localStorage.removeItem('onbozor-profile-form');
-      showToast("Vaqtinchalik ma'lumotlar va kesh tozalandi");
+      localStorage.removeItem('agro_posts_cache_v1');
+      localStorage.removeItem('agro_products_cache_v1');
+      localStorage.removeItem('onbozor-app-settings');
+      showToast("Ilova keshi va vaqtinchalik ma'lumotlar tozalandi");
     } catch {
       showToast("Xatolik yuz berdi");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.trim().toLowerCase() !== "o'chirish") {
+      showToast("Tasdiqlash uchun 'o'chirish' so'zini kiriting");
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteAccount();
+      setIsDeleteModalOpen(false);
+      onBack();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Akkauntni o'chirishda xatolik yuz berdi";
+      showToast(msg);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -101,7 +127,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
     <button
       type="button"
       onClick={() => toggleSetting(field)}
-      className="w-full flex items-center justify-between gap-3 py-3 text-left"
+      className="w-full flex items-center justify-between gap-3 py-3 text-left cursor-pointer"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="w-9 h-9 rounded-[14px] bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
@@ -131,13 +157,13 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
-          className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+          className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
           <h1 className="font-black text-lg text-[#111827]">Sozlamalar</h1>
-          <p className="text-[11px] text-slate-400 font-medium">Profil, xavfsizlik, savdo va ilova sozlamalari</p>
+          <p className="text-[11px] text-slate-400 font-medium">Profil, bildirishnomalar va xavfsizlik</p>
         </div>
       </div>
 
@@ -151,19 +177,19 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
           <ToggleRow
             field="pushNotifications"
             title="Push-xabarlar"
-            text="Yangi e'lonlar, chat va aksiyalar haqida xabar berish"
+            text="Yangi e'lonlar, xaridlar va sharhlar haqida xabar berish"
             icon={Smartphone}
           />
           <ToggleRow
             field="orderUpdates"
-            title="Buyurtma statuslari"
-            text="To'lov, yetkazib berish va qabul qilish yangiliklari"
+            title="Buyurtma yangiliklari"
+            text="Yetkazib berish va status yangilanishlari"
             icon={Truck}
           />
           <ToggleRow
             field="marketingMessages"
-            title="Marketing xabarlari"
-            text="Chegirmalar va hamkorlar uchun takliflar"
+            title="Aksiya va takliflar"
+            text="Chegirmalar va agro-yangiliklar"
             icon={Bell}
           />
         </div>
@@ -178,20 +204,20 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         <div className="divide-y divide-slate-100">
           <ToggleRow
             field="showPhone"
-            title="Telefonni ko'rsatish"
-            text="E'lonlarda xaridorlarga telefon raqamingiz ko'rinadi"
+            title="Telefonni ochiq ko'rsatish"
+            text="E'lonlarda barcha xaridorlarga telefon raqamingiz ko'rinadi"
             icon={Phone}
           />
           <ToggleRow
             field="twoFactor"
             title="Ikki bosqichli himoya"
-            text="Kirishda SMS yoki tasdiqlash kodi so'raladi"
+            text="Tizimga kirishda SMS tasdiqlash so'raladi"
             icon={ShieldCheck}
           />
           <ToggleRow
             field="autoSaveListings"
-            title="E'lon draftlarini saqlash"
-            text="Yozilgan e'lonlar avtomatik draft bo'lib qoladi"
+            title="Qoralamalarni saqlash"
+            text="Chala qolgan e'lonlar xotirada qoladi"
             icon={Bookmark}
           />
         </div>
@@ -201,7 +227,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm space-y-3">
         <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
           <Settings className="w-4 h-4 text-[#E53935]" />
-          Ilova va savdo sozlamalari
+          Ilova parametrlari
         </h3>
 
         {[
@@ -215,19 +241,13 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
             field: 'currency',
             label: 'Valyuta',
             icon: CreditCard,
-            options: ["So'm (UZS)", 'Dollar (USD)', 'Rubl (RUB)', 'Tenge (KZT)', 'Som (KGS)'],
+            options: ["So'm (UZS)", 'Dollar (USD)', 'Rubl (RUB)'],
           },
           {
             field: 'deliveryRegion',
-            label: 'Yetkazib berish hududi',
+            label: 'Asosiy savdo hududi',
             icon: Truck,
-            options: ["Butun O'zbekiston", "Farg'ona vodiysi", 'Toshkent sh. va viloyati', 'Markaziy Osiyo / Eksport'],
-          },
-          {
-            field: 'paymentMethod',
-            label: "To'lov usuli",
-            icon: CreditCard,
-            options: ['Naqd va karta', 'Faqat naqd', "Bank o'tkazma", 'Humo / Uzcard'],
+            options: ["Butun O'zbekiston", "Farg'ona vodiysi", 'Toshkent sh. va viloyati', 'Samarqand/Buxoro', 'Janubiy viloyatlar'],
           },
         ].map((item) => {
           const Icon = item.icon;
@@ -240,7 +260,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
               <select
                 value={settingsForm[item.field as keyof typeof settingsForm] as string}
                 onChange={(e) => updateSetting(item.field as keyof typeof settingsForm, e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-sm font-bold text-[#111827] outline-none focus:border-[#E53935] focus:bg-white transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-bold text-[#111827] outline-none focus:border-[#E53935] focus:bg-white transition-colors cursor-pointer"
               >
                 {item.options.map((option) => (
                   <option key={option} value={option}>
@@ -253,7 +273,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         })}
       </div>
 
-      {/* Tungi rejim & Vaqtinchalik ma'lumot */}
+      {/* Keshni tozalash va tungi rejim */}
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
@@ -262,11 +282,11 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
               const nextDarkMode = !prev.darkMode;
               const updated = { ...prev, darkMode: nextDarkMode };
               localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
-              showToast(nextDarkMode ? 'Tungi rejim tanlandi' : 'Yorug rejim tanlandi');
+              showToast(nextDarkMode ? 'Tungi rejim yoqildi' : 'Yorug rejim yoqildi');
               return updated;
             });
           }}
-          className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-slate-50 transition-colors"
+          className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
         >
           <Moon className="w-4 h-4 text-[#E53935]" />
           {settingsForm.darkMode ? 'Yorug rejim' : 'Tungi rejim'}
@@ -274,23 +294,23 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         <button
           type="button"
           onClick={handleClearCache}
-          className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs shadow-sm hover:bg-slate-50 transition-colors"
+          className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
         >
-          Vaqtinchalik ma'lumot
+          Keshni tozalash
         </button>
       </div>
 
-      {/* Sozlamalarni saqlash */}
+      {/* Save Settings */}
       <button
         type="button"
         onClick={handleSaveSettings}
-        className="w-full py-3.5 rounded-[18px] bg-[#111827] hover:bg-black text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-2 active:scale-[0.98]"
+        className="w-full py-3.5 rounded-[18px] bg-[#111827] hover:bg-black text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
       >
         <Save className="w-4 h-4 text-emerald-400" />
         Sozlamalarni saqlash
       </button>
 
-      {/* Akkauntdan chiqish */}
+      {/* Logout button */}
       {onLogout && (
         <button
           type="button"
@@ -299,13 +319,79 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
               onLogout();
             }
           }}
-          className="w-full py-3.5 rounded-[18px] bg-red-50 hover:bg-red-100 text-[#E53935] font-black text-xs transition-colors border border-red-200 flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-[18px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition-colors border border-slate-200 flex items-center justify-center gap-2 cursor-pointer"
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-4 h-4 text-slate-500" />
           Akkauntdan chiqish
         </button>
+      )}
+
+      {/* Delete Account Danger Button */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={() => setIsDeleteModalOpen(true)}
+          className="w-full py-3 rounded-[16px] bg-red-50 hover:bg-red-100 text-[#E53935] font-extrabold text-xs transition-colors border border-red-200 flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <Trash2 className="w-4 h-4" />
+          Akkauntni butunlay o'chirish
+        </button>
+      </div>
+
+      {/* Delete Account Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-white rounded-[26px] p-6 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-[#E53935] flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="font-black text-base text-[#111827]">Akkauntni o'chirish</h3>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                Diqqat! Akkauntingiz, barcha e'lonlaringiz, profilingiz va ma'lumotlaringiz qayta tiklanmaydigan qilib o'chiriladi.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500">
+                Tasdiqlash uchun <strong>o'chirish</strong> deb yozing:
+              </span>
+              <input
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="o'chirish"
+                className="w-full px-3.5 py-2.5 rounded-[14px] border border-red-200 bg-red-50/50 text-sm font-bold text-[#E53935] outline-none text-center"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={isDeleting}
+                className="flex-1 py-3 rounded-[16px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={isDeleting || deleteConfirmText.trim().toLowerCase() !== "o'chirish"}
+                className="flex-1 py-3 rounded-[16px] bg-[#E53935] hover:bg-[#C62828] text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>O'chirilmoqda...</span>
+                  </>
+                ) : (
+                  <span>O'chirish</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 };
-

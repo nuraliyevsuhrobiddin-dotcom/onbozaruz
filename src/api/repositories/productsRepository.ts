@@ -25,7 +25,7 @@ export const productsRepository = {
         const match = msg.match(/Could not find the '([^']+)' column/i);
         if (match && match[1]) {
           const missingCol = match[1];
-          const camelCol = missingCol.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
+          const camelCol = missingCol.replace(/_([a-z])/g, (_: string, l: string) => l.toUpperCase());
           delete payload[missingCol];
           delete payload[camelCol];
           console.warn(`[productsRepository] Removed missing DB column '${missingCol}' and retrying creation...`);
@@ -48,7 +48,7 @@ export const productsRepository = {
         const match = msg.match(/Could not find the '([^']+)' column/i);
         if (match && match[1]) {
           const missingCol = match[1];
-          const camelCol = missingCol.replace(/_([a-z])/g, (_, l) => l.toUpperCase());
+          const camelCol = missingCol.replace(/_([a-z])/g, (_: string, l: string) => l.toUpperCase());
           delete payload[missingCol];
           delete payload[camelCol];
           console.warn(`[productsRepository] Removed missing DB column '${missingCol}' and retrying update...`);

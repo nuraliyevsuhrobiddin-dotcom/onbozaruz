@@ -21,23 +21,19 @@ export const HomeFeedView: React.FC = () => {
 
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
 
+  // If store has 0 posts and is not currently fetching or in error, trigger hydration immediately
+  useEffect(() => {
+    if (posts.length === 0 && !isHydrating && !isBackgroundFetching && !fetchError) {
+      retryHydrate();
+    }
+  }, [posts.length, isHydrating, isBackgroundFetching, fetchError, retryHydrate]);
+
   // Auth modal/profile flowdan qaytganda eski story filter feedni bo'sh qoldirmasin.
   useEffect(() => {
     const resetFeed = () => setSelectedSeller(null);
     window.addEventListener('onbozor:reset-feed', resetFeed);
     return () => window.removeEventListener('onbozor:reset-feed', resetFeed);
   }, []);
-
-  // Minimal skeleton faqat birinchi ochilishda ko'rsatiladi
-  const [initialDone, setInitialDone] = useState(false);
-  useEffect(() => {
-    if (!isHydrating) {
-      const t = setTimeout(() => setInitialDone(true), 100);
-      return () => clearTimeout(t);
-    }
-  }, [isHydrating]);
-
-  const showSkeleton = isHydrating && !initialDone && posts.length === 0;
 
   // Verified farmers list for StoryBar
   const farmers: FarmerStory[] = Array.from(
@@ -63,6 +59,16 @@ export const HomeFeedView: React.FC = () => {
   const handleReset = () => {
     setSelectedSeller(null);
   };
+
+  // ─── State classification ────────────────────────────────────────────────
+  // 1. Loading: We have 0 posts in memory and hydration/fetch is in progress
+  const isLoading = (isHydrating || isBackgroundFetching) && posts.length === 0 && !fetchError;
+  // 2. Error: Fetch threw an error and we have 0 cached posts to show
+  const isNetworkError = !!fetchError && posts.length === 0;
+  // 3. Filtered empty: We have posts, but current filter (e.g. farmer) matched 0
+  const isFilterEmpty = posts.length > 0 && dedupedPosts.length === 0;
+  // 4. Truly empty: Backend is online, fetch finished, and database actually has 0 posts
+  const isTrulyEmpty = !isHydrating && !isBackgroundFetching && !fetchError && posts.length === 0;
 
   return (
     <div className="w-full max-w-170 mx-auto px-0 sm:px-4 py-1.5 sm:py-2 space-y-2.5 sm:space-y-3.5">
@@ -130,9 +136,9 @@ export const HomeFeedView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Offline / Network Error Banner */}
+      {/* Offline / Network Error Banner (when we still have cached posts to show) */}
       <AnimatePresence>
-        {(isOffline || fetchError === 'offline' || fetchError === 'network_error') && (
+        {(isOffline || fetchError === 'offline' || fetchError === 'network_error') && posts.length > 0 && (
           <motion.div
             key="offline-banner"
             initial={{ opacity: 0, y: -8 }}
@@ -148,16 +154,14 @@ export const HomeFeedView: React.FC = () => {
                   {isOffline ? 'Offline rejim 📶' : 'Internet bilan aloqa yo\'q'}
                 </p>
                 <p className="text-[11px] text-amber-600 font-medium leading-tight mt-0.5 truncate">
-                  {posts.length > 0
-                    ? 'Saqlangan e\'lonlar ko\'rsatilmoqda'
-                    : 'Internet ulanishini tekshiring'}
+                  Saqlangan e'lonlar ko'rsatilmoqda
                 </p>
               </div>
             </div>
             <button
               onClick={retryHydrate}
               disabled={isBackgroundFetching}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[11px] font-extrabold hover:bg-amber-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[11px] font-extrabold hover:bg-amber-600 transition-colors disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               <RefreshCw className={`w-3 h-3 ${isBackgroundFetching ? 'animate-spin' : ''}`} />
               Qayta urinish
@@ -176,30 +180,38 @@ export const HomeFeedView: React.FC = () => {
             exit={{ opacity: 0 }}
             className="flex items-center gap-2 px-1"
           >
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[11px] text-slate-400 font-medium">Yangilanmoqda...</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* 1. Obunalar (Fermerlar Yangi E'lonlari) StoryBar */}
-      <StoryBar
-        farmers={farmers}
-        followedSellerIds={followedSellerIds}
-        selectedSeller={selectedSeller}
-        onSelectSeller={(sellerId) => setSelectedSeller(sellerId)}
-        onOpenFarmerReels={(sellerId) => {
-          const allVideoPosts = posts.filter((p) => p.type === 'video');
-          if (allVideoPosts.length > 0) {
-            const startIdx = allVideoPosts.findIndex((p) => p.sellerId === sellerId);
-            useAgroStore.getState().openVideoViewer(allVideoPosts, startIdx !== -1 ? startIdx : 0);
-          }
-        }}
-      />
+      {/* 1. Obunalar (Fermerlar Yangi E'lonlari) StoryBar — only when farmers exist */}
+      {farmers.length > 0 && (
+        <StoryBar
+          farmers={farmers}
+          followedSellerIds={followedSellerIds}
+          selectedSeller={selectedSeller}
+          onSelectSeller={(sellerId) => setSelectedSeller(sellerId)}
+          onOpenFarmerReels={(sellerId) => {
+            const allVideoPosts = posts.filter((p) => p.type === 'video');
+            if (allVideoPosts.length > 0) {
+              const startIdx = allVideoPosts.findIndex((p) => p.sellerId === sellerId);
+              useAgroStore.getState().openVideoViewer(allVideoPosts, startIdx !== -1 ? startIdx : 0);
+            }
+          }}
+        />
+      )}
 
-      {/* 2. Feed Cards list or Skeleton or EmptyState */}
-      {showSkeleton ? (
+      {/* 2. Main Content Area */}
+      {isLoading ? (
         <LoadingSkeleton />
+      ) : isNetworkError ? (
+        <EmptyState
+          isNetworkError={true}
+          onReset={handleReset}
+          onRetry={retryHydrate}
+        />
       ) : dedupedPosts.length > 0 ? (
         <div>
           {dedupedPosts.map((post, index) => (
@@ -219,13 +231,20 @@ export const HomeFeedView: React.FC = () => {
             </p>
           </div>
         </div>
-      ) : (
-        /* E'lon topilmadi — network error bo'lsa boshqa xabar */
+      ) : isFilterEmpty ? (
         <EmptyState
+          isFilterEmpty={true}
           onReset={handleReset}
-          isNetworkError={!!(fetchError && fetchError !== null)}
           onRetry={retryHydrate}
         />
+      ) : isTrulyEmpty ? (
+        <EmptyState
+          isTrulyEmpty={true}
+          onReset={handleReset}
+          onRetry={retryHydrate}
+        />
+      ) : (
+        <LoadingSkeleton />
       )}
     </div>
   );
