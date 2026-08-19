@@ -237,21 +237,15 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     >
       {/* Container: full on mobile, centered 9:16 card on desktop */}
       <div
-        className="relative bg-black overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
+        className="relative bg-slate-950 overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
       >
-        {/* Blurred background backdrop — fills black bars for non-9:16 videos */}
-        {posterSrc ? (
+        {/* Blurred background backdrop — use only poster, never the video URL */}
+        {posterSrc && (
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-cover bg-center scale-110 pointer-events-none"
-            style={{
-              backgroundImage: `url(${posterSrc})`,
-              filter: 'blur(28px) brightness(0.35)',
-            }}
+            className="absolute inset-[-24px] bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none"
+            style={{ backgroundImage: `url(${posterSrc})` }}
           />
-        ) : (
-          // No poster: use a solid dark base (video backdrop added via ref-based canvas would be overkill)
-          <div aria-hidden="true" className="absolute inset-0 bg-black pointer-events-none" />
         )}
 
         {/* Video / Image */}
@@ -274,7 +268,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             onCanPlay={() => setIsBuffering(false)}
             onPlaying={() => { setIsPlaying(true); setIsBuffering(false); }}
             onError={() => { setHasError(true); setIsBuffering(false); }}
-            className="relative z-[1] w-full h-full object-contain cursor-pointer"
+            className="relative z-[1] w-full h-full object-cover sm:object-contain cursor-pointer"
           />
         ) : (
           <img

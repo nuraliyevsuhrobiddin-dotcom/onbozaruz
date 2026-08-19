@@ -229,7 +229,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           <VideoPlayer
             src={post.mediaUrl}
             poster={post.posterUrl}
-            fit="contain"
+            fit="cover"
             onOpenReels={handleMediaClick}
           />
         ) : (
