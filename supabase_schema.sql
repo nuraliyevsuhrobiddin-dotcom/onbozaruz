@@ -180,8 +180,24 @@ CREATE TABLE IF NOT EXISTS public.categories (
     icon TEXT DEFAULT '',
     order_index INTEGER DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
+    -- Which area this category appears in: 'post' (E'lon berish), 'market',
+    -- or 'both'. Defaults to 'both' so existing categories keep showing up
+    -- everywhere they already did — admin only needs to narrow this when
+    -- deliberately adding an area-specific category.
+    scope TEXT NOT NULL DEFAULT 'both' CHECK (scope IN ('post', 'market', 'both')),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Existing deployments: the CREATE TABLE above is a no-op once the table
+-- already exists, so add the column here too.
+ALTER TABLE public.categories
+  ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'both';
+DO $$ BEGIN
+    ALTER TABLE public.categories
+      ADD CONSTRAINT categories_scope_check CHECK (scope IN ('post', 'market', 'both'));
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- PostgREST uchun frontend ishlatadigan rollarga kerakli jadval huquqlari.
 GRANT SELECT ON public.posts, public.products, public.profiles, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs TO anon, authenticated;

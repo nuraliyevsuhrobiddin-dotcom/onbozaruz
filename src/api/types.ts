@@ -38,12 +38,16 @@ export interface Post {
   expiresAt?: string | null;
 }
 
+export type CategoryScope = 'post' | 'market' | 'both';
+
 export interface Category {
   id: string;
   name: string;
   icon: string;
   image: string;
   count: string;
+  /** Which area this category appears in. Missing/undefined is treated as 'both'. */
+  scope?: CategoryScope;
 }
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';

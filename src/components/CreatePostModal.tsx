@@ -36,6 +36,7 @@ import { REGIONS } from '../data/mockAgroData';
 import { CONDITION_QUICK, DURATION_OPTIONS, MIN_ORDER_QUICK, PRICE_QUICK } from './create/constants';
 import { VideoPlayer } from './ui/VideoPlayer';
 import { useAgroStore } from '../store/useAgroStore';
+import { categoriesForScope } from '../utils/categoryScope';
 
 const categoryIconMap = {
   apple: Apple,
@@ -84,7 +85,8 @@ const QuickChip: React.FC<{
 );
 
 export const CreatePostModal: React.FC = () => {
-  const { categories } = useAgroStore();
+  const { categories: allCategories } = useAgroStore();
+  const categories = categoriesForScope(allCategories, 'post');
   const {
     isCreateModalOpen,
     step,

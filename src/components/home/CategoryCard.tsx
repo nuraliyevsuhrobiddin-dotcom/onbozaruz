@@ -1,9 +1,11 @@
 ﻿import React from 'react';
 import { Tag } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
+import { categoriesForScope } from '../../utils/categoryScope';
 
 export const CategoryCard: React.FC = () => {
-  const { setSelectedCategoryModalId, categories } = useAgroStore();
+  const { setSelectedCategoryModalId, categories: allCategories } = useAgroStore();
+  const categories = categoriesForScope(allCategories, 'post');
   const categoryList = Array.from(new Map(categories.slice(1).map((c) => [c.id, c])).values());
 
   return (

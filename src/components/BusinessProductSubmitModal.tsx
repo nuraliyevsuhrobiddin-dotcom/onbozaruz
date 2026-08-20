@@ -3,13 +3,15 @@ import { X, PackagePlus, Upload, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { REGIONS } from '../data/mockAgroData';
 import { uploadListingMedia } from '../api/authClient';
+import { categoriesForScope } from '../utils/categoryScope';
 
 interface BusinessProductSubmitModalProps {
   onClose: () => void;
 }
 
 export const BusinessProductSubmitModal: React.FC<BusinessProductSubmitModalProps> = ({ onClose }) => {
-  const { categories, currentUser, addProduct, showToast } = useAgroStore();
+  const { categories: allCategories, currentUser, addProduct, showToast } = useAgroStore();
+  const categories = categoriesForScope(allCategories, 'market');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');

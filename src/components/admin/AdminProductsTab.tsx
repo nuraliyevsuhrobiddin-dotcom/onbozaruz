@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Search, Edit3, Trash2, CheckCircle, XCircle, Plus, X, PackagePlus, Upload, Send } from 'lucide-react';
 import { Product } from '../../data/mockAgroData';
-import { CATEGORIES, REGIONS } from '../../data/mockAgroData';
+import { REGIONS } from '../../data/mockAgroData';
 import { useAgroStore } from '../../store/useAgroStore';
 import { adminRepository } from '../../api/adminRepository';
 import { uploadListingMedia } from '../../api/authClient';
+import { categoriesForScope } from '../../utils/categoryScope';
 
 interface AdminProductsTabProps {
   products: Product[];
@@ -20,7 +21,8 @@ interface AdminProductsTabProps {
 export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
   products, onApprove, onReject, onDelete, onEdit, onLogAction, showToast,
 }) => {
-  const { addProduct, currentUser } = useAgroStore();
+  const { addProduct, currentUser, categories: allCategories } = useAgroStore();
+  const categories = categoriesForScope(allCategories, 'market').filter((c) => c.id !== 'all');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [actingId, setActingId] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
   const [form, setForm] = useState({
     title: '',
     seller: 'Shartnomali hamkor',
-    category: CATEGORIES[1]?.id || 'fruits',
+    category: categories[0]?.id || 'fruits',
     price: '',
     numericPrice: '',
     minOrder: '1 dona',
@@ -189,7 +191,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
       setForm({
         title: '',
         seller: 'Shartnomali hamkor',
-        category: CATEGORIES[1]?.id || 'fruits',
+        category: categories[0]?.id || 'fruits',
         price: '',
         numericPrice: '',
         minOrder: '1 dona',
@@ -541,7 +543,7 @@ export const AdminProductsTab: React.FC<AdminProductsTabProps> = ({
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
                     className="w-full mt-1 bg-slate-100 rounded-[14px] px-3 py-2.5 text-xs font-semibold outline-none"
                   >
-                    {CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+                    {categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}
                   </select>

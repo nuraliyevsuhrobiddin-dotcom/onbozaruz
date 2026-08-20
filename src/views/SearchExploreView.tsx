@@ -6,6 +6,7 @@ import {
 import { useAgroStore } from '../store/useAgroStore';
 import { REGIONS } from '../data/mockAgroData';
 import { Post } from '../api/types';
+import { categoriesForScope } from '../utils/categoryScope';
 
 /* ─────────────────────────────────────────────
    Video thumbnail card — video elementdan
@@ -204,7 +205,8 @@ const ExploreCard: React.FC<{
    Main view
    ───────────────────────────────────────────── */
 export const SearchExploreView: React.FC = () => {
-  const { posts, openVideoViewer, setProductDetail, categories } = useAgroStore();
+  const { posts, openVideoViewer, setProductDetail, categories: allCategories } = useAgroStore();
+  const categories = categoriesForScope(allCategories, 'post');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCat, setSelectedCat] = useState('all');
   const [selectedRegion, setSelectedRegion] = useState('all');

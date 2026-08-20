@@ -148,15 +148,12 @@ export const MarketShopView: React.FC = () => {
     );
   };
 
-  // Market faqat admin tomonidan qo'shilgan va tasdiqlangan mahsulotlarni ko'rsatadi
-  const approvedProducts = products.filter(
-    (p) => p.approvalStatus === 'approved' && p.source === 'admin'
-  );
-  // Agar source field mavjud bo'lmasa (eski ma'lumotlar) — approved bo'lganlarini ko'rsatish
-  const allApproved = products.filter(
-    (p) => p.approvalStatus === 'approved' || p.approvalStatus !== 'rejected'
-  );
-  const displayProducts = approvedProducts.length > 0 ? approvedProducts : allApproved.filter(p => p.approvalStatus !== 'pending' && p.approvalStatus !== 'rejected');
+  // approvalStatus === 'approved' is already the full admin sign-off gate
+  // (enforce_product_moderation forces new business/telegram-bot submissions
+  // to 'pending' until an admin approves them) — source doesn't need to be
+  // 'admin' too. Filtering on source as well used to hide every approved
+  // business/telegram-bot listing the moment even one admin product existed.
+  const displayProducts = products.filter((p) => p.approvalStatus === 'approved');
 
   const activeSegment = partnerSegments.find((s) => s.id === selectedSegment) || partnerSegments[0];
   const cartItems = Object.values(cart);

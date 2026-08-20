@@ -16,7 +16,14 @@ const DEFAULT_CATS: CategoryItem[] = CATEGORIES.map((c, i) => ({
   icon: c.icon || '',
   orderIndex: i,
   isActive: true,
+  scope: 'both',
 }));
+
+const SCOPE_LABELS: Record<'post' | 'market' | 'both', string> = {
+  post: "E'lon berish",
+  market: 'Market',
+  both: 'Ikkalasida ham',
+};
 
 export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAction, showToast }) => {
   const [categories, setCategories] = useState<CategoryItem[]>(DEFAULT_CATS);
@@ -24,6 +31,11 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
   const [error, setError] = useState<string | null>(null);
   const [editModal, setEditModal] = useState<Partial<CategoryItem> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Which area's categories are being managed right now. Categories scoped
+  // to 'both' show up under either tab since they apply to both areas.
+  const [activeScope, setActiveScope] = useState<'post' | 'market'>('post');
+
+  const visibleCategories = categories.filter((c) => (c.scope || 'both') !== (activeScope === 'post' ? 'market' : 'post'));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,10 +57,10 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
   const syncStoreCategories = (items: CategoryItem[]) => {
     const activeCats = items
       .filter((c) => c.isActive)
-      .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0' }));
+      .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0', scope: c.scope || 'both' }));
     useAgroStore.setState({
       categories: [
-        { id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0' },
+        { id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0', scope: 'both' },
         ...activeCats.filter((c) => c.id !== 'all'),
       ],
     });
@@ -111,14 +123,30 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-black text-xl text-[#111827]">Kategoriyalar</h2>
-          <p className="text-xs text-slate-400 font-medium">{categories.length} ta kategoriya</p>
+          <p className="text-xs text-slate-400 font-medium">{visibleCategories.length} ta kategoriya</p>
         </div>
         <button
-          onClick={() => setEditModal({ name: '', icon: '', orderIndex: categories.length, isActive: true })}
+          onClick={() => setEditModal({ name: '', icon: '', orderIndex: categories.length, isActive: true, scope: activeScope })}
           className="px-3.5 py-2 rounded-[16px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors flex items-center gap-1.5 shadow-md"
         >
           <Plus className="w-4 h-4" /> Qo'shish
         </button>
+      </div>
+
+      {/* E'lon berish / Market kategoriyalari bir-biridan mustaqil boshqariladi.
+          'Ikkalasida ham' deb belgilangan kategoriyalar har ikkala tabda ko'rinadi. */}
+      <div className="inline-flex p-1 bg-slate-100 rounded-[16px] gap-1">
+        {(['post', 'market'] as const).map((scope) => (
+          <button
+            key={scope}
+            onClick={() => setActiveScope(scope)}
+            className={`px-4 py-2 rounded-[12px] text-xs font-black transition-colors ${
+              activeScope === scope ? 'bg-white text-[#111827] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {scope === 'post' ? "E'lon berish" : 'Market'}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -139,17 +167,22 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {categories.map((cat) => (
+            {visibleCategories.map((cat) => (
               <div key={cat.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
                 <div className="w-9 h-9 rounded-[12px] bg-slate-100 flex items-center justify-center text-lg shrink-0">
                   {cat.icon || '📦'}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-xs text-[#111827]">{cat.name}</span>
                     <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${cat.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                       {cat.isActive ? 'Faol' : "Faol emas"}
                     </span>
+                    {(cat.scope || 'both') === 'both' && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-blue-50 text-blue-700">
+                        Ikkalasida ham
+                      </span>
+                    )}
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium">ID: {cat.id} · Tartib: {cat.orderIndex}</p>
                 </div>
@@ -223,6 +256,25 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
                   onChange={(e) => setEditModal((p) => ({ ...p, orderIndex: Number(e.target.value) }))}
                   className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#E53935]"
                 />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-500">Qayerda ko'rinsin?</span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['post', 'market', 'both'] as const).map((scope) => (
+                    <button
+                      key={scope}
+                      type="button"
+                      onClick={() => setEditModal((p) => ({ ...p, scope }))}
+                      className={`px-2 py-2 rounded-[12px] text-[10px] font-black transition-colors ${
+                        (editModal.scope || 'both') === scope
+                          ? 'bg-[#111827] text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {SCOPE_LABELS[scope]}
+                    </button>
+                  ))}
+                </div>
               </label>
             </div>
             <div className="flex gap-2 pt-1">

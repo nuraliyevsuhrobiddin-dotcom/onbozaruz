@@ -936,14 +936,24 @@ export const useAgroStore = create<AgroStoreState>()(
             adminRepository.getCategories().catch(() => []),
           ]);
 
-          // Combine DB categories with static CATEGORIES to preserve standard icons/ids
+          // DB categories are authoritative (admin-edited name/icon/scope/
+          // active-status must win over the static defaults) — the static
+          // CATEGORIES list is only used to backfill cover images and as a
+          // fallback before any DB row exists for a given id.
           if (dbCategories && dbCategories.length > 0) {
-            const combinedCats: import('../api/types').Category[] = [
-              ...CATEGORIES,
-              ...dbCategories
-                .filter((c) => c.isActive && !CATEGORIES.some((cat) => cat.id === c.id))
-                .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0' })),
-            ];
+            const combinedCats: import('../api/types').Category[] = dbCategories
+              .filter((c) => c.isActive)
+              .map((c) => ({
+                id: c.id,
+                name: c.name,
+                icon: c.icon || 'tag',
+                image: CATEGORIES.find((cat) => cat.id === c.id)?.image || '',
+                count: '0',
+                scope: c.scope || 'both',
+              }));
+            if (!combinedCats.some((c) => c.id === 'all')) {
+              combinedCats.unshift({ id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0', scope: 'both' });
+            }
             set({ categories: combinedCats });
           }
 

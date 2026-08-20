@@ -23,7 +23,7 @@ function writeMock<T>(key: string, value: T): void {
 
 function mockCategories(): CategoryItem[] {
   return readMock<CategoryItem[]>(MOCK_CATEGORIES_KEY, CATEGORIES.map((c, index) => ({
-    id: c.id, name: c.name, icon: c.icon || '', orderIndex: index, isActive: true,
+    id: c.id, name: c.name, icon: c.icon || '', orderIndex: index, isActive: true, scope: 'both',
   })));
 }
 
@@ -72,6 +72,8 @@ export interface CategoryItem {
   icon: string;
   orderIndex: number;
   isActive: boolean;
+  /** Which area this category appears in. Missing/undefined is treated as 'both'. */
+  scope?: 'post' | 'market' | 'both';
   createdAt?: string;
 }
 
@@ -262,6 +264,7 @@ export const adminRepository = {
         icon: c.icon || '',
         orderIndex: c.order_index || 0,
         isActive: c.is_active ?? true,
+        scope: c.scope || 'both',
         createdAt: c.created_at,
       }));
     } catch {
@@ -277,6 +280,7 @@ export const adminRepository = {
         icon: cat.icon || 'tag',
         orderIndex: cat.orderIndex ?? 0,
         isActive: cat.isActive ?? true,
+        scope: cat.scope || 'both',
         createdAt: cat.createdAt || new Date().toISOString(),
       };
       persistCategoryFallback(saved);
@@ -292,6 +296,7 @@ export const adminRepository = {
         icon: cat.icon || '',
         order_index: cat.orderIndex || 0,
         is_active: cat.isActive ?? true,
+        scope: cat.scope || 'both',
       }).select().single();
 
       if (error || !data) {
@@ -304,6 +309,7 @@ export const adminRepository = {
         icon: data.icon || '',
         orderIndex: data.order_index || 0,
         isActive: data.is_active ?? true,
+        scope: data.scope || 'both',
         createdAt: data.created_at,
       };
     } catch {
