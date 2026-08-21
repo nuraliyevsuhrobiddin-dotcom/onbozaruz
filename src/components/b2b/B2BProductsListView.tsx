@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, X, SlidersHorizontal, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Search, X, SlidersHorizontal, ShoppingCart, Package } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { categoriesForScope } from '../../utils/categoryScope';
 import { REGIONS } from '../../data/mockAgroData';
@@ -17,7 +17,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 export const B2BProductsListView: React.FC = () => {
-  const { categories: allCategories, setB2BRoute, b2bCart } = useAgroStore();
+  const { categories: allCategories, setB2BRoute, b2bCart, isAuthenticated, setAuthPromptOpen } = useAgroStore();
   const categories = categoriesForScope(allCategories, 'market').filter((c) => c.id !== 'all');
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,17 +51,40 @@ export const B2BProductsListView: React.FC = () => {
 
   return (
     <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3 select-none pb-24">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
         <button onClick={() => setB2BRoute({ view: 'home' })} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="font-black text-lg text-[#111827]">Ulgurji mahsulotlar</h1>
-        {cartCount > 0 && (
-          <button onClick={() => setB2BRoute({ view: 'cart' })} className="ml-auto relative p-2.5 rounded-full bg-[#111827] text-white">
-            <ShoppingCart className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center">{cartCount}</span>
+        <h1 className="font-black text-base sm:text-lg text-[#111827] truncate">Ulgurji mahsulotlar</h1>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <button
+            onClick={() => {
+              if (!isAuthenticated) {
+                setAuthPromptOpen(true);
+              } else {
+                setB2BRoute({ view: 'orders' });
+              }
+            }}
+            title="Buyurtmalarim"
+            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+          >
+            <Package className="w-4 h-4" />
           </button>
-        )}
+
+          <button
+            onClick={() => setB2BRoute({ view: 'cart' })}
+            title="Savat"
+            className="relative p-2 rounded-full bg-[#111827] text-white hover:bg-black transition-colors"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

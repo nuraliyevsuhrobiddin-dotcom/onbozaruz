@@ -76,6 +76,9 @@ export function translateAuthError(message: string): string {
   if (lower.includes('password should be at least')) {
     return "Parol kamida 6 ta belgidan iborat bo'lishi kerak.";
   }
+  if (lower.includes('signups not allowed') || lower.includes('signup_disabled')) {
+    return "Hozircha yangi ro'yxatdan o'tish vaqtincha yopiq. Birozdan so'ng qayta urinib ko'ring.";
+  }
 
   return message;
 }
@@ -96,6 +99,7 @@ export async function completeAuthCallback(): Promise<void> {
   const initialSession = await supabase.auth.getSession();
   if (initialSession.data.session) return;
 
+  // ── Strategy 1: PKCE code exchange (?code=xxx) ──
   const code = new URLSearchParams(window.location.search).get('code');
   if (code) {
     try {
@@ -106,6 +110,7 @@ export async function completeAuthCallback(): Promise<void> {
         if (recheck.data.session) return;
         throw new Error(translateAuthError(exchange.error.message));
       }
+      return; // Success via PKCE
     } catch (error: unknown) {
       const recheck = await supabase.auth.getSession();
       if (recheck.data.session) return;
@@ -114,6 +119,36 @@ export async function completeAuthCallback(): Promise<void> {
     }
   }
 
+  // ── Strategy 2: Implicit grant hash fragment (#access_token=xxx) ──
+  // Google OAuth sometimes returns tokens in the URL hash instead of query params
+  const hashParams = new URLSearchParams(window.location.hash.replace('#', ''));
+  const accessToken = hashParams.get('access_token');
+  const refreshToken = hashParams.get('refresh_token');
+  if (accessToken) {
+    try {
+      const { error: setErr } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken || '',
+      });
+      if (setErr) {
+        const recheck = await supabase.auth.getSession();
+        if (recheck.data.session) return;
+        throw new Error(translateAuthError(setErr.message));
+      }
+      // Clear hash to avoid re-processing on page reload
+      if (window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      return; // Success via implicit flow
+    } catch (error: unknown) {
+      const recheck = await supabase.auth.getSession();
+      if (recheck.data.session) return;
+      const msg = error instanceof Error ? error.message : 'Token yaroqsiz';
+      throw new Error(translateAuthError(msg));
+    }
+  }
+
+  // ── Final fallback: check if onAuthStateChange auto-populated the session ──
   const { data, error } = await supabase.auth.getSession();
   if (error) throw new Error(translateAuthError(error.message));
   if (!data.session) {

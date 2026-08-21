@@ -13,6 +13,8 @@ import { B2BSupplierDashboardView } from '../components/b2b/B2BSupplierDashboard
 import { B2BBusinessRegisterForm } from '../components/b2b/B2BBusinessRegisterForm';
 import { B2BContractView } from '../components/b2b/B2BContractView';
 import { B2BFinanceView } from '../components/b2b/B2BFinanceView';
+import { B2BStoresMapView } from '../components/b2b/B2BStoresMapView';
+import { B2BOffersView } from '../components/b2b/B2BOffersView';
 
 /**
  * B2B (ulgurji savdo) bo'limining ichki router qatlami. Ilova React
@@ -49,6 +51,10 @@ export const B2BView: React.FC = () => {
       return <B2BContractView />;
     case 'finance':
       return <B2BFinanceView />;
+    case 'map':
+      return <B2BStoresMapView />;
+    case 'offers':
+      return <B2BOffersView />;
     case 'home':
     default:
       return <B2BHomeView />;

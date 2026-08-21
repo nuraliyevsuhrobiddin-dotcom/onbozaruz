@@ -172,9 +172,63 @@ export interface BusinessProfile {
   businessType: BusinessType;
   region?: string;
   district?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   description?: string;
   logoUrl?: string;
+  cashbackBalance?: number;
   status: 'active' | 'suspended';
+  createdAt: string;
+}
+
+export interface B2BStorePublicMarker {
+  id: string;
+  storeName: string;
+  businessType: BusinessType;
+  region: string;
+  district: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  logoUrl?: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface B2BDirectOffer {
+  id: string;
+  supplierId: string;
+  supplierName: string;
+  businessId: string;
+  storeName: string;
+  message: string;
+  discountPercent?: number;
+  products?: Array<{
+    productId: string;
+    productName: string;
+    wholesalePrice: number;
+    offerPrice: number;
+    unit: string;
+  }>;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+}
+
+export interface B2BCashbackTransaction {
+  id: string;
+  businessId: string;
+  storeName: string;
+  orderId?: string;
+  orderNumber?: string;
+  supplierName?: string;
+  orderAmount?: number;
+  cashbackRate: number;
+  amount: number;
+  type: 'earned' | 'redeemed' | 'withdrawn' | 'admin_bonus';
+  status: 'completed' | 'pending' | 'rejected';
+  payoutDetails?: string; // bank card or account number if withdrawal
+  description: string;
   createdAt: string;
 }
 
@@ -287,6 +341,8 @@ export interface B2BOrder {
   deliveryDistrict?: string;
   deliveryAddress: string;
   deliveryNote?: string;
+  cashbackEarned?: number;
+  cashbackUsed?: number;
   createdAt: string;
   items?: B2BOrderItem[];
   // Ro'yxat ko'rinishlari uchun — repository join orqali to'ldiradi.
@@ -320,3 +376,14 @@ export interface SupplierFinanceSummary {
 export type CreateSupplierProfileInput = Omit<SupplierProfile, 'id' | 'userId' | 'verificationStatus' | 'rejectionReason' | 'commissionRate' | 'createdAt'>;
 export type CreateBusinessProfileInput = Omit<BusinessProfile, 'id' | 'userId' | 'status' | 'createdAt'>;
 export type CreateB2BProductInput = Omit<B2BProduct, 'id' | 'status' | 'rejectionReason' | 'createdAt' | 'supplierName' | 'supplierVerified'>;
+
+export interface B2BPlatformRequisites {
+  adminCardNumber: string;
+  adminCardHolder: string;
+  adminBankAccount: string;
+  adminBankMfo: string;
+  adminBankName: string;
+  adminPaymentPhone: string;
+  adminPaymentInstructions: string;
+}
+

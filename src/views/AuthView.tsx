@@ -81,7 +81,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   const switchMode = (next: AuthMode) => { setMode(next); resetMessages(); };
 
   const validate = () => {
-    if (mode === 'signup' && name.trim().length < 2) return 'Ism yoki sotuvchi nomini kiriting.';
+    if (mode === 'signup' && name.trim().length < 2) return 'Ism yoki biznes nomingizni kiriting.';
     if (contactMode === 'email' && !emailRegex.test(identifier.trim())) return "To'g'ri email manzilini kiriting.";
     if (contactMode === 'phone' && !phoneRegex.test(identifier.replace(/\s/g, ''))) return '+998 XX XXX XX XX formatida telefon kiriting.';
     if (password.length < 6) return "Parol kamida 6 ta belgidan iborat bo'lsin.";
@@ -110,7 +110,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
         ? normalizePhone(identifier)
         : identifier.trim().toLowerCase();
 
-      // handle: name'dan avtomatik yasaladi (masalan, "Anvar Agro" → "anvar_agro")
+      // handle: name'dan avtomatik yasaladi (masalan, "Baraka Market" → "baraka_market")
       const autoHandle = deriveHandle(name);
 
       const result = mode === 'signup'
@@ -120,7 +120,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             name: name.trim(),
             handle: autoHandle,
             phone: contactMode === 'phone' ? normalizedIdentifier : '',
-            role: 'seller',
           } satisfies SignUpFields)
         : await authClient.signIn(normalizedIdentifier, password);
 
@@ -152,10 +151,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
       <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[450px] flex-col justify-center">
         <div className="mb-7 flex items-center justify-between px-1">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="OnBozor" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
+            <img src="/logo.png" alt="OboX" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
             <div>
-              <div className="text-xl font-black tracking-[-.04em] text-[#26231f]">OnBozor</div>
-              <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.18em] text-[#887c70]">Agro marketplace</div>
+              <div className="text-xl font-black tracking-[-.04em] text-[#26231f]">OboX</div>
+              <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.18em] text-[#887c70]">B2B ulgurji bozor</div>
             </div>
           </div>
           {onBack && <button onClick={onBack} className={`flex min-h-11 min-w-11 items-center justify-center rounded-full text-[#766b61] transition hover:bg-white hover:text-[#26231f] ${focusRing}`} aria-label="Ortga"><ArrowLeft className="h-5 w-5" /></button>}
@@ -174,8 +173,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
           ) : <>
             <div className="mb-6">
               <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#5b35f5]">Xush kelibsiz</p>
-              <h1 className="text-[29px] font-black tracking-[-.045em] text-[#26231f]">{mode === 'login' ? 'OnBozorga kiring' : 'Akkaunt yarating'}</h1>
-              <p className="mt-2 max-w-sm text-sm leading-6 text-[#766b61]">{mode === 'login' ? "Savdoni davom ettirish uchun ma'lumotlaringizni kiriting." : "Faqat kerakli ma'lumotlar. Keyin profilingizni to'ldirasiz."}</p>
+              <h1 className="text-[29px] font-black tracking-[-.045em] text-[#26231f]">{mode === 'login' ? 'OboXga kiring' : 'Akkaunt yarating'}</h1>
+              <p className="mt-2 max-w-sm text-sm leading-6 text-[#766b61]">{mode === 'login' ? "Ulgurji bozorga kirish uchun ma'lumotlaringizni kiriting." : "Ma'lumotlaringizni kiriting."}</p>
             </div>
 
             <div className="mb-6 grid grid-cols-2 rounded-2xl border border-[#e8dfd5] bg-[#f4eee6] p-1">
@@ -200,7 +199,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki sotuvchi nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Anvar Savdo" className={inputClass} /></div></label>}
+              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki Do'kon nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Baraka Market" className={inputClass} /></div></label>}
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
                   <span className="text-xs font-bold text-[#4c433b]">{contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'}</span>
@@ -215,7 +214,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </form>
           </>}
         </motion.section>
-        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozor — sotuvchilar va xaridorlar uchun ishonchli bozor</p>
+        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OboX — ishlab chiqaruvchi va do'kon egalarini bog'lash</p>
       </div>
     </main>
   );

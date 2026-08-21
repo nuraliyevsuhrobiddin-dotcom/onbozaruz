@@ -23,6 +23,7 @@ import type {
   CreateSupplierProfileInput,
   CreateBusinessProfileInput,
   CreateB2BProductInput,
+  B2BPlatformRequisites,
 } from '../api/types';
 import { type AuthUser, authClient, deleteListingMedia, isSupabaseConfigured } from '../api/authClient';
 import { postsRepository } from '../api/repositories/postsRepository';
@@ -35,7 +36,7 @@ import { subscribeToNotifications } from '../api/notificationsRealtime';
 import { playNotificationSound } from '../utils/notificationSound';
 import { cacheManager } from '../utils/cacheManager';
 import { adminRepository } from '../api/adminRepository';
-import { b2bRepository, type B2BDeliveryInfo, type CheckoutResult } from '../api/b2bRepository';
+import { b2bRepository, DEFAULT_PLATFORM_REQUISITES, type B2BDeliveryInfo, type CheckoutResult } from '../api/b2bRepository';
 import { type B2BRoute } from '../utils/b2bRoute';
 
 
@@ -179,7 +180,15 @@ interface AgroStoreState {
   addToB2BCart: (product: B2BProduct) => void;
   updateB2BCartQuantity: (productId: string, nextQuantity: number) => void;
   clearB2BCart: () => void;
-  checkoutB2BCart: (delivery: B2BDeliveryInfo, paymentMethod: B2BPaymentMethod) => Promise<CheckoutResult>;
+  checkoutB2BCart: (delivery: B2BDeliveryInfo, paymentMethod: B2BPaymentMethod, cashbackUsed?: number) => Promise<CheckoutResult>;
+  b2bCashbackRate: number;
+  b2bCashbackBalance: number;
+  platformRequisites: B2BPlatformRequisites;
+  fetchB2BCashbackBalance: () => Promise<void>;
+  fetchB2BCashbackRate: () => Promise<void>;
+  setB2BCashbackRate: (rate: number) => Promise<void>;
+  fetchPlatformRequisites: () => Promise<void>;
+  setPlatformRequisites: (req: Partial<B2BPlatformRequisites>) => Promise<void>;
   b2bOrders: B2BOrder[];
   fetchB2BOrders: () => Promise<void>;
   supplierB2BOrders: B2BOrder[];
@@ -1034,6 +1043,7 @@ export const useAgroStore = create<AgroStoreState>()(
         } catch {
           // Tarmoq xatosi bo'lsa — lokal holat oldingidek qoladi.
         }
+        void get().fetchB2BCashbackRate();
       },
 
       registerSupplier: async (input) => {
@@ -1093,13 +1103,43 @@ export const useAgroStore = create<AgroStoreState>()(
           };
         }),
       clearB2BCart: () => set({ b2bCart: {} }),
-      checkoutB2BCart: async (delivery, paymentMethod) => {
+      b2bCashbackRate: b2bRepository.getB2BCashbackRate(),
+      b2bCashbackBalance: 0,
+      fetchB2BCashbackBalance: async () => {
+        const businessProfile = get().businessProfile;
+        if (!businessProfile) return;
+        const bal = await b2bRepository.fetchBuyerCashbackBalance(businessProfile.id);
+        set({ b2bCashbackBalance: bal });
+      },
+      setB2BCashbackRate: async (rate: number) => {
+        await b2bRepository.setB2BCashbackRate(rate);
+        set({ b2bCashbackRate: rate, toastMessage: `Keshbek foizi ${rate}% ga o'zgartirildi` });
+      },
+      fetchB2BCashbackRate: async () => {
+        const rate = await b2bRepository.fetchB2BCashbackRate();
+        set({ b2bCashbackRate: rate });
+      },
+      platformRequisites: DEFAULT_PLATFORM_REQUISITES,
+      fetchPlatformRequisites: async () => {
+        const req = await b2bRepository.fetchPlatformRequisites();
+        set({ platformRequisites: req });
+      },
+      setPlatformRequisites: async (patch) => {
+        await b2bRepository.setPlatformRequisites(patch);
+        const req = await b2bRepository.fetchPlatformRequisites();
+        set({ platformRequisites: req, toastMessage: "To'lov rekvizitlari yangilandi" });
+      },
+      checkoutB2BCart: async (delivery, paymentMethod, cashbackUsed = 0) => {
         const { b2bCart, businessProfile } = get();
         if (!businessProfile) throw new Error("Avval biznes profilingizni to'ldiring");
         const cartLines = Object.values(b2bCart);
         if (cartLines.length === 0) throw new Error("Savat bo'sh");
 
-        const result: CheckoutResult = await b2bRepository.checkoutB2BCart(businessProfile.id, cartLines, paymentMethod, delivery);
+        // Keshbek yechish endi har bir supplier buyurtmasi bilan BITTA
+        // tranzaksiyada (repository/RPC ichida) atomik — shu yerda alohida
+        // yechish shart emas va muvaffaqiyatsiz buyurtmalar uchun mablag'
+        // hech qachon yechilmaydi.
+        const result: CheckoutResult = await b2bRepository.checkoutB2BCart(businessProfile.id, cartLines, paymentMethod, delivery, cashbackUsed);
 
         set((state) => {
           const nextCart = { ...state.b2bCart };
@@ -1111,6 +1151,7 @@ export const useAgroStore = create<AgroStoreState>()(
           return { b2bCart: nextCart };
         });
         void get().fetchB2BOrders();
+        void get().fetchB2BCashbackBalance();
         return result;
       },
 
@@ -1137,10 +1178,34 @@ export const useAgroStore = create<AgroStoreState>()(
       },
       supplierConfirmB2BCashPayment: async (orderId) => {
         await b2bRepository.supplierConfirmCashPayment(orderId);
+
+        // Haqiqiy hisoblangan keshbek summasini serverdan (RPC yozgan
+        // cashback_earned) qayta o'qiymiz — mijoz tomonda taxmin qilmaymiz,
+        // chunki foiz b2b_config'da o'zgargan bo'lishi mumkin.
+        let cashbackMsg = '';
+        try {
+          const order = await b2bRepository.getB2BOrder(orderId);
+          if (order && order.cashbackEarned && order.cashbackEarned > 0) {
+            const fmt = (v: number) => `${v.toLocaleString('uz-UZ')} so'm`;
+            cashbackMsg = `🎉 ${order.orderNumber} buyurtmasi uchun +${fmt(order.cashbackEarned)} keshbek hisobingizga tushdi!`;
+          }
+        } catch {
+          // Xabar matni muhim emas — asosiy amal (tasdiqlash) allaqachon muvaffaqiyatli bo'ldi.
+        }
+
         set((state) => ({
-          supplierB2BOrders: state.supplierB2BOrders.map((o) => o.id === orderId ? { ...o, paymentStatus: 'cash_confirmed' } : o),
-          toastMessage: "Naqd to'lov tasdiqlandi",
+          supplierB2BOrders: state.supplierB2BOrders.map((o) =>
+            o.id === orderId ? { ...o, paymentStatus: 'cash_confirmed' } : o
+          ),
+          toastMessage: cashbackMsg || "✅ Naqd to'lov tasdiqlandi. Keshbek hisobga o'tkazildi!",
         }));
+
+        // Refresh buyer cashback balance (so HomeView badge updates if same session)
+        try {
+          await get().fetchB2BCashbackBalance();
+        } catch {
+          // Non-critical
+        }
       },
 
       ownB2BProducts: [],

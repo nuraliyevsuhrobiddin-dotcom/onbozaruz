@@ -17,7 +17,9 @@ export type B2BRoute =
   | { view: 'dashboard' }
   | { view: 'business' }
   | { view: 'contracts' }
-  | { view: 'finance' };
+  | { view: 'finance' }
+  | { view: 'map' }
+  | { view: 'offers' };
 
 const VIEWS_WITH_ID: B2BRoute['view'][] = ['product', 'supplier', 'order'];
 
@@ -28,7 +30,7 @@ export function parseB2BHash(segments: string[]): B2BRoute {
     return { view, id } as B2BRoute;
   }
   const validViews: B2BRoute['view'][] = [
-    'home', 'products', 'suppliers', 'cart', 'checkout', 'orders', 'dashboard', 'business', 'contracts', 'finance',
+    'home', 'products', 'suppliers', 'cart', 'checkout', 'orders', 'dashboard', 'business', 'contracts', 'finance', 'map', 'offers',
   ];
   if (view && (validViews as string[]).includes(view)) {
     return { view } as B2BRoute;

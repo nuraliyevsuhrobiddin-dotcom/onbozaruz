@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Minus, Plus, Truck, Loader2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Minus, Plus, Truck, Loader2, ShoppingCart, ArrowRight } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { b2bRepository } from '../../api/b2bRepository';
 import { B2BProduct } from '../../api/types';
@@ -15,6 +15,8 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
   const [product, setProduct] = useState<B2BProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
+
+  const cartTotalQty = Object.values(b2bCart).reduce((sum, item) => sum + item.quantity, 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,9 +47,25 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
 
   return (
     <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-4 select-none pb-28">
-      <button onClick={() => setB2BRoute({ view: 'products' })} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
-        <ArrowLeft className="w-5 h-5" />
-      </button>
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between">
+        <button onClick={() => setB2BRoute({ view: 'products' })} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={() => setB2BRoute({ view: 'cart' })}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#111827] hover:bg-black text-white text-xs font-bold relative shadow-xs"
+        >
+          <ShoppingCart className="w-4 h-4 text-white" />
+          <span>Savat</span>
+          {cartTotalQty > 0 && (
+            <span className="w-4.5 h-4.5 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center">
+              {cartTotalQty}
+            </span>
+          )}
+        </button>
+      </div>
 
       <div className="aspect-square rounded-[22px] bg-slate-100 overflow-hidden">
         {product.images[activeImage] ? (
@@ -72,7 +90,7 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
         <h1 className="font-black text-lg text-[#111827] leading-snug">{product.name}</h1>
         <button
           onClick={() => setB2BRoute({ view: 'supplier', id: product.supplierId })}
-          className="flex items-center gap-1.5 text-xs font-bold text-slate-600"
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#DB2777] transition-colors"
         >
           {product.supplierVerified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />}
           {product.supplierName}
@@ -115,17 +133,27 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
           {product.availableQty === 0 ? (
             <button disabled className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-400 font-black text-sm">Zaxira tugagan</button>
           ) : inCart > 0 ? (
-            <div className="flex-1 flex items-center justify-between bg-slate-100 rounded-2xl p-1.5">
+            <div className="flex-1 flex items-center gap-2">
+              <div className="flex items-center justify-between bg-slate-100 rounded-2xl p-1.5 min-w-[140px]">
+                <button
+                  onClick={() => updateB2BCartQuantity(product.id, inCart - 1)}
+                  className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-700 shadow-sm"
+                ><Minus className="w-4 h-4" /></button>
+                <span className="font-black text-xs text-[#111827] px-2">{inCart} {product.unit}</span>
+                <button
+                  onClick={() => updateB2BCartQuantity(product.id, inCart + 1)}
+                  disabled={inCart >= product.availableQty}
+                  className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-700 shadow-sm disabled:opacity-40"
+                ><Plus className="w-4 h-4" /></button>
+              </div>
+
               <button
-                onClick={() => updateB2BCartQuantity(product.id, inCart - 1)}
-                className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-slate-700 shadow-sm"
-              ><Minus className="w-4 h-4" /></button>
-              <span className="font-black text-sm text-[#111827]">{inCart} {product.unit}</span>
-              <button
-                onClick={() => updateB2BCartQuantity(product.id, inCart + 1)}
-                disabled={inCart >= product.availableQty}
-                className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-slate-700 shadow-sm disabled:opacity-40"
-              ><Plus className="w-4 h-4" /></button>
+                onClick={() => setB2BRoute({ view: 'cart' })}
+                className="flex-1 py-3.5 px-4 rounded-2xl bg-[#DB2777] hover:bg-[#BE185D] text-white font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <span>Savatga o'tish</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           ) : (
             <button onClick={handleAddToCart} className="flex-1 py-3.5 rounded-2xl bg-[#DB2777] hover:bg-[#BE185D] text-white font-black text-sm shadow-lg transition-colors">

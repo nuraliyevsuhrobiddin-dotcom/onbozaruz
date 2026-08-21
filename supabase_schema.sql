@@ -246,9 +246,18 @@ CREATE OR REPLACE FUNCTION public.protect_profile_admin_flag()
 RETURNS TRIGGER AS $$
 BEGIN
   IF (OLD.is_admin IS DISTINCT FROM NEW.is_admin OR OLD.status IS DISTINCT FROM NEW.status) THEN
+    -- MUHIM: bu yerda CURRENT_USER emas, SESSION_USER tekshiriladi.
+    -- CURRENT_USER SECURITY DEFINER funksiya ichida DOIM funksiya
+    -- egasiga (postgres) teng bo'lib qoladi — kim chaqirganidan qat'i
+    -- nazar — shuning uchun u bilan solishtirish hech qachon himoya
+    -- bermaydi (har doim "postgres" chiqadi). SESSION_USER esa haqiqiy
+    -- ulanish rolini saqlab qoladi (SQL Editor'da ishga tushirilganda —
+    -- 'postgres', PostgREST orqali kelgan har qanday so'rovda — boshqa),
+    -- shu bilan real himoya + SQL Editor orqali birinchi adminni
+    -- bootstrap qilish imkoniyati ikkalasi ham ishlaydi.
     IF NOT EXISTS (
       SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
-    ) AND CURRENT_USER <> 'postgres' THEN
+    ) AND SESSION_USER <> 'postgres' THEN
       NEW.is_admin := OLD.is_admin;
       NEW.status := OLD.status;
     END IF;
@@ -1084,7 +1093,10 @@ CREATE TRIGGER tr_enforce_supplier_verification BEFORE INSERT ON public.supplier
 CREATE OR REPLACE FUNCTION public.protect_supplier_verification_fields()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
+  -- SESSION_USER, CURRENT_USER emas — sabab protect_profile_admin_flag()
+  -- izohida yozilgan (CURRENT_USER SECURITY DEFINER ichida doim
+  -- funksiya egasiga teng, shuning uchun himoya bermaydi).
+  IF NOT public.is_admin() AND SESSION_USER <> 'postgres' THEN
     NEW.verification_status := OLD.verification_status;
     NEW.commission_rate := OLD.commission_rate;
     NEW.rejection_reason := OLD.rejection_reason;
@@ -1136,7 +1148,9 @@ CREATE TABLE IF NOT EXISTS public.contracts (
 CREATE OR REPLACE FUNCTION public.protect_contract_integrity()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
+  -- SESSION_USER, CURRENT_USER emas — sabab protect_profile_admin_flag()
+  -- izohida yozilgan.
+  IF NOT public.is_admin() AND SESSION_USER <> 'postgres' THEN
     NEW.supplier_id := OLD.supplier_id;
     NEW.commission_rate := OLD.commission_rate;
     NEW.contract_version := OLD.contract_version;
@@ -1353,32 +1367,20 @@ RETURNS BOOLEAN AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE;
 
--- Moliyaviy/identifikatsiya maydonlarini himoya qilish + rad etish sababi
--- majburiyligi + payment_status='paid'ni faqat server/admin o'rnata olishi.
+-- Moliyaviy/identifikatsiya maydonlari va payment_status endi bu trigger
+-- orqali EMAS, GRANT darajasida himoyalanadi (12.14-bo'lim, REVOKE UPDATE) —
+-- chunki bu maydonlarga faqat create_b2b_order()/supplier_confirm_cash_payment()
+-- RPC'lari ichkaridan yozadi, oddiy klient esa hech qachon emas. Bunday holda
+-- "chaqiruvchi ishonchli RPC ichidanmi" degan farqni CURRENT_USER HAM,
+-- SESSION_USER HAM to'g'ri ajrata olmaydi (RPC ichida SESSION_USER hamon
+-- asl klient bo'lib qoladi) — shuning uchun bu yerda trigger asosidagi
+-- tekshiruv o'rniga GRANT'ni ishlatish yagona to'g'ri yechim. Trigger
+-- faqat rejection_reason majburiyligini ta'minlab qoladi.
 CREATE OR REPLACE FUNCTION public.protect_b2b_order_integrity()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.payment_status = 'paid' AND OLD.payment_status IS DISTINCT FROM 'paid' THEN
-    IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
-      RAISE EXCEPTION 'payment_status=paid faqat server-side to''lov integratsiyasi orqali o''rnatiladi';
-    END IF;
-  END IF;
-
   IF NEW.status = 'rejected' AND (NEW.rejection_reason IS NULL OR trim(NEW.rejection_reason) = '') THEN
     RAISE EXCEPTION 'Rad etish sababi kiritilishi shart';
-  END IF;
-
-  IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
-    NEW.business_id := OLD.business_id;
-    NEW.supplier_id := OLD.supplier_id;
-    NEW.buyer_user_id := OLD.buyer_user_id;
-    NEW.order_number := OLD.order_number;
-    NEW.subtotal := OLD.subtotal;
-    NEW.delivery_fee := OLD.delivery_fee;
-    NEW.total := OLD.total;
-    NEW.commission_rate := OLD.commission_rate;
-    NEW.commission_amount := OLD.commission_amount;
-    NEW.supplier_amount := OLD.supplier_amount;
   END IF;
   RETURN NEW;
 END;
@@ -1508,7 +1510,8 @@ CREATE OR REPLACE FUNCTION public.create_b2b_order(
   p_delivery_region TEXT,
   p_delivery_district TEXT,
   p_delivery_address TEXT,
-  p_delivery_note TEXT
+  p_delivery_note TEXT,
+  p_cashback_used NUMERIC DEFAULT 0
 ) RETURNS UUID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -1521,6 +1524,8 @@ DECLARE
   v_commission_amount NUMERIC;
   v_supplier_amount NUMERIC;
   v_line_total NUMERIC;
+  v_cashback_balance NUMERIC;
+  v_total NUMERIC;
 BEGIN
   IF NOT public.is_own_business(p_business_id) THEN
     RAISE EXCEPTION 'Ruxsat yo''q: bu biznes profiliga tegishli emassiz';
@@ -1533,6 +1538,9 @@ BEGIN
   END IF;
   IF p_payment_method = 'online' THEN
     RAISE EXCEPTION 'Onlayn to''lov hali mavjud emas';
+  END IF;
+  IF p_cashback_used < 0 THEN
+    RAISE EXCEPTION 'Keshbek miqdori manfiy bo''lishi mumkin emas';
   END IF;
 
   SELECT commission_rate INTO v_commission_rate FROM public.supplier_profiles WHERE id = p_supplier_id;
@@ -1572,12 +1580,29 @@ BEGIN
   IF v_subtotal <= 0 THEN
     RAISE EXCEPTION 'Savat bo''sh';
   END IF;
+  IF p_cashback_used > v_subtotal THEN
+    RAISE EXCEPTION 'Keshbek buyurtma summasidan katta bo''lishi mumkin emas';
+  END IF;
 
   v_commission_amount := ROUND(v_subtotal * v_commission_rate / 100, 2);
   v_supplier_amount := v_subtotal - v_commission_amount;
+  v_total := v_subtotal - p_cashback_used;
+
+  -- Keshbek hamyonini shu tranzaksiya ichida, buyurtma yaratilishi bilan
+  -- ATOMIK ravishda kamaytiramiz: xatolik (MOQ/zaxira) bo'lsa butun
+  -- tranzaksiya bekor bo'ladi va hamyondan hech narsa yechilmaydi.
+  IF p_cashback_used > 0 THEN
+    SELECT cashback_balance INTO v_cashback_balance FROM public.business_profiles WHERE id = p_business_id FOR UPDATE;
+    IF v_cashback_balance < p_cashback_used THEN
+      RAISE EXCEPTION 'Hamyonda yetarli keshbek mablag''i yo''q';
+    END IF;
+    UPDATE public.business_profiles SET cashback_balance = cashback_balance - p_cashback_used WHERE id = p_business_id;
+    INSERT INTO public.b2b_cashback_transactions (business_id, order_id, amount, cashback_rate, type, status, description)
+    VALUES (p_business_id, v_order_id, -p_cashback_used, 0, 'redeemed', 'completed', 'Buyurtmada ishlatildi');
+  END IF;
 
   UPDATE public.b2b_orders
-  SET subtotal = v_subtotal, total = v_subtotal, commission_amount = v_commission_amount, supplier_amount = v_supplier_amount
+  SET subtotal = v_subtotal, total = v_total, commission_amount = v_commission_amount, supplier_amount = v_supplier_amount, cashback_used = p_cashback_used
   WHERE id = v_order_id;
 
   INSERT INTO public.commission_ledger (order_id, supplier_id, gross_amount, commission_rate, commission_amount, supplier_amount, payment_method, status)
@@ -1587,7 +1612,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_b2b_order(UUID, UUID, JSONB, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_b2b_order(UUID, UUID, JSONB, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC) TO authenticated;
 
 -- --- 12.10 supplier_settlements (kelajakdagi to'lov-hisob moduli uchun tayyor) ---
 CREATE TABLE IF NOT EXISTS public.supplier_settlements (
@@ -1652,6 +1677,255 @@ ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, order
 UPDATE public.categories
 SET scope = 'post'
 WHERE id NOT LIKE 'b2b-%' AND id <> 'all' AND (scope IS NULL OR scope = 'both');
+
+-- --- 12.14 B2B Keshbek hamyoni ---
+-- Ilgari bu tizim faqat brauzer localStorage'ida ishlar edi (haqiqiy
+-- balans hech qachon serverga yozilmasdi). Endi balans business_profiles
+-- ustida, tranzaksiyalar esa alohida jadvalda saqlanadi; balansni faqat
+-- quyidagi SECURITY DEFINER funksiyalar o'zgartira oladi — mijoz (client)
+-- to'g'ridan-to'g'ri UPDATE orqali o'z-o'ziga keshbek "yoza olmaydi",
+-- chunki cashback_balance ustuniga UPDATE huquqi authenticated'dan
+-- olib tashlangan (quyida REVOKE).
+
+ALTER TABLE public.business_profiles ADD COLUMN IF NOT EXISTS cashback_balance NUMERIC NOT NULL DEFAULT 0;
+REVOKE UPDATE (cashback_balance) ON public.business_profiles FROM authenticated, anon;
+
+ALTER TABLE public.b2b_orders ADD COLUMN IF NOT EXISTS cashback_used NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE public.b2b_orders ADD COLUMN IF NOT EXISTS cashback_earned NUMERIC NOT NULL DEFAULT 0;
+-- payment_status'ni endi faqat supplier_confirm_cash_payment() RPC orqali
+-- o'zgartirish mumkin — to'g'ridan-to'g'ri UPDATE orqali emas (aks holda
+-- supplier payment_status'ni erkin o'ynatib, cheksiz keshbek "ishlab
+-- topishi" yoki cash to'lovni o'zi tasdiqlab qo'yishi mumkin edi).
+-- Moliyaviy/identifikatsiya maydonlari ham xuddi shunday — bularni faqat
+-- create_b2b_order() RPC yozadi, ilgari protect_b2b_order_integrity
+-- trigger'i himoya qilishga urinardi, lekin uning CURRENT_USER tekshiruvi
+-- hech qachon ishlamas edi (qarang: 12.9-bo'limdagi izoh). GRANT darajasida
+-- taqiqlash — kim chaqirganidan qat'i nazar ishlaydigan yagona ishonchli usul.
+REVOKE UPDATE (
+  payment_status, cashback_used, cashback_earned,
+  business_id, supplier_id, buyer_user_id, order_number,
+  subtotal, delivery_fee, total, commission_rate, commission_amount, supplier_amount
+) ON public.b2b_orders FROM authenticated, anon;
+
+-- Platforma bo'yicha yagona keshbek foizi va to'lov rekvizitlari
+CREATE TABLE IF NOT EXISTS public.b2b_config (
+    id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE), -- yagona qatorni kafolatlaydi
+    cashback_rate NUMERIC(5,2) NOT NULL DEFAULT 1.5,
+    admin_card_number TEXT DEFAULT '8600 4902 1122 3344',
+    admin_card_holder TEXT DEFAULT 'ONBOZAR B2B RASMIY HISOBI',
+    admin_bank_account TEXT DEFAULT '20208000900012345001',
+    admin_bank_mfo TEXT DEFAULT '00444',
+    admin_bank_name TEXT DEFAULT 'ATB Kapitalbank Toshkent sh.',
+    admin_payment_phone TEXT DEFAULT '+998 90 123 45 67',
+    admin_payment_instructions TEXT DEFAULT 'To''lov izohida korxona / do''kon nomini ko''rsating.',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO public.b2b_config (id, cashback_rate) VALUES (TRUE, 1.5) ON CONFLICT (id) DO NOTHING;
+ALTER TABLE public.b2b_config ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Hamma o'qiydi (b2b_config)" ON public.b2b_config;
+CREATE POLICY "Hamma o'qiydi (b2b_config)" ON public.b2b_config FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Faqat admin yangilaydi (b2b_config)" ON public.b2b_config;
+CREATE POLICY "Faqat admin yangilaydi (b2b_config)" ON public.b2b_config FOR UPDATE USING (public.is_admin());
+GRANT SELECT, UPDATE ON public.b2b_config TO authenticated, anon;
+
+CREATE OR REPLACE FUNCTION public.set_b2b_cashback_rate(p_rate NUMERIC)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Faqat admin keshbek foizini o''zgartira oladi';
+  END IF;
+  IF p_rate < 0 OR p_rate > 100 THEN
+    RAISE EXCEPTION 'Foiz 0 dan 100 gacha bo''lishi kerak';
+  END IF;
+  UPDATE public.b2b_config SET cashback_rate = p_rate, updated_at = NOW() WHERE id = TRUE;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.set_b2b_cashback_rate(NUMERIC) TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.b2b_cashback_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    business_id UUID NOT NULL REFERENCES public.business_profiles(id) ON DELETE CASCADE,
+    order_id UUID NULL REFERENCES public.b2b_orders(id) ON DELETE SET NULL,
+    cashback_rate NUMERIC(5,2) NOT NULL DEFAULT 0,
+    amount NUMERIC NOT NULL, -- musbat: earned/admin_bonus, manfiy: redeemed/withdrawn
+    type TEXT NOT NULL CHECK (type IN ('earned','redeemed','withdrawn','admin_bonus')),
+    status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed','pending','rejected')),
+    payout_details TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.b2b_cashback_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Egasi yoki admin tranzaksiyani ko'radi" ON public.b2b_cashback_transactions;
+CREATE POLICY "Egasi yoki admin tranzaksiyani ko'radi" ON public.b2b_cashback_transactions FOR SELECT USING (
+  public.is_own_business(business_id) OR public.is_admin()
+);
+-- INSERT/UPDATE huquqi authenticated'ga berilmagan — yozuvchi faqat
+-- quyidagi SECURITY DEFINER funksiyalar (b2b_orders bo'limidagi
+-- create_b2b_order kabi bir xil naqsh).
+CREATE INDEX IF NOT EXISTS idx_b2b_cashback_tx_business_id ON public.b2b_cashback_transactions(business_id);
+
+CREATE OR REPLACE FUNCTION public.request_cashback_withdrawal(p_business_id UUID, p_amount NUMERIC, p_payout_details TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_balance NUMERIC; v_tx_id UUID;
+BEGIN
+  IF NOT public.is_own_business(p_business_id) THEN
+    RAISE EXCEPTION 'Ruxsat yo''q: bu biznes profiliga tegishli emassiz';
+  END IF;
+  IF p_amount <= 0 THEN
+    RAISE EXCEPTION 'Chiqarish summasi 0 dan katta bo''lishi kerak';
+  END IF;
+  SELECT cashback_balance INTO v_balance FROM public.business_profiles WHERE id = p_business_id FOR UPDATE;
+  IF v_balance < p_amount THEN
+    RAISE EXCEPTION 'Hamyonda yetarli keshbek mablag''i yo''q';
+  END IF;
+  UPDATE public.business_profiles SET cashback_balance = cashback_balance - p_amount WHERE id = p_business_id;
+  INSERT INTO public.b2b_cashback_transactions (business_id, amount, type, status, payout_details, description)
+  VALUES (p_business_id, -p_amount, 'withdrawn', 'pending', p_payout_details, 'Keshbekni yechib olish so''rovi (' || p_payout_details || ')')
+  RETURNING id INTO v_tx_id;
+  RETURN v_tx_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.request_cashback_withdrawal(UUID, NUMERIC, TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_update_cashback_withdrawal(p_tx_id UUID, p_status TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_tx RECORD; v_owner_id UUID;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Faqat admin so''rovni ko''rib chiqadi';
+  END IF;
+  IF p_status NOT IN ('completed','rejected') THEN
+    RAISE EXCEPTION 'Noto''g''ri holat';
+  END IF;
+  SELECT * INTO v_tx FROM public.b2b_cashback_transactions WHERE id = p_tx_id AND type = 'withdrawn' AND status = 'pending' FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'So''rov topilmadi yoki allaqachon ko''rib chiqilgan';
+  END IF;
+  IF p_status = 'rejected' THEN
+    UPDATE public.business_profiles SET cashback_balance = cashback_balance + ABS(v_tx.amount) WHERE id = v_tx.business_id;
+  END IF;
+  UPDATE public.b2b_cashback_transactions SET status = p_status WHERE id = p_tx_id;
+
+  SELECT user_id INTO v_owner_id FROM public.business_profiles WHERE id = v_tx.business_id;
+  IF v_owner_id IS NOT NULL THEN
+    IF p_status = 'completed' THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (v_owner_id, 'b2b_cashback', 'Keshbek to''lovi amalga oshirildi', ABS(v_tx.amount)::text || ' so''m keshbek kartangizga o''tkazildi', 'b2b_cashback', p_tx_id::text);
+    ELSE
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (v_owner_id, 'b2b_cashback', 'Keshbek so''rovi bekor qilindi', 'Mablag'' hamyoningizga qaytarildi', 'b2b_cashback', p_tx_id::text);
+    END IF;
+  END IF;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_update_cashback_withdrawal(UUID, TEXT) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.admin_grant_business_cashback(p_business_id UUID, p_amount NUMERIC, p_description TEXT)
+RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_tx_id UUID; v_owner_id UUID;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Faqat admin bonus keshbek bera oladi';
+  END IF;
+  IF p_amount <= 0 THEN
+    RAISE EXCEPTION 'Bonus summasi 0 dan katta bo''lishi kerak';
+  END IF;
+  UPDATE public.business_profiles SET cashback_balance = cashback_balance + p_amount WHERE id = p_business_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Biznes profili topilmadi';
+  END IF;
+  INSERT INTO public.b2b_cashback_transactions (business_id, amount, type, status, description)
+  VALUES (p_business_id, p_amount, 'admin_bonus', 'completed', COALESCE(NULLIF(p_description, ''), 'Admin tomonidan taqdim etilgan maxsus bonus'))
+  RETURNING id INTO v_tx_id;
+
+  SELECT user_id INTO v_owner_id FROM public.business_profiles WHERE id = p_business_id;
+  IF v_owner_id IS NOT NULL THEN
+    INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+    VALUES (v_owner_id, 'b2b_cashback', 'Sizga bonus keshbek berildi!', '+' || p_amount::text || ' so''m keshbek hamyoningizga qo''shildi', 'b2b_cashback', v_tx_id::text);
+  END IF;
+
+  RETURN v_tx_id;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.admin_grant_business_cashback(UUID, NUMERIC, TEXT) TO authenticated;
+
+-- Naqd to'lovni supplier tasdiqlashi + shu buyurtma uchun xaridorga
+-- keshbek yozilishi va bildirishnoma yuborilishi BITTA atomik amal
+CREATE OR REPLACE FUNCTION public.supplier_confirm_cash_payment(p_order_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_order RECORD; v_rate NUMERIC; v_earned NUMERIC;
+BEGIN
+  SELECT * INTO v_order FROM public.b2b_orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Buyurtma topilmadi';
+  END IF;
+  IF NOT public.is_own_supplier(v_order.supplier_id) THEN
+    RAISE EXCEPTION 'Ruxsat yo''q: bu buyurtma sizga tegishli emas';
+  END IF;
+  IF v_order.payment_method <> 'cash' OR v_order.payment_status <> 'cash_pending' THEN
+    RAISE EXCEPTION 'Bu buyurtma naqd to''lov tasdig''ini kutmayapti';
+  END IF;
+
+  SELECT cashback_rate INTO v_rate FROM public.b2b_config WHERE id = TRUE;
+  v_earned := ROUND(v_order.total * COALESCE(v_rate, 0) / 100, 2);
+
+  UPDATE public.b2b_orders SET payment_status = 'cash_confirmed', cashback_earned = v_earned WHERE id = p_order_id;
+
+  IF v_earned > 0 THEN
+    UPDATE public.business_profiles SET cashback_balance = cashback_balance + v_earned WHERE id = v_order.business_id;
+    INSERT INTO public.b2b_cashback_transactions (business_id, order_id, cashback_rate, amount, type, status, description)
+    VALUES (v_order.business_id, p_order_id, v_rate, v_earned, 'earned', 'completed', v_order.order_number || ' buyurtmasi uchun ' || v_rate || '% keshbek');
+
+    IF v_order.buyer_user_id IS NOT NULL THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (v_order.buyer_user_id, 'b2b_cashback', 'Keshbek hisobingizga tushdi!', v_order.order_number || ' buyurtmasi uchun +' || v_earned::text || ' so''m keshbek qo''shildi', 'b2b_order', p_order_id::text);
+    END IF;
+  END IF;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.supplier_confirm_cash_payment(UUID) TO authenticated;
+
+-- --- 12.15 B2B To'g'ridan-to'g'ri takliflar (B2BStoresMapView → B2BSendOfferModal) ---
+-- Ilgari bu ham faqat localStorage'da ishlar edi (jadval hech qachon
+-- mavjud bo'lmagan, INSERT doim xatoga uchrab lokal fallback'ga tushardi;
+-- o'qish esa Supabase sozlangan/sozlanmaganidan qat'i nazar HAR DOIM
+-- faqat localStorage'dan bo'lardi) — ya'ni taklif yuborilsa ham, qabul
+-- qiluvchi uni boshqa qurilma/brauzerda hech qachon ko'rmas edi.
+CREATE TABLE IF NOT EXISTS public.b2b_direct_offers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_id UUID NOT NULL REFERENCES public.supplier_profiles(id) ON DELETE CASCADE,
+    business_id UUID NOT NULL REFERENCES public.business_profiles(id) ON DELETE CASCADE,
+    message TEXT NOT NULL DEFAULT '',
+    discount_percent NUMERIC(5,2) NULL,
+    products JSONB NOT NULL DEFAULT '[]'::jsonb,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','declined')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.b2b_direct_offers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Yuboruvchi yoki qabul qiluvchi ko'radi (b2b_direct_offers)" ON public.b2b_direct_offers;
+CREATE POLICY "Yuboruvchi yoki qabul qiluvchi ko'radi (b2b_direct_offers)" ON public.b2b_direct_offers FOR SELECT USING (
+  public.is_own_supplier(supplier_id) OR public.is_own_business(business_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Supplier taklif yuboradi" ON public.b2b_direct_offers;
+CREATE POLICY "Supplier taklif yuboradi" ON public.b2b_direct_offers FOR INSERT WITH CHECK (
+  public.is_own_supplier(supplier_id)
+);
+-- Faqat qabul qiluvchi do'kon (yoki admin) holatni (pending→accepted/declined)
+-- o'zgartira oladi — taklif matni/mahsulotlarini emas (ular qatorda
+-- CHECK/keyingi qadamda cheklanmagan, lekin UI hech qachon boshqa
+-- maydonni yubormaydi; qattiqroq himoya kerak bo'lsa keyinchalik RPC'ga
+-- o'tkazish mumkin).
+DROP POLICY IF EXISTS "Qabul qiluvchi holatni yangilaydi" ON public.b2b_direct_offers;
+CREATE POLICY "Qabul qiluvchi holatni yangilaydi" ON public.b2b_direct_offers FOR UPDATE USING (
+  public.is_own_business(business_id) OR public.is_admin()
+);
+
+CREATE INDEX IF NOT EXISTS idx_b2b_direct_offers_supplier_id ON public.b2b_direct_offers(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_direct_offers_business_id ON public.b2b_direct_offers(business_id);
+
+GRANT SELECT, INSERT, UPDATE ON public.b2b_direct_offers TO authenticated;
 
 -- =====================================================================
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!

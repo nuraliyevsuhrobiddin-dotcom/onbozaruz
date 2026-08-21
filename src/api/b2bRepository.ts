@@ -23,6 +23,10 @@ import {
   CreateB2BProductInput,
   B2BOrderStatus,
   B2BPaymentMethod,
+  B2BStorePublicMarker,
+  B2BDirectOffer,
+  B2BCashbackTransaction,
+  B2BPlatformRequisites,
 } from './types';
 
 const supabase = supabaseClient;
@@ -36,12 +40,184 @@ const MOCK_KEYS = {
   orders: 'onbozor-b2b-orders',
   orderItems: 'onbozor-b2b-order-items',
   ledger: 'onbozor-b2b-commission-ledger',
+  cashbackRate: 'onbozor-b2b-cashback-rate',
+  directOffers: 'onbozor-b2b-direct-offers',
+  cashbackTransactions: 'onbozor-b2b-cashback-transactions',
+  platformRequisites: 'onbozor-b2b-platform-requisites',
 };
+
+const SEED_CASHBACK_TRANSACTIONS: B2BCashbackTransaction[] = [
+  {
+    id: 'cb-tx-1',
+    businessId: 'store-seed-1',
+    storeName: 'Baraka Supermarket',
+    orderNumber: 'ONB-892140',
+    supplierName: 'Agro Invest Distribyutor',
+    orderAmount: 12500000,
+    cashbackRate: 1.5,
+    amount: 187500,
+    type: 'earned',
+    status: 'completed',
+    description: 'ONB-892140 buyurtmasi uchun 1.5% keshbek',
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+  },
+  {
+    id: 'cb-tx-2',
+    businessId: 'store-seed-1',
+    storeName: 'Baraka Supermarket',
+    orderNumber: 'ONB-781920',
+    supplierName: 'Gold Fresh Ulgurji Savdo',
+    orderAmount: 8200000,
+    cashbackRate: 1.5,
+    amount: 123000,
+    type: 'earned',
+    status: 'completed',
+    description: 'ONB-781920 buyurtmasi uchun 1.5% keshbek',
+    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+  },
+  {
+    id: 'cb-tx-3',
+    businessId: 'store-seed-2',
+    storeName: 'Oazis Minimarket',
+    orderNumber: 'ONB-661240',
+    supplierName: 'Sharq Sut Zavodi',
+    orderAmount: 4500000,
+    cashbackRate: 1.5,
+    amount: 67500,
+    type: 'earned',
+    status: 'completed',
+    description: 'ONB-661240 buyurtmasi uchun 1.5% keshbek',
+    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+  },
+  {
+    id: 'cb-tx-4',
+    businessId: 'store-seed-5',
+    storeName: 'Afrosiyob Market',
+    orderNumber: 'ONB-553190',
+    supplierName: 'Samarqand Meva-Sabzavot MCHJ',
+    orderAmount: 18000000,
+    cashbackRate: 2.0,
+    amount: 360000,
+    type: 'earned',
+    status: 'completed',
+    description: 'ONB-553190 buyurtmasi uchun 2.0% keshbek',
+    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
+  },
+];
+
+const SEED_STORES = [
+  {
+    id: 'store-seed-1',
+    user_id: 'user-store-1',
+    store_name: 'Baraka Supermarket',
+    owner_name: 'Jasur Karimov',
+    phone: '+998 90 111 22 33',
+    business_type: 'supermarket',
+    region: 'Toshkent',
+    district: 'Chilonzor tumani',
+    address: 'Qatortol ko\'chasi, 42-uy',
+    latitude: 41.2785,
+    longitude: 69.2140,
+    cashback_balance: 340000,
+    description: 'Katta oziq-ovqat va nooziq-ovqat mahsulotlari supermarketi. Kunlik xaridorlar oqimi 1500+.',
+    status: 'active',
+    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+  },
+  {
+    id: 'store-seed-2',
+    user_id: 'user-store-2',
+    store_name: 'Oazis Minimarket',
+    owner_name: 'Nodirbek Aliyev',
+    phone: '+998 91 222 33 44',
+    business_type: 'minimarket',
+    region: 'Toshkent',
+    district: 'Yunusobod tumani',
+    address: 'Amir Temur shoh ko\'chasi, 108',
+    latitude: 41.3530,
+    longitude: 69.2880,
+    cashback_balance: 180000,
+    description: '24/7 ishlaydigan zamonaviy minimarket. Ichimliklar va qandolat mahsulotlari qabul qilamiz.',
+    status: 'active',
+    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+  },
+  {
+    id: 'store-seed-3',
+    user_id: 'user-store-3',
+    store_name: 'Ziyo Oziq-ovqat do\'koni',
+    owner_name: 'Farhod Umarov',
+    phone: '+998 93 333 44 55',
+    business_type: 'grocery',
+    region: 'Toshkent',
+    district: 'Mirzo Ulug\'bek tumani',
+    address: 'Buyuk Ipak Yo\'li, 15',
+    latitude: 41.3260,
+    longitude: 69.3350,
+    cashback_balance: 95000,
+    description: 'Mahalliy oziq-ovqat savdo do\'koni. Sifatli sut va go\'sht mahsulotlari yetkazib beruvchilari kerak.',
+    status: 'active',
+    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+  },
+  {
+    id: 'store-seed-4',
+    user_id: 'user-store-4',
+    store_name: 'Davo Plus Dorixona',
+    owner_name: 'Dr. Shahlo Rahimova',
+    phone: '+998 97 444 55 66',
+    business_type: 'pharmacy',
+    region: 'Toshkent',
+    district: 'Shayxontohur tumani',
+    address: 'Navoiy ko\'chasi, 24',
+    latitude: 41.3210,
+    longitude: 69.2450,
+    cashback_balance: 520000,
+    description: 'Tibbiy buyumlar va dori vositalari dorixonalar tarmog\'i.',
+    status: 'active',
+    created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
+  },
+  {
+    id: 'store-seed-5',
+    user_id: 'user-store-5',
+    store_name: 'Afrosiyob Market',
+    owner_name: 'Akmal Saidov',
+    phone: '+998 99 555 66 77',
+    business_type: 'supermarket',
+    region: 'Samarqand',
+    district: 'Samarqand shahri',
+    address: 'Registon ko\'chasi, 88',
+    latitude: 39.6542,
+    longitude: 66.9597,
+    cashback_balance: 410000,
+    description: 'Samarqand markazidagi yirik savdo majmuasi. To\'g\'ridan-to\'g\'ri ulgurji distribyutorlar bilan ishlaymiz.',
+    status: 'active',
+    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
+  },
+  {
+    id: 'store-seed-6',
+    user_id: 'user-store-6',
+    store_name: 'Vodiy Baraka Do\'koni',
+    owner_name: 'Ilhom Jo\'rayev',
+    phone: '+998 94 666 77 88',
+    business_type: 'grocery',
+    region: 'Farg\'ona',
+    district: 'Farg\'ona shahri',
+    address: 'Al-Farg\'oniy ko\'chasi, 12',
+    latitude: 40.3864,
+    longitude: 71.7864,
+    cashback_balance: 230000,
+    description: 'Ulgurji va chakana oziq-ovqat savdo do\'koni.',
+    status: 'active',
+    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+  },
+];
 
 function readMock<T>(key: string, fallback: T): T {
   if (typeof localStorage === 'undefined') return fallback;
   try {
     const raw = localStorage.getItem(key);
+    if (!raw && key === MOCK_KEYS.business) {
+      localStorage.setItem(key, JSON.stringify(SEED_STORES));
+      return SEED_STORES as unknown as T;
+    }
     return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
     return fallback;
@@ -77,8 +253,12 @@ function mapBusinessProfile(r: any): BusinessProfile {
     businessType: r.business_type ?? r.businessType ?? 'other',
     region: r.region ?? '',
     district: r.district ?? '',
+    address: r.address ?? '',
+    latitude: r.latitude !== undefined && r.latitude !== null ? Number(r.latitude) : (r.region === 'Samarqand' ? 39.6542 : r.region === 'Farg\'ona' ? 40.3864 : 41.2995 + (Math.random() - 0.5) * 0.08),
+    longitude: r.longitude !== undefined && r.longitude !== null ? Number(r.longitude) : (r.region === 'Samarqand' ? 66.9597 : r.region === 'Farg\'ona' ? 71.7864 : 69.2401 + (Math.random() - 0.5) * 0.08),
     description: r.description ?? '',
     logoUrl: r.logo_url ?? r.logoUrl ?? '',
+    cashbackBalance: Number(r.cashback_balance ?? r.cashbackBalance ?? 0),
     status: r.status ?? 'active',
     createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
   };
@@ -170,6 +350,8 @@ function mapB2BOrder(r: any): B2BOrder {
     deliveryDistrict: r.delivery_district ?? r.deliveryDistrict ?? '',
     deliveryAddress: r.delivery_address ?? r.deliveryAddress ?? '',
     deliveryNote: r.delivery_note ?? r.deliveryNote ?? '',
+    cashbackUsed: Number(r.cashback_used ?? r.cashbackUsed ?? 0),
+    cashbackEarned: Number(r.cashback_earned ?? r.cashbackEarned ?? 0),
     createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
     supplierName: r.supplier_profiles?.company_name ?? r.supplierName,
     businessName: r.business_profiles?.store_name ?? r.businessName,
@@ -209,6 +391,7 @@ export async function registerBusinessBuyer(input: CreateBusinessProfileInput): 
     const row = {
       id: genId('biz'), user_id: currentMockUserId(), store_name: input.storeName, owner_name: input.ownerName,
       phone: input.phone, business_type: input.businessType, region: input.region || '', district: input.district || '',
+      address: input.address || '', latitude: input.latitude ?? null, longitude: input.longitude ?? null,
       description: input.description || '', logo_url: input.logoUrl || '', status: 'active', created_at: new Date().toISOString(),
     };
     const all = readMock<any[]>(MOCK_KEYS.business, []);
@@ -229,7 +412,31 @@ export async function registerBusinessBuyer(input: CreateBusinessProfileInput): 
     logo_url: input.logoUrl || '',
   }).select().single();
   if (error || !data) throw new Error(error?.message || "Biznes profil yaratilmadi");
-  return mapBusinessProfile(data);
+  const profile = mapBusinessProfile(data);
+
+  // business_profiles jadvalida address/lat/lng ustunlari yo'q — manzil
+  // alohida business_addresses jadvaliga (asosiy manzil sifatida) yoziladi.
+  if (input.address?.trim()) {
+    try {
+      const savedAddress = await addBusinessAddress(profile.id, {
+        storeName: input.storeName,
+        phone: input.phone,
+        region: input.region || '',
+        district: input.district || '',
+        address: input.address,
+        latitude: input.latitude ?? null,
+        longitude: input.longitude ?? null,
+        isDefault: true,
+      });
+      profile.address = savedAddress.address;
+      profile.latitude = savedAddress.latitude ?? profile.latitude;
+      profile.longitude = savedAddress.longitude ?? profile.longitude;
+    } catch {
+      // Biznes profil allaqachon yaratildi — manzil saqlanmasa ham davom etamiz,
+      // foydalanuvchi keyinroq manzilni qo'shishi mumkin.
+    }
+  }
+  return profile;
 }
 
 export async function addBusinessAddress(businessId: string, input: Omit<BusinessAddress, 'id' | 'businessId'>): Promise<BusinessAddress> {
@@ -244,12 +451,16 @@ export async function addBusinessAddress(businessId: string, input: Omit<Busines
     region: input.region || '',
     district: input.district || '',
     address: input.address,
+    latitude: input.latitude ?? null,
+    longitude: input.longitude ?? null,
     delivery_note: input.deliveryNote || '',
   }).select().single();
   if (error || !data) throw new Error(error?.message || 'Manzil saqlanmadi');
   return {
     id: data.id, businessId: data.business_id, label: data.label, storeName: data.store_name, phone: data.phone,
     region: data.region, district: data.district, address: data.address, deliveryNote: data.delivery_note,
+    latitude: data.latitude !== undefined && data.latitude !== null ? Number(data.latitude) : null,
+    longitude: data.longitude !== undefined && data.longitude !== null ? Number(data.longitude) : null,
   };
 }
 
@@ -496,7 +707,8 @@ async function createOrderForSupplier(
   supplierId: string,
   lines: B2BCartLine[],
   paymentMethod: B2BPaymentMethod,
-  delivery: B2BDeliveryInfo
+  delivery: B2BDeliveryInfo,
+  cashbackUsed: number = 0
 ): Promise<string> {
   if (!supabase) {
     // Mock rejimda RPC yo'q — atomiklik kafolatlanmaydi, faqat lokal test uchun.
@@ -515,17 +727,27 @@ async function createOrderForSupplier(
       });
     }
     const supplier = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === supplierId);
+    if (supplier?.verification_status !== 'approved') throw new Error("Yetkazib beruvchi hali tasdiqlanmagan");
+    const cashbackApplied = Math.min(Math.max(0, cashbackUsed), subtotal);
     const commissionRate = Number(supplier?.commission_rate ?? 5);
     const commissionAmount = Math.round(subtotal * commissionRate) / 100;
     const order = {
       id: orderId, order_number: `ONB-${String(Date.now()).slice(-6)}`, business_id: businessId, supplier_id: supplierId,
-      buyer_user_id: currentMockUserId(), subtotal, delivery_fee: 0, total: subtotal, payment_method: paymentMethod,
+      buyer_user_id: currentMockUserId(), subtotal, delivery_fee: 0, total: subtotal - cashbackApplied, payment_method: paymentMethod,
       payment_status: 'cash_pending', status: 'pending', rejection_reason: '', commission_rate: commissionRate,
-      commission_amount: commissionAmount, supplier_amount: subtotal - commissionAmount,
+      commission_amount: commissionAmount, supplier_amount: subtotal - commissionAmount, cashback_used: cashbackApplied,
       delivery_store_name: delivery.storeName, delivery_phone: delivery.phone, delivery_region: delivery.region,
       delivery_district: delivery.district, delivery_address: delivery.address, delivery_note: delivery.note || '',
       created_at: new Date().toISOString(),
     };
+    if (cashbackApplied > 0) {
+      deductBuyerCashback(businessId, cashbackApplied);
+      void recordCashbackTransaction({
+        businessId, storeName: delivery.storeName, orderId, orderNumber: order.order_number,
+        cashbackRate: 0, amount: -cashbackApplied, type: 'redeemed', status: 'completed',
+        description: 'Buyurtmada ishlatildi',
+      });
+    }
     writeMock(MOCK_KEYS.orders, [order, ...readMock<any[]>(MOCK_KEYS.orders, [])]);
     writeMock(MOCK_KEYS.orderItems, [...items, ...readMock<any[]>(MOCK_KEYS.orderItems, [])]);
     writeMock(MOCK_KEYS.ledger, [{
@@ -552,6 +774,7 @@ async function createOrderForSupplier(
     p_delivery_district: delivery.district,
     p_delivery_address: delivery.address,
     p_delivery_note: delivery.note || '',
+    p_cashback_used: cashbackUsed,
   });
   if (error || !data) throw new Error(error?.message || 'Buyurtma yaratilmadi');
   return data as string;
@@ -562,12 +785,20 @@ export interface CheckoutResult {
   failed: { supplierId: string; supplierName: string; error: string }[];
 }
 
-/** Savatni supplier bo'yicha guruhlab, har biriga alohida buyurtma yaratadi. */
+/**
+ * Savatni supplier bo'yicha guruhlab, har biriga alohida buyurtma yaratadi.
+ * cashbackUsed bitta umumiy summa (butun savat uchun) — har bir supplierga
+ * o'z qismini (subtotal ulushiga mutanosib) taqsimlaydi, shunda har bir
+ * supplierning keshbek yechimi o'sha buyurtma bilan BITTA tranzaksiyada
+ * atomik bo'ladi: buyurtma muvaffaqiyatsiz bo'lsa, o'sha qismning keshbeki
+ * ham yechilmaydi (boshqa supplierlarga ta'sir qilmaydi).
+ */
 export async function checkoutB2BCart(
   businessId: string,
   cartLines: B2BCartLine[],
   paymentMethod: B2BPaymentMethod,
-  delivery: B2BDeliveryInfo
+  delivery: B2BDeliveryInfo,
+  cashbackUsed: number = 0
 ): Promise<CheckoutResult> {
   const groups = new Map<string, B2BCartLine[]>();
   for (const line of cartLines) {
@@ -577,12 +808,28 @@ export async function checkoutB2BCart(
     groups.set(key, arr);
   }
 
+  const groupEntries = Array.from(groups.entries());
+  const cartTotal = cartLines.reduce((sum, l) => sum + l.product.wholesalePrice * l.quantity, 0);
+  const cashbackBySupplier = new Map<string, number>();
+  if (cashbackUsed > 0 && cartTotal > 0) {
+    let distributed = 0;
+    groupEntries.forEach(([supplierId, lines], idx) => {
+      const groupSubtotal = lines.reduce((sum, l) => sum + l.product.wholesalePrice * l.quantity, 0);
+      let share = idx === groupEntries.length - 1
+        ? cashbackUsed - distributed // oxirgi guruh — yaxlitlash qoldig'ini oladi
+        : Math.floor((cashbackUsed * groupSubtotal) / cartTotal);
+      share = Math.max(0, Math.min(share, groupSubtotal));
+      distributed += share;
+      cashbackBySupplier.set(supplierId, share);
+    });
+  }
+
   const succeededSupplierIds: string[] = [];
   const failed: CheckoutResult['failed'] = [];
 
   const results = await Promise.allSettled(
-    Array.from(groups.entries()).map(async ([supplierId, lines]) => {
-      await createOrderForSupplier(businessId, supplierId, lines, paymentMethod, delivery);
+    groupEntries.map(async ([supplierId, lines]) => {
+      await createOrderForSupplier(businessId, supplierId, lines, paymentMethod, delivery, cashbackBySupplier.get(supplierId) || 0);
       return supplierId;
     })
   );
@@ -704,10 +951,385 @@ export async function supplierUpdateOrderStatus(orderId: string, status: B2BOrde
 export async function supplierConfirmCashPayment(orderId: string): Promise<void> {
   if (!supabase) {
     const all = readMock<any[]>(MOCK_KEYS.orders, []);
-    writeMock(MOCK_KEYS.orders, all.map((o) => o.id === orderId ? { ...o, payment_status: 'cash_confirmed' } : o));
+    const order = all.find((o) => o.id === orderId);
+    const rate = getB2BCashbackRate();
+    const cashbackEarned = order ? Math.round(Number(order.total || 0) * (rate / 100)) : 0;
+    writeMock(MOCK_KEYS.orders, all.map((o) => o.id === orderId ? { ...o, payment_status: 'cash_confirmed', cashback_earned: cashbackEarned } : o));
+
+    // Award cashback to the buyer upon payment confirmation
+    if (order && order.business_id) {
+      creditBuyerCashback(order.business_id, cashbackEarned);
+
+      // Record transaction
+      void recordCashbackTransaction({
+        businessId: order.business_id,
+        storeName: order.delivery_store_name || 'Do\'kon',
+        orderId: order.id,
+        orderNumber: order.order_number,
+        supplierName: order.supplier_name || 'Yetkazib beruvchi',
+        orderAmount: Number(order.total || 0),
+        cashbackRate: rate,
+        amount: cashbackEarned,
+        type: 'earned',
+        status: 'completed',
+        description: `${order.order_number} buyurtmasi uchun ${rate}% keshbek`,
+      });
+    }
     return;
   }
-  const { error } = await supabase.from('b2b_orders').update({ payment_status: 'cash_confirmed' }).eq('id', orderId);
+  // payment_status ustuniga to'g'ridan-to'g'ri UPDATE endi rad etiladi (DB
+  // GRANT darajasida) — bu RPC keshbekni ham SHU tranzaksiyada, atomik
+  // ravishda hisoblab yozadi (supabase_schema.sql: supplier_confirm_cash_payment).
+  const { error } = await supabase.rpc('supplier_confirm_cash_payment', { p_order_id: orderId });
+  if (error) throw new Error(error.message);
+}
+
+// ---------- Cashback & Wallet ----------
+/** Faqat mock rejim uchun sinxron o'qish — Supabase rejimida fetchB2BCashbackRate() ishlatiladi. */
+export function getB2BCashbackRate(): number {
+  return readMock<number>(MOCK_KEYS.cashbackRate, 1.5);
+}
+
+export async function fetchB2BCashbackRate(): Promise<number> {
+  if (!supabase) return getB2BCashbackRate();
+  const { data } = await supabase.from('b2b_config').select('cashback_rate').eq('id', true).maybeSingle();
+  return Number(data?.cashback_rate ?? 1.5);
+}
+
+export async function setB2BCashbackRate(rate: number): Promise<void> {
+  if (!supabase) {
+    writeMock(MOCK_KEYS.cashbackRate, rate);
+    return;
+  }
+  const { error } = await supabase.rpc('set_b2b_cashback_rate', { p_rate: rate });
+  if (error) throw new Error(error.message);
+}
+
+export const DEFAULT_PLATFORM_REQUISITES: B2BPlatformRequisites = {
+  adminCardNumber: '8600 4902 1122 3344',
+  adminCardHolder: 'ONBOZAR B2B RASMIY HISOBI',
+  adminBankAccount: '20208000900012345001',
+  adminBankMfo: '00444',
+  adminBankName: 'ATB Kapitalbank Toshkent sh.',
+  adminPaymentPhone: '+998 90 123 45 67',
+  adminPaymentInstructions: "To'lov izohida korxona / do'kon nomini ko'rsating.",
+};
+
+export async function fetchPlatformRequisites(): Promise<B2BPlatformRequisites> {
+  if (!supabase) return readMock<B2BPlatformRequisites>(MOCK_KEYS.platformRequisites, DEFAULT_PLATFORM_REQUISITES);
+  const { data } = await supabase.from('b2b_config').select('*').eq('id', true).maybeSingle();
+  if (!data) return DEFAULT_PLATFORM_REQUISITES;
+  return {
+    adminCardNumber: data.admin_card_number || DEFAULT_PLATFORM_REQUISITES.adminCardNumber,
+    adminCardHolder: data.admin_card_holder || DEFAULT_PLATFORM_REQUISITES.adminCardHolder,
+    adminBankAccount: data.admin_bank_account || DEFAULT_PLATFORM_REQUISITES.adminBankAccount,
+    adminBankMfo: data.admin_bank_mfo || DEFAULT_PLATFORM_REQUISITES.adminBankMfo,
+    adminBankName: data.admin_bank_name || DEFAULT_PLATFORM_REQUISITES.adminBankName,
+    adminPaymentPhone: data.admin_payment_phone || DEFAULT_PLATFORM_REQUISITES.adminPaymentPhone,
+    adminPaymentInstructions: data.admin_payment_instructions || DEFAULT_PLATFORM_REQUISITES.adminPaymentInstructions,
+  };
+}
+
+export async function setPlatformRequisites(req: Partial<B2BPlatformRequisites>): Promise<void> {
+  if (!supabase) {
+    const curr = readMock<B2BPlatformRequisites>(MOCK_KEYS.platformRequisites, DEFAULT_PLATFORM_REQUISITES);
+    writeMock(MOCK_KEYS.platformRequisites, { ...curr, ...req });
+    return;
+  }
+  const payload: any = { updated_at: new Date().toISOString() };
+  if (req.adminCardNumber !== undefined) payload.admin_card_number = req.adminCardNumber;
+  if (req.adminCardHolder !== undefined) payload.admin_card_holder = req.adminCardHolder;
+  if (req.adminBankAccount !== undefined) payload.admin_bank_account = req.adminBankAccount;
+  if (req.adminBankMfo !== undefined) payload.admin_bank_mfo = req.adminBankMfo;
+  if (req.adminBankName !== undefined) payload.admin_bank_name = req.adminBankName;
+  if (req.adminPaymentPhone !== undefined) payload.admin_payment_phone = req.adminPaymentPhone;
+  if (req.adminPaymentInstructions !== undefined) payload.admin_payment_instructions = req.adminPaymentInstructions;
+
+  const { error } = await supabase.from('b2b_config').update(payload).eq('id', true);
+  if (error) throw new Error(error.message);
+}
+
+export async function fetchBuyerCashbackBalance(businessId: string): Promise<number> {
+  if (!supabase) {
+    const stores = readMock<any[]>(MOCK_KEYS.business, []);
+    const found = stores.find((s) => s.id === businessId);
+    return Number(found?.cashback_balance ?? 0);
+  }
+  const { data } = await supabase.from('business_profiles').select('cashback_balance').eq('id', businessId).maybeSingle();
+  return Number(data?.cashback_balance ?? 0);
+}
+
+/** Faqat mock rejim uchun — Supabase rejimida balans faqat SECURITY DEFINER RPC'lar orqali o'zgaradi. */
+export function creditBuyerCashback(businessId: string, amount: number): void {
+  if (amount <= 0) return;
+  const stores = readMock<any[]>(MOCK_KEYS.business, []);
+  writeMock(
+    MOCK_KEYS.business,
+    stores.map((s) => s.id === businessId ? { ...s, cashback_balance: Number(s.cashback_balance || 0) + amount } : s)
+  );
+}
+
+/** Faqat mock rejim uchun — Supabase rejimida balans faqat SECURITY DEFINER RPC'lar orqali o'zgaradi. */
+export function deductBuyerCashback(businessId: string, amount: number): void {
+  if (amount <= 0) return;
+  const stores = readMock<any[]>(MOCK_KEYS.business, []);
+  writeMock(
+    MOCK_KEYS.business,
+    stores.map((s) => s.id === businessId ? { ...s, cashback_balance: Math.max(0, Number(s.cashback_balance || 0) - amount) } : s)
+  );
+}
+
+function mapCashbackTransaction(r: any): B2BCashbackTransaction {
+  return {
+    id: r.id,
+    businessId: r.business_id,
+    storeName: r.business_profiles?.store_name || '',
+    orderId: r.order_id ?? undefined,
+    orderNumber: r.b2b_orders?.order_number ?? undefined,
+    supplierName: r.b2b_orders?.supplier_profiles?.company_name ?? undefined,
+    orderAmount: r.b2b_orders?.total !== undefined && r.b2b_orders?.total !== null ? Number(r.b2b_orders.total) : undefined,
+    cashbackRate: Number(r.cashback_rate ?? 0),
+    amount: Number(r.amount ?? 0),
+    type: r.type,
+    status: r.status,
+    payoutDetails: r.payout_details || undefined,
+    description: r.description || '',
+    createdAt: r.created_at,
+  };
+}
+
+export async function listCashbackTransactions(businessId?: string): Promise<B2BCashbackTransaction[]> {
+  if (!supabase) {
+    const all = readMock<B2BCashbackTransaction[]>(MOCK_KEYS.cashbackTransactions, SEED_CASHBACK_TRANSACTIONS);
+    return businessId ? all.filter((tx) => tx.businessId === businessId) : all;
+  }
+  let query = supabase
+    .from('b2b_cashback_transactions')
+    .select('*, business_profiles(store_name), b2b_orders(order_number, total, supplier_profiles(company_name))')
+    .order('created_at', { ascending: false });
+  if (businessId) query = query.eq('business_id', businessId);
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return data.map(mapCashbackTransaction);
+}
+
+/** Faqat mock rejim uchun — Supabase rejimida yozuvlar RPC'lar ichida yaratiladi. */
+export async function recordCashbackTransaction(
+  tx: Omit<B2BCashbackTransaction, 'id' | 'createdAt'>
+): Promise<B2BCashbackTransaction> {
+  const item: B2BCashbackTransaction = {
+    id: genId('cb-tx'),
+    ...tx,
+    createdAt: new Date().toISOString(),
+  };
+  const all = readMock<B2BCashbackTransaction[]>(MOCK_KEYS.cashbackTransactions, SEED_CASHBACK_TRANSACTIONS);
+  writeMock(MOCK_KEYS.cashbackTransactions, [item, ...all]);
+  return item;
+}
+
+export async function requestCashbackWithdrawal(
+  businessId: string,
+  storeName: string,
+  amount: number,
+  payoutDetails: string
+): Promise<void> {
+  if (amount <= 0) throw new Error("Chiqarish summasi 0 dan katta bo'lishi kerak");
+  if (!supabase) {
+    const bal = await fetchBuyerCashbackBalance(businessId);
+    if (bal < amount) throw new Error("Hamyonda yetarli keshbek mablag'i yo'q");
+    deductBuyerCashback(businessId, amount);
+    await recordCashbackTransaction({
+      businessId,
+      storeName,
+      amount: -amount,
+      cashbackRate: 0,
+      type: 'withdrawn',
+      status: 'pending',
+      payoutDetails,
+      description: `Keshbekni yechib olish so'rovi (${payoutDetails})`,
+    });
+    return;
+  }
+  const { error } = await supabase.rpc('request_cashback_withdrawal', {
+    p_business_id: businessId,
+    p_amount: amount,
+    p_payout_details: payoutDetails,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function adminUpdateWithdrawalStatus(txId: string, status: 'completed' | 'rejected'): Promise<void> {
+  if (!supabase) {
+    const all = readMock<B2BCashbackTransaction[]>(MOCK_KEYS.cashbackTransactions, SEED_CASHBACK_TRANSACTIONS);
+    const target = all.find((t) => t.id === txId);
+    if (target && status === 'rejected') {
+      // refund back to store
+      creditBuyerCashback(target.businessId, Math.abs(target.amount));
+    }
+    writeMock(
+      MOCK_KEYS.cashbackTransactions,
+      all.map((t) => t.id === txId ? { ...t, status } : t)
+    );
+    return;
+  }
+  const { error } = await supabase.rpc('admin_update_cashback_withdrawal', { p_tx_id: txId, p_status: status });
+  if (error) throw new Error(error.message);
+}
+
+export async function adminGrantBonusCashback(
+  businessId: string,
+  storeName: string,
+  amount: number,
+  description: string
+): Promise<void> {
+  if (!supabase) {
+    creditBuyerCashback(businessId, amount);
+    await recordCashbackTransaction({
+      businessId,
+      storeName,
+      amount,
+      cashbackRate: 0,
+      type: 'admin_bonus',
+      status: 'completed',
+      description: description || "Admin tomonidan taqdim etilgan maxsus bonus",
+    });
+    return;
+  }
+  const { error } = await supabase.rpc('admin_grant_business_cashback', {
+    p_business_id: businessId,
+    p_amount: amount,
+    p_description: description || '',
+  });
+  if (error) throw new Error(error.message);
+}
+
+// ---------- Map Stores (Privacy-protected) ----------
+export async function listStoresForMap(): Promise<B2BStorePublicMarker[]> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.business, SEED_STORES);
+    return all
+      .filter((s) => s.status !== 'suspended')
+      .map((s) => ({
+        id: s.id,
+        storeName: s.store_name ?? s.storeName,
+        businessType: s.business_type ?? s.businessType ?? 'grocery',
+        region: s.region || 'Toshkent',
+        district: s.district || 'Shahar markazi',
+        address: s.address || '',
+        latitude: Number(s.latitude) || 41.2995,
+        longitude: Number(s.longitude) || 69.2401,
+        logoUrl: s.logo_url ?? s.logoUrl,
+        description: s.description || '',
+        createdAt: s.created_at ?? s.createdAt ?? new Date().toISOString(),
+      }));
+  }
+
+  // business_profiles jadvalida latitude/longitude ustunlari yo'q — bu
+  // ma'lumot business_addresses jadvalidagi asosiy (is_default) manzilda
+  // saqlanadi, shuning uchun xaritaga faqat GPS koordinatasi bor va biznes
+  // profili faol bo'lgan do'konlar birlashtirilib chiqariladi.
+  const { data, error } = await supabase
+    .from('business_addresses')
+    .select('business_id, address, latitude, longitude, business_profiles!inner(id, store_name, business_type, region, district, logo_url, description, status, created_at)')
+    .eq('is_default', true)
+    .eq('business_profiles.status', 'active')
+    .not('latitude', 'is', null)
+    .not('longitude', 'is', null);
+
+  if (error || !data) return [];
+  return data.map((row: any) => {
+    const s = row.business_profiles;
+    return {
+      id: s.id,
+      storeName: s.store_name,
+      businessType: s.business_type,
+      region: s.region || 'Toshkent',
+      district: s.district || '',
+      address: row.address || '',
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      logoUrl: s.logo_url,
+      description: s.description,
+      createdAt: s.created_at,
+    };
+  });
+}
+
+// ---------- Direct B2B In-App Offers ----------
+function mapDirectOffer(r: any): B2BDirectOffer {
+  return {
+    id: r.id,
+    supplierId: r.supplier_id ?? r.supplierId,
+    supplierName: r.supplier_profiles?.company_name ?? r.supplierName ?? '',
+    businessId: r.business_id ?? r.businessId,
+    storeName: r.business_profiles?.store_name ?? r.storeName ?? '',
+    message: r.message ?? '',
+    discountPercent: r.discount_percent ?? undefined,
+    products: r.products ?? [],
+    status: r.status,
+    createdAt: r.created_at ?? r.createdAt,
+  };
+}
+
+export async function sendDirectOffer(
+  input: Omit<B2BDirectOffer, 'id' | 'status' | 'createdAt'>
+): Promise<B2BDirectOffer> {
+  if (!supabase) {
+    const offer: B2BDirectOffer = { id: genId('offer'), ...input, status: 'pending', createdAt: new Date().toISOString() };
+    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
+    writeMock(MOCK_KEYS.directOffers, [offer, ...all]);
+    return offer;
+  }
+  const { data, error } = await supabase
+    .from('b2b_direct_offers')
+    .insert({
+      supplier_id: input.supplierId,
+      business_id: input.businessId,
+      message: input.message,
+      discount_percent: input.discountPercent ?? null,
+      products: input.products ?? [],
+    })
+    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .single();
+  if (error || !data) throw new Error(error?.message || 'Taklif yuborilmadi');
+  return mapDirectOffer(data);
+}
+
+export async function listDirectOffersForStore(businessId: string): Promise<B2BDirectOffer[]> {
+  if (!supabase) {
+    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
+    return all.filter((o) => o.businessId === businessId);
+  }
+  const { data, error } = await supabase
+    .from('b2b_direct_offers')
+    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .eq('business_id', businessId)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapDirectOffer);
+}
+
+export async function listDirectOffersForSupplier(supplierId: string): Promise<B2BDirectOffer[]> {
+  if (!supabase) {
+    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
+    return all.filter((o) => o.supplierId === supplierId);
+  }
+  const { data, error } = await supabase
+    .from('b2b_direct_offers')
+    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .eq('supplier_id', supplierId)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapDirectOffer);
+}
+
+export async function respondToDirectOffer(offerId: string, status: 'accepted' | 'declined'): Promise<void> {
+  if (!supabase) {
+    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
+    writeMock(MOCK_KEYS.directOffers, all.map((o) => o.id === offerId ? { ...o, status } : o));
+    return;
+  }
+  const { error } = await supabase.from('b2b_direct_offers').update({ status }).eq('id', offerId);
   if (error) throw new Error(error.message);
 }
 
@@ -769,4 +1391,23 @@ export const b2bRepository = {
   supplierUpdateOrderStatus,
   supplierConfirmCashPayment,
   fetchSupplierFinanceSummary,
+  listStoresForMap,
+  getB2BCashbackRate,
+  fetchB2BCashbackRate,
+  setB2BCashbackRate,
+  fetchBuyerCashbackBalance,
+  creditBuyerCashback,
+  deductBuyerCashback,
+  sendDirectOffer,
+  listDirectOffersForStore,
+  listDirectOffersForSupplier,
+  respondToDirectOffer,
+  listCashbackTransactions,
+  recordCashbackTransaction,
+  requestCashbackWithdrawal,
+  adminUpdateWithdrawalStatus,
+  adminGrantBonusCashback,
+  fetchPlatformRequisites,
+  setPlatformRequisites,
 };
+
