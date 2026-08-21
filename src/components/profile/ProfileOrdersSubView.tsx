@@ -79,7 +79,7 @@ export const ProfileOrdersSubView: React.FC<ProfileOrdersSubViewProps> = ({
                       </div>
                       <div className="mt-2 flex items-center justify-between text-xs">
                         <span className="font-bold text-slate-500">{order.quantity}</span>
-                        <span className="font-black text-[#E53935]">{order.totalPrice}</span>
+                        <span className="font-black text-[#D84315]">{order.totalPrice}</span>
                       </div>
                     </div>
                   </div>
@@ -89,7 +89,7 @@ export const ProfileOrdersSubView: React.FC<ProfileOrdersSubViewProps> = ({
                       const active = idx + 1 <= order.statusStep;
                       return (
                         <div key={step} className="space-y-1">
-                          <div className={`h-1.5 rounded-full ${active ? 'bg-[#E53935]' : 'bg-slate-200'}`} />
+                          <div className={`h-1.5 rounded-full ${active ? 'bg-[#D84315]' : 'bg-slate-200'}`} />
                           <span className={`text-[9px] font-bold ${active ? 'text-[#111827]' : 'text-slate-400'}`}>{step}</span>
                         </div>
                       );
@@ -140,7 +140,7 @@ export const ProfileOrdersSubView: React.FC<ProfileOrdersSubViewProps> = ({
                     <h3 className="font-extrabold text-sm text-[#111827]">{group.length} ta mahsulot — bitta xarid</h3>
                     <p className="text-[11px] text-slate-400 font-medium mt-0.5">{first.date}</p>
                   </div>
-                  <span className="font-black text-[#E53935] text-sm whitespace-nowrap">
+                  <span className="font-black text-[#D84315] text-sm whitespace-nowrap">
                     {combinedTotal.toLocaleString('uz-UZ')} so'm
                   </span>
                 </div>

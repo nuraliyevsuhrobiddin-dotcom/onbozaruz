@@ -6,16 +6,18 @@ import { AdminSidebar } from '../components/admin/AdminSidebar';
 import { AdminDashboardTab } from '../components/admin/AdminDashboardTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminPostsTab } from '../components/admin/AdminPostsTab';
-import { AdminProductsTab } from '../components/admin/AdminProductsTab';
-import { AdminOrdersTab } from '../components/admin/AdminOrdersTab';
+import { AdminB2BSuppliersTab } from '../components/admin/AdminB2BSuppliersTab';
+import { AdminB2BProductsTab } from '../components/admin/AdminB2BProductsTab';
+import { AdminB2BOrdersTab } from '../components/admin/AdminB2BOrdersTab';
+import { AdminB2BCommissionTab } from '../components/admin/AdminB2BCommissionTab';
 import { AdminCategoriesTab } from '../components/admin/AdminCategoriesTab';
 import { AdminMediaTab } from '../components/admin/AdminMediaTab';
 import { AdminReportsTab } from '../components/admin/AdminReportsTab';
 import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
 
 type AdminTab =
-  | 'dashboard' | 'users' | 'posts' | 'products'
-  | 'orders' | 'categories' | 'media' | 'reports' | 'audit';
+  | 'dashboard' | 'users' | 'posts' | 'b2b_suppliers' | 'b2b_products'
+  | 'b2b_orders' | 'b2b_commission' | 'categories' | 'media' | 'reports' | 'audit';
 
 export const AdminView: React.FC = () => {
   const {
@@ -23,18 +25,11 @@ export const AdminView: React.FC = () => {
     currentUser,
     posts,
     products,
-    orders,
     setActiveTab,
     showToast,
-    approveProduct,
-    rejectProduct,
-    deleteProduct,
     deletePost,
-    setEditModalItem,
-    setCreateModalOpen,
     approvePost,
     rejectPost,
-    updateOrderStatus,
   } = useAgroStore();
 
   const [activeTab, setTab] = useState<AdminTab>('dashboard');
@@ -55,7 +50,7 @@ export const AdminView: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center space-y-5 select-none">
         <div className="w-20 h-20 rounded-full bg-red-50 border-4 border-white shadow-xl flex items-center justify-center">
-          <ShieldOff className="w-10 h-10 text-[#E53935]" />
+          <ShieldOff className="w-10 h-10 text-[#D84315]" />
         </div>
         <div className="space-y-2">
           <h2 className="font-black text-xl text-[#111827]">Ruxsat berilmagan</h2>
@@ -76,13 +71,6 @@ export const AdminView: React.FC = () => {
 
   const pendingCount = posts.filter((p) => (p as any).status === 'pending').length
     + products.filter((p) => p.approvalStatus === 'pending').length;
-
-  // ─── Audit logging helper ──────────────────────────────────────────────
-  // ─── Order status update handler ──────────────────────────────────────
-  const handleOrderStatusUpdate = async (orderId: string, status: string, step: number) => {
-    await updateOrderStatus(orderId, status, step);
-    showToast(`Buyurtma holati: ${status}`);
-  };
 
   // ─── Tab Renderer ──────────────────────────────────────────────────────
   const renderTab = () => {
@@ -107,28 +95,14 @@ export const AdminView: React.FC = () => {
             showToast={showToast}
           />
         );
-      case 'products':
-        return (
-          <AdminProductsTab
-            products={products}
-            onApprove={(id) => approveProduct(id)}
-            onReject={(id) => rejectProduct(id)}
-            onDelete={(id) => deleteProduct(id)}
-            onEdit={(item) => setEditModalItem(item)}
-            onAdd={() => setCreateModalOpen(true)}
-            onLogAction={logAction}
-            showToast={showToast}
-          />
-        );
-      case 'orders':
-        return (
-          <AdminOrdersTab
-            orders={orders}
-            onUpdateStatus={handleOrderStatusUpdate}
-            onLogAction={logAction}
-            showToast={showToast}
-          />
-        );
+      case 'b2b_suppliers':
+        return <AdminB2BSuppliersTab onLogAction={logAction} showToast={showToast} />;
+      case 'b2b_products':
+        return <AdminB2BProductsTab onLogAction={logAction} showToast={showToast} />;
+      case 'b2b_orders':
+        return <AdminB2BOrdersTab showToast={showToast} />;
+      case 'b2b_commission':
+        return <AdminB2BCommissionTab />;
       case 'categories':
         return (
           <AdminCategoriesTab
@@ -194,7 +168,7 @@ export const AdminView: React.FC = () => {
             <Menu className="w-5 h-5" />
           </button>
           <span className="font-black text-sm text-[#111827]">OnBozar Admin</span>
-          <span className="ml-auto px-2 py-0.5 rounded-full bg-[#E53935] text-white text-[9px] font-black">
+          <span className="ml-auto px-2 py-0.5 rounded-full bg-[#D84315] text-white text-[9px] font-black">
             {currentUser.email}
           </span>
         </div>
@@ -205,7 +179,7 @@ export const AdminView: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-slate-500">{currentUser.email}</span>
             {pendingCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-[#E53935] text-white text-[10px] font-black">
+              <span className="px-2 py-0.5 rounded-full bg-[#D84315] text-white text-[10px] font-black">
                 {pendingCount} pending
               </span>
             )}

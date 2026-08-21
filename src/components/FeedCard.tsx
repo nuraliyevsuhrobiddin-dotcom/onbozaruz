@@ -87,7 +87,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
       particleCount: 20,
       spread: 50,
       origin: { y: 0.6 },
-      colors: ['#E53935', '#FF6B6B', '#FFFFFF'],
+      colors: ['#D84315', '#FF6B6B', '#FFFFFF'],
       disableForReducedMotion: true,
     });
     setTimeout(() => setShowHeartAnim(false), 800);
@@ -124,7 +124,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
             })
           }
         >
-          <div className="w-[42px] h-[42px] rounded-full p-[2px] bg-gradient-to-tr from-amber-500 via-[#E53935] to-rose-600 shrink-0 shadow-xs">
+          <div className="w-[42px] h-[42px] rounded-full p-[2px] bg-gradient-to-tr from-amber-500 via-[#D84315] to-rose-600 shrink-0 shadow-xs">
             <div className="w-full h-full rounded-full p-[1.5px] bg-white overflow-hidden">
               <img
                 src={post.sellerAvatar || '/logo.png'}
@@ -142,7 +142,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
               )}
             </div>
             <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
-              <MapPin className="w-3 h-3 text-[#E53935]" />
+              <MapPin className="w-3 h-3 text-[#D84315]" />
               <span>{post.location}</span>
             </div>
           </div>
@@ -150,7 +150,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
 
         <div className="flex items-center gap-2 relative">
           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
-            <Tag className="w-3 h-3 text-[#E53935]" />
+            <Tag className="w-3 h-3 text-[#D84315]" />
             {post.categoryName}
           </span>
           
@@ -173,7 +173,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
                       }}
                       className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2"
                     >
-                      <Edit3 className="w-4 h-4 text-[#E53935]" />
+                      <Edit3 className="w-4 h-4 text-[#D84315]" />
                       Tahrirlash
                     </button>
                     <button
@@ -183,9 +183,9 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
                           deletePost(post.id);
                         }
                       }}
-                      className="w-full px-3.5 py-2.5 text-xs font-bold text-[#E53935] hover:bg-red-50 flex items-center gap-2 border-t border-slate-100"
+                      className="w-full px-3.5 py-2.5 text-xs font-bold text-[#D84315] hover:bg-orange-50 flex items-center gap-2 border-t border-slate-100"
                     >
-                      <Trash2 className="w-4 h-4 text-[#E53935]" />
+                      <Trash2 className="w-4 h-4 text-[#D84315]" />
                       O'chirish
                     </button>
                   </>
@@ -251,7 +251,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
         {/* Double-tap heart */}
         {showHeartAnim && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
-            <Heart className="w-24 h-24 text-white fill-[#E53935] drop-shadow-2xl animate-heart-pulse" />
+            <Heart className="w-24 h-24 text-white fill-[#D84315] drop-shadow-2xl animate-heart-pulse" />
           </div>
         )}
       </div>
@@ -268,7 +268,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
               <Heart
                 className={`w-6 h-6 transition-all duration-200 ${
                   isLiked
-                    ? 'fill-[#E53935] text-[#E53935] scale-110'
+                    ? 'fill-[#D84315] text-[#D84315] scale-110'
                     : 'text-[#111111] stroke-[1.75]'
                 }`}
               />
@@ -295,7 +295,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
             <Bookmark
               className={`w-6 h-6 transition-all duration-200 ${
                 isSaved
-                  ? 'fill-[#E53935] text-[#E53935]'
+                  ? 'fill-[#D84315] text-[#D84315]'
                   : 'text-[#111111] stroke-[1.75]'
               }`}
             />
@@ -359,7 +359,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
             href={`tel:${post.phone.replace(/\s+/g, '').replace(/[()]/g, '')}`}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
-            className="flex-1 py-2.5 rounded-[16px] bg-[#E53935] hover:bg-[#D32F2F] text-white font-bold text-[13px] flex items-center justify-center gap-2 transition-colors shadow-md"
+            className="flex-1 py-2.5 rounded-[16px] bg-[#D84315] hover:bg-[#D32F2F] text-white font-bold text-[13px] flex items-center justify-center gap-2 transition-colors shadow-md"
           >
             <PhoneCall className="w-4 h-4" />
             <span>Bog'lanish</span>

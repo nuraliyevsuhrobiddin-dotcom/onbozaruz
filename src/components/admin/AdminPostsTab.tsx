@@ -112,7 +112,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="E'lon yoki sotuvchi..."
-            className="w-full pl-9 pr-3 py-2 rounded-[14px] border border-slate-200 bg-slate-50 text-xs font-semibold outline-none focus:border-[#E53935] transition-colors"
+            className="w-full pl-9 pr-3 py-2 rounded-[14px] border border-slate-200 bg-slate-50 text-xs font-semibold outline-none focus:border-[#D84315] transition-colors"
           />
         </div>
         <div className="flex items-center gap-1.5">
@@ -161,7 +161,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium">{post.sellerName} · {post.location}</p>
-                  <p className="text-[10px] font-bold text-[#E53935]">{post.price}</p>
+                  <p className="text-[10px] font-bold text-[#D84315]">{post.price}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {postStatus === 'pending' && (
@@ -211,7 +211,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                   key={r}
                   onClick={() => setRejectReason(r)}
                   className={`w-full text-left px-3.5 py-2.5 rounded-[14px] text-xs font-bold transition-colors ${
-                    rejectReason === r ? 'bg-[#E53935] text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
+                    rejectReason === r ? 'bg-[#D84315] text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
                   }`}
                 >
                   {r}
@@ -224,7 +224,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                 onChange={(e) => setCustomReason(e.target.value)}
                 placeholder="Sababni kiriting..."
                 rows={3}
-                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-semibold resize-none outline-none focus:border-[#E53935]"
+                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-semibold resize-none outline-none focus:border-[#D84315]"
               />
             )}
             <div className="flex gap-2">
@@ -237,7 +237,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
               <button
                 disabled={isRejectSubmitting}
                 onClick={handleRejectSubmit}
-                className="flex-1 py-3 rounded-[16px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors disabled:opacity-50"
+                className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors disabled:opacity-50"
               >
                 {isRejectSubmitting ? 'Saqlanmoqda...' : 'Rad etish'}
               </button>

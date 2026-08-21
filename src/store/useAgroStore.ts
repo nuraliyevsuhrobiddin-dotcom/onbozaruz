@@ -10,7 +10,20 @@ import {
   INITIAL_ORDERS,
   CATEGORIES,
 } from '../data/mockAgroData';
-import { CreatePostInput, CreateProductInput, Notification, ProductReview } from '../api/types';
+import { CreatePostInput, Notification, ProductReview } from '../api/types';
+import type {
+  BusinessProfile,
+  SupplierProfile,
+  Contract,
+  B2BProduct,
+  B2BOrder,
+  B2BOrderStatus,
+  B2BPaymentMethod,
+  SupplierFinanceSummary,
+  CreateSupplierProfileInput,
+  CreateBusinessProfileInput,
+  CreateB2BProductInput,
+} from '../api/types';
 import { type AuthUser, authClient, deleteListingMedia, isSupabaseConfigured } from '../api/authClient';
 import { postsRepository } from '../api/repositories/postsRepository';
 import { productsRepository } from '../api/repositories/productsRepository';
@@ -22,6 +35,8 @@ import { subscribeToNotifications } from '../api/notificationsRealtime';
 import { playNotificationSound } from '../utils/notificationSound';
 import { cacheManager } from '../utils/cacheManager';
 import { adminRepository } from '../api/adminRepository';
+import { b2bRepository, type B2BDeliveryInfo, type CheckoutResult } from '../api/b2bRepository';
+import { type B2BRoute } from '../utils/b2bRoute';
 
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
@@ -29,17 +44,9 @@ export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
 export type SubView =
   | 'orders'
   | 'saved'
-  | 'my-listings'
-  | 'seller-panel'
-  | 'admin-panel'
   | 'settings'
   | 'edit-profile'
   | null;
-
-export type CartItem = {
-  product: Product;
-  quantity: number;
-};
 
 interface AgroStoreState {
   posts: Post[];
@@ -47,7 +54,6 @@ interface AgroStoreState {
   orders: Order[];
   categories: Category[];
   setCategories: (categories: Category[]) => void;
-  cart: Record<string, CartItem>;
   activeTab: NavTab;
   activeSubView: SubView;
   savedPostIds: string[];
@@ -98,7 +104,6 @@ interface AgroStoreState {
   submitProductReview: (productId: string, rating: number, comment: string) => Promise<void>;
   commentPost: Post | null;
   sharePost: Post | null;
-  contactSellerData: { name: string; phone: string; telegram?: string; title?: string } | null;
   productDetail: Product | Post | null;
   toastMessage: string | null;
   selectedCategoryModalId: string | null;
@@ -133,20 +138,11 @@ interface AgroStoreState {
   addPost: (newPost: Post) => Promise<void>;
   updatePost: (postId: string, updatedFields: Partial<Post>) => void;
   deletePost: (postId: string) => void;
-  addProduct: (newProduct: Partial<Product>) => Promise<void>;
   updateProduct: (productId: string, updatedFields: Partial<Product>) => void;
   deleteProduct: (productId: string) => void;
-  addOrder: (newOrder: Order) => Promise<void>;
-  updateOrderStatus: (orderId: string, status: string, statusStep: number) => Promise<void>;
   addCommentToPost: (postId: string) => void;
-  addToCart: (product: Product) => void;
-  updateCartQuantity: (productId: string, nextQuantity: number) => void;
-  clearCart: () => void;
   hydrateFromApi: () => Promise<void>;
   retryHydrate: () => void;
-
-  approveProduct: (productId: string) => void;
-  rejectProduct: (productId: string) => void;
 
   approvePost: (postId: string) => void;
   rejectPost: (postId: string, reason?: string) => void;
@@ -159,7 +155,6 @@ interface AgroStoreState {
   setNotificationsOpen: (open: boolean) => void;
   setCommentPost: (post: Post | null) => void;
   setSharePost: (post: Post | null) => void;
-  setContactSellerData: (data: { name: string; phone: string; telegram?: string; title?: string } | null) => void;
   setProductDetail: (item: Product | Post | null) => void;
   setSelectedCategoryModalId: (catId: string | null) => void;
   setIsAdminUser: (isAdmin: boolean) => void;
@@ -168,6 +163,36 @@ interface AgroStoreState {
 
   openVideoViewer: (posts: Post[], startIndex: number) => void;
   closeVideoViewer: () => void;
+
+  // --- B2B (ulgurji savdo) ---
+  b2bRoute: B2BRoute;
+  setB2BRoute: (route: B2BRoute) => void;
+  businessProfile: BusinessProfile | null;
+  supplierProfile: SupplierProfile | null;
+  fetchOwnB2BProfiles: () => Promise<void>;
+  registerSupplier: (input: CreateSupplierProfileInput) => Promise<void>;
+  registerBusinessBuyer: (input: CreateBusinessProfileInput) => Promise<void>;
+  b2bContract: Contract | null;
+  fetchOwnB2BContract: () => Promise<void>;
+  respondToB2BContract: (accept: boolean) => Promise<void>;
+  b2bCart: Record<string, { product: B2BProduct; quantity: number }>;
+  addToB2BCart: (product: B2BProduct) => void;
+  updateB2BCartQuantity: (productId: string, nextQuantity: number) => void;
+  clearB2BCart: () => void;
+  checkoutB2BCart: (delivery: B2BDeliveryInfo, paymentMethod: B2BPaymentMethod) => Promise<CheckoutResult>;
+  b2bOrders: B2BOrder[];
+  fetchB2BOrders: () => Promise<void>;
+  supplierB2BOrders: B2BOrder[];
+  fetchSupplierB2BOrders: () => Promise<void>;
+  supplierUpdateB2BOrderStatus: (orderId: string, status: B2BOrderStatus, rejectionReason?: string) => Promise<void>;
+  supplierConfirmB2BCashPayment: (orderId: string) => Promise<void>;
+  ownB2BProducts: B2BProduct[];
+  fetchOwnB2BProducts: () => Promise<void>;
+  submitB2BProduct: (input: CreateB2BProductInput) => Promise<void>;
+  updateOwnB2BProduct: (id: string, patch: Partial<CreateB2BProductInput>) => Promise<void>;
+  deleteOwnB2BProduct: (id: string) => Promise<void>;
+  supplierFinanceSummary: SupplierFinanceSummary | null;
+  fetchOwnSupplierFinanceSummary: (sinceIso?: string) => Promise<void>;
 }
 
 // ADMIN_EMAIL is kept only as a fallback for mock-mode (no Supabase). Real admin check comes from profiles.is_admin in DB.
@@ -272,7 +297,6 @@ export const useAgroStore = create<AgroStoreState>()(
         orders: INITIAL_ORDERS,
         categories: CATEGORIES,
         setCategories: (categories) => set({ categories }),
-        cart: {},
         activeTab: 'home',
         activeSubView: null,
         isAdminUser: initialIsAdmin,
@@ -308,7 +332,6 @@ export const useAgroStore = create<AgroStoreState>()(
         productReviews: {},
         commentPost: null,
         sharePost: null,
-        contactSellerData: null,
         productDetail: null,
         toastMessage: null,
         selectedCategoryModalId: null,
@@ -325,16 +348,7 @@ export const useAgroStore = create<AgroStoreState>()(
             }
             return { activeTab: tab, activeSubView: null };
           }),
-        setActiveSubView: (subView) =>
-          set((state) => {
-            if (subView === 'admin-panel' && !state.isAdminUser) {
-              return {
-                activeSubView: null,
-                toastMessage: "⛔ Boshqaruv paneliga faqat admin (nuraliyevsuhrobiddin@gmail.com) kirishi mumkin!",
-              };
-            }
-            return { activeSubView: subView };
-          }),
+        setActiveSubView: (subView) => set({ activeSubView: subView }),
 
         // --- Auth actions ---
         loginUser: async (user: AuthUser) => {
@@ -354,7 +368,6 @@ export const useAgroStore = create<AgroStoreState>()(
             isAuthLoading: false,
             ...(isNewUser
               ? {
-                  cart: {},
                   savedPostIds: [],
                   likedPostIds: [],
                   followedSellerIds: [],
@@ -362,6 +375,15 @@ export const useAgroStore = create<AgroStoreState>()(
                   orders: [],
                   notifications: [],
                   unreadNotificationsCount: 0,
+                  b2bCart: {},
+                  businessProfile: null,
+                  supplierProfile: null,
+                  b2bContract: null,
+                  b2bOrders: [],
+                  supplierB2BOrders: [],
+                  ownB2BProducts: [],
+                  supplierFinanceSummary: null,
+                  b2bRoute: { view: 'home' as const },
                 }
               : {}),
           });
@@ -371,6 +393,7 @@ export const useAgroStore = create<AgroStoreState>()(
             get().hydrateFromApi(),
           ]);
           void fetchNotificationsList();
+          void get().fetchOwnB2BProfiles();
           startNotificationsSubscription(user.id);
         },
 
@@ -400,7 +423,6 @@ export const useAgroStore = create<AgroStoreState>()(
             isAuthLoading: false,
             ...(isNewUser
               ? {
-                  cart: {},
                   savedPostIds: [],
                   likedPostIds: [],
                   followedSellerIds: [],
@@ -408,6 +430,15 @@ export const useAgroStore = create<AgroStoreState>()(
                   orders: [],
                   notifications: [],
                   unreadNotificationsCount: 0,
+                  b2bCart: {},
+                  businessProfile: null,
+                  supplierProfile: null,
+                  b2bContract: null,
+                  b2bOrders: [],
+                  supplierB2BOrders: [],
+                  ownB2BProducts: [],
+                  supplierFinanceSummary: null,
+                  b2bRoute: { view: 'home' as const },
                 }
               : {}),
           });
@@ -417,6 +448,7 @@ export const useAgroStore = create<AgroStoreState>()(
             void get().hydrateFromApi();
           }
           void fetchNotificationsList();
+          void get().fetchOwnB2BProfiles();
           startNotificationsSubscription(restoredUser.id);
         },
 
@@ -457,10 +489,18 @@ export const useAgroStore = create<AgroStoreState>()(
             likedPostIds: [],
             followedSellerIds: [],
             viewedPostIds: [],
-            cart: {},
             orders: [],
             notifications: [],
             unreadNotificationsCount: 0,
+            b2bCart: {},
+            businessProfile: null,
+            supplierProfile: null,
+            b2bContract: null,
+            b2bOrders: [],
+            supplierB2BOrders: [],
+            ownB2BProducts: [],
+            supplierFinanceSummary: null,
+            b2bRoute: { view: 'home' as const },
             // Keep public listings active for guests; just reset personal flags:
             posts: state.posts.map((p) => ({ ...p, isSaved: false, isLiked: false })),
             activeSubView: null,
@@ -593,7 +633,7 @@ export const useAgroStore = create<AgroStoreState>()(
         });
       },
 
-      toggleFollowSeller: (sellerId, sellerName = 'Fermer') =>
+      toggleFollowSeller: (sellerId, sellerName = 'Sotuvchi') =>
         set((state) => {
           if (!state.isAuthenticated) {
             return {
@@ -751,86 +791,6 @@ export const useAgroStore = create<AgroStoreState>()(
         });
       },
 
-      addProduct: async (newProduct) => {
-        const { isAdminUser, currentUser } = get();
-        const canSubmit = isAdminUser || currentUser?.role === 'business';
-        if (!canSubmit) {
-          throw new Error('Market mahsulotini faqat admin yoki Biznes akkaunt qo\'sha oladi.');
-        }
-
-        const input: CreateProductInput = {
-          title: newProduct.title || '',
-          sellerId: newProduct.sellerId,
-          seller: newProduct.seller || '',
-          verified: newProduct.verified ?? false,
-          category: newProduct.category || '',
-          price: newProduct.price || '',
-          numericPrice: newProduct.numericPrice ?? 0,
-          image: newProduct.image || '',
-          images: newProduct.images,
-          minOrder: newProduct.minOrder || '',
-          discount: newProduct.discount,
-          location: newProduct.location || '',
-          phone: newProduct.phone,
-          telegram: newProduct.telegram,
-          description: newProduct.description,
-          features: newProduct.features,
-          approvalStatus: newProduct.approvalStatus,
-          source: newProduct.source,
-          submittedBy: newProduct.submittedBy,
-          submittedAt: newProduct.submittedAt,
-          approvedAt: newProduct.approvedAt,
-          rejectedAt: newProduct.rejectedAt,
-          stock: newProduct.stock,
-        };
-
-        const created = await productsRepository.create(input);
-        set((state) => ({
-          products: [created, ...state.products],
-          toastMessage:
-            newProduct.approvalStatus === 'pending'
-              ? "E'lon tasdiqlash navbatiga qo'shildi"
-              : "Marketga yangi mahsulot qo'shildi",
-        }));
-      },
-
-      approveProduct: (productId) => {
-        const patch: Partial<Product> = {
-          approvalStatus: 'approved',
-          approvedAt: new Date().toISOString(),
-          rejectedAt: undefined,
-        };
-
-        set((state) => ({
-          products: state.products.map((product) =>
-            product.id === productId ? { ...product, ...patch } : product
-          ),
-          toastMessage: "E'lon marketga joylandi",
-        }));
-
-        productsRepository.update(productId, patch).catch(() => {
-          // Offline holatda tasdiq lokal qoladi.
-        });
-      },
-
-      rejectProduct: (productId) => {
-        const patch: Partial<Product> = {
-          approvalStatus: 'rejected',
-          rejectedAt: new Date().toISOString(),
-        };
-
-        set((state) => ({
-          products: state.products.map((product) =>
-            product.id === productId ? { ...product, ...patch } : product
-          ),
-          toastMessage: "E'lon rad qilindi",
-        }));
-
-        productsRepository.update(productId, patch).catch(() => {
-          // Offline holatda rad etish lokal qoladi.
-        });
-      },
-
       approvePost: (postId) => {
         set((state) => ({
           posts: state.posts.map((p) =>
@@ -852,60 +812,12 @@ export const useAgroStore = create<AgroStoreState>()(
         }));
       },
 
-      addOrder: async (newOrder) => {
-
-        const created = await ordersRepository.create(newOrder);
-        set((state) => ({ orders: [created, ...state.orders] }));
-      },
-
-      updateOrderStatus: async (orderId, status, statusStep) => {
-        set((state) => ({
-          orders: state.orders.map((order) =>
-            order.id === orderId ? { ...order, status, statusStep } : order
-          ),
-        }));
-      },
-
       addCommentToPost: (postId) =>
         set((state) => ({
           posts: state.posts.map((p) =>
             p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p
           ),
         })),
-
-      addToCart: (product) =>
-        set((state) => {
-          const existing = state.cart[product.id];
-          const desired = existing ? existing.quantity + 1 : 1;
-          const inStock = product.stock == null || desired <= product.stock;
-          if (!inStock) {
-            return { toastMessage: `Faqat ${product.stock} dona qoldi` };
-          }
-          return {
-            cart: { ...state.cart, [product.id]: { product, quantity: desired } },
-            toastMessage: "Savatga qo'shildi",
-          };
-        }),
-
-      updateCartQuantity: (productId, nextQuantity) =>
-        set((state) => {
-          if (nextQuantity <= 0) {
-            const { [productId]: _removed, ...rest } = state.cart;
-            return { cart: rest };
-          }
-          const existing = state.cart[productId];
-          const stock = existing?.product.stock;
-          const clamped = stock == null ? nextQuantity : Math.min(nextQuantity, stock);
-          return {
-            cart: {
-              ...state.cart,
-              [productId]: { ...state.cart[productId], quantity: clamped },
-            },
-            ...(clamped < nextQuantity ? { toastMessage: `Faqat ${stock} dona qoldi` } : {}),
-          };
-        }),
-
-      clearCart: () => set({ cart: {} }),
 
       hydrateFromApi: async () => {
         // Step 1: Cache dan darhol o'qi (Stale-While-Revalidate)
@@ -1093,7 +1005,6 @@ export const useAgroStore = create<AgroStoreState>()(
 
       setCommentPost: (post) => set({ commentPost: post }),
       setSharePost: (post) => set({ sharePost: post }),
-      setContactSellerData: (data) => set({ contactSellerData: data }),
       setProductDetail: (item) => set({ productDetail: item }),
       setSelectedCategoryModalId: (catId) => set({ selectedCategoryModalId: catId }),
       setUploadingPostStatus: (status) => set({ uploadingPostStatus: status }),
@@ -1105,12 +1016,175 @@ export const useAgroStore = create<AgroStoreState>()(
         set({ isVideoViewerOpen: true, videoViewerPosts: posts, videoViewerStartIndex: startIndex }),
       closeVideoViewer: () =>
         set({ isVideoViewerOpen: false, videoViewerPosts: [], videoViewerStartIndex: 0 }),
+
+      // --- B2B (ulgurji savdo) ---
+      b2bRoute: { view: 'home' },
+      setB2BRoute: (route) => set({ b2bRoute: route }),
+
+      businessProfile: null,
+      supplierProfile: null,
+      fetchOwnB2BProfiles: async () => {
+        if (!get().isAuthenticated) return;
+        try {
+          const [businessProfile, supplierProfile] = await Promise.all([
+            b2bRepository.fetchOwnBusinessProfile(),
+            b2bRepository.fetchOwnSupplierProfile(),
+          ]);
+          set({ businessProfile, supplierProfile });
+        } catch {
+          // Tarmoq xatosi bo'lsa — lokal holat oldingidek qoladi.
+        }
+      },
+
+      registerSupplier: async (input) => {
+        const supplierProfile = await b2bRepository.registerSupplier(input);
+        set({ supplierProfile, toastMessage: "Ariza yuborildi — admin tasdiqlaguncha kuting" });
+      },
+
+      registerBusinessBuyer: async (input) => {
+        const businessProfile = await b2bRepository.registerBusinessBuyer(input);
+        set({ businessProfile, toastMessage: "Biznes profil yaratildi" });
+      },
+
+      b2bContract: null,
+      fetchOwnB2BContract: async () => {
+        const supplierProfile = get().supplierProfile;
+        if (!supplierProfile) return;
+        const b2bContract = await b2bRepository.fetchOwnContract(supplierProfile.id);
+        set({ b2bContract });
+      },
+      respondToB2BContract: async (accept) => {
+        const contract = get().b2bContract;
+        if (!contract) return;
+        await b2bRepository.respondToContract(contract.id, accept);
+        set({
+          b2bContract: { ...contract, status: accept ? 'accepted' : 'rejected', acceptedAt: accept ? new Date().toISOString() : contract.acceptedAt },
+          toastMessage: accept ? "Shartnoma qabul qilindi" : "Shartnoma rad etildi",
+        });
+      },
+
+      b2bCart: {},
+      addToB2BCart: (product) =>
+        set((state) => {
+          const existing = state.b2bCart[product.id];
+          const desired = existing ? existing.quantity + 1 : Math.max(1, product.moq);
+          if (desired > product.availableQty) {
+            return { toastMessage: `Faqat ${product.availableQty} ${product.unit} qoldi` };
+          }
+          return {
+            b2bCart: { ...state.b2bCart, [product.id]: { product, quantity: desired } },
+            toastMessage: "Savatga qo'shildi",
+          };
+        }),
+      updateB2BCartQuantity: (productId, nextQuantity) =>
+        set((state) => {
+          if (nextQuantity <= 0) {
+            const { [productId]: _removed, ...rest } = state.b2bCart;
+            return { b2bCart: rest };
+          }
+          const existing = state.b2bCart[productId];
+          if (!existing) return {};
+          const clamped = Math.min(Math.max(nextQuantity, existing.product.moq), existing.product.availableQty);
+          return {
+            b2bCart: { ...state.b2bCart, [productId]: { ...existing, quantity: clamped } },
+            ...(clamped !== nextQuantity
+              ? { toastMessage: clamped === existing.product.moq ? `Minimal buyurtma: ${existing.product.moq} ${existing.product.unit}` : `Faqat ${existing.product.availableQty} ${existing.product.unit} qoldi` }
+              : {}),
+          };
+        }),
+      clearB2BCart: () => set({ b2bCart: {} }),
+      checkoutB2BCart: async (delivery, paymentMethod) => {
+        const { b2bCart, businessProfile } = get();
+        if (!businessProfile) throw new Error("Avval biznes profilingizni to'ldiring");
+        const cartLines = Object.values(b2bCart);
+        if (cartLines.length === 0) throw new Error("Savat bo'sh");
+
+        const result: CheckoutResult = await b2bRepository.checkoutB2BCart(businessProfile.id, cartLines, paymentMethod, delivery);
+
+        set((state) => {
+          const nextCart = { ...state.b2bCart };
+          for (const line of cartLines) {
+            if (result.succeededSupplierIds.includes(line.product.supplierId)) {
+              delete nextCart[line.product.id];
+            }
+          }
+          return { b2bCart: nextCart };
+        });
+        void get().fetchB2BOrders();
+        return result;
+      },
+
+      b2bOrders: [],
+      fetchB2BOrders: async () => {
+        if (!get().isAuthenticated) return;
+        const b2bOrders = await b2bRepository.listB2BOrdersForBuyer();
+        set({ b2bOrders });
+      },
+
+      supplierB2BOrders: [],
+      fetchSupplierB2BOrders: async () => {
+        const supplierProfile = get().supplierProfile;
+        if (!supplierProfile) return;
+        const supplierB2BOrders = await b2bRepository.listB2BOrdersForSupplier(supplierProfile.id);
+        set({ supplierB2BOrders });
+      },
+      supplierUpdateB2BOrderStatus: async (orderId, status, rejectionReason) => {
+        await b2bRepository.supplierUpdateOrderStatus(orderId, status, rejectionReason);
+        set((state) => ({
+          supplierB2BOrders: state.supplierB2BOrders.map((o) => o.id === orderId ? { ...o, status, rejectionReason: rejectionReason ?? o.rejectionReason } : o),
+          toastMessage: "Buyurtma holati yangilandi",
+        }));
+      },
+      supplierConfirmB2BCashPayment: async (orderId) => {
+        await b2bRepository.supplierConfirmCashPayment(orderId);
+        set((state) => ({
+          supplierB2BOrders: state.supplierB2BOrders.map((o) => o.id === orderId ? { ...o, paymentStatus: 'cash_confirmed' } : o),
+          toastMessage: "Naqd to'lov tasdiqlandi",
+        }));
+      },
+
+      ownB2BProducts: [],
+      fetchOwnB2BProducts: async () => {
+        const supplierProfile = get().supplierProfile;
+        if (!supplierProfile) return;
+        const ownB2BProducts = await b2bRepository.listOwnB2BProducts(supplierProfile.id);
+        set({ ownB2BProducts });
+      },
+      submitB2BProduct: async (input) => {
+        const created = await b2bRepository.submitB2BProduct(input);
+        set((state) => ({
+          ownB2BProducts: [created, ...state.ownB2BProducts],
+          toastMessage: "Mahsulot moderatsiyaga yuborildi",
+        }));
+      },
+      updateOwnB2BProduct: async (id, patch) => {
+        await b2bRepository.updateB2BProduct(id, patch);
+        set((state) => ({
+          ownB2BProducts: state.ownB2BProducts.map((p) => p.id === id ? { ...p, ...patch } as B2BProduct : p),
+          toastMessage: "Mahsulot yangilandi",
+        }));
+      },
+      deleteOwnB2BProduct: async (id) => {
+        await b2bRepository.deleteB2BProduct(id);
+        set((state) => ({
+          ownB2BProducts: state.ownB2BProducts.filter((p) => p.id !== id),
+          toastMessage: "Mahsulot o'chirildi",
+        }));
+      },
+
+      supplierFinanceSummary: null,
+      fetchOwnSupplierFinanceSummary: async (sinceIso) => {
+        const supplierProfile = get().supplierProfile;
+        if (!supplierProfile) return;
+        const supplierFinanceSummary = await b2bRepository.fetchSupplierFinanceSummary(supplierProfile.id, sinceIso);
+        set({ supplierFinanceSummary });
+      },
     };
   },
   {
     name: 'onbozor-agro-store',
     partialize: (state) => ({
-      cart: state.cart,
+      b2bCart: state.b2bCart,
       savedPostIds: state.savedPostIds,
       likedPostIds: state.likedPostIds,
       followedSellerIds: state.followedSellerIds,

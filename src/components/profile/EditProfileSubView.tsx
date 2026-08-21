@@ -95,7 +95,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
     setErrorMessage(null);
 
     if (!form.name.trim() || form.name.trim().length < 2) {
-      const err = "Iltimos, ism yoki fermer nomini to'liq kiriting (kamida 2 ta belgi)";
+      const err = "Iltimos, ism yoki sotuvchi nomini to'liq kiriting (kamida 2 ta belgi)";
       setErrorMessage(err);
       showToast(err);
       return;
@@ -164,7 +164,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
       </div>
 
       {errorMessage && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-[16px] text-xs font-bold text-[#E53935] leading-snug">
+        <div className="p-3 bg-orange-50 border border-orange-200 rounded-[16px] text-xs font-bold text-[#D84315] leading-snug">
           ⚠️ {errorMessage}
         </div>
       )}
@@ -209,7 +209,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
               {avatarPreview ? (
                 <img src={avatarPreview} alt={form.name || 'User'} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-[#E53935] to-[#B71C1C] text-white font-black text-2xl flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-[#D84315] to-[#B71C1C] text-white font-black text-2xl flex items-center justify-center">
                   {(form.name || currentUser.name || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
@@ -217,14 +217,14 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
             <button
               type="button"
               onClick={() => avatarInputRef.current?.click()}
-              className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#E53935] text-white flex items-center justify-center shadow-md hover:bg-[#C62828] transition-colors cursor-pointer"
+              className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[#D84315] text-white flex items-center justify-center shadow-md hover:bg-[#BF360C] transition-colors cursor-pointer"
               title="Rasmni almashtirish"
             >
               <Camera className="w-4 h-4" />
             </button>
           </div>
           <div>
-            <h3 className="font-black text-sm text-[#111827]">{form.name || 'Fermer'}</h3>
+            <h3 className="font-black text-sm text-[#111827]">{form.name || 'Sotuvchi'}</h3>
             <p className="text-xs text-slate-500 font-semibold">@{form.handle || 'user'}</p>
             <span className="inline-flex mt-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-black">
               Avtomatik kvadrat qirqiladi (WebP)
@@ -235,12 +235,12 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
         {/* Account Type Selector */}
         <div className="space-y-1.5">
           <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-            <UserCheck className="w-3.5 h-3.5 text-[#E53935]" />
+            <UserCheck className="w-3.5 h-3.5 text-[#D84315]" />
             Akkaunt turi
           </span>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { id: 'seller', label: 'Fermer / Sotuvchi' },
+              { id: 'seller', label: 'Sotuvchi' },
               { id: 'business', label: 'Biznes / B2B' },
               { id: 'buyer', label: 'Xaridor' },
             ].map((type) => (
@@ -250,7 +250,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
                 onClick={() => updateField('role', type.id)}
                 className={`py-2 px-2.5 rounded-[12px] text-xs font-bold transition-all text-center cursor-pointer border ${
                   form.role === type.id
-                    ? 'bg-[#E53935] text-white border-[#E53935] shadow-sm'
+                    ? 'bg-[#D84315] text-white border-[#D84315] shadow-sm'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
@@ -263,7 +263,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
         {/* Main Input Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[
-            { key: 'name', label: 'Ism / Fermer nomi', icon: Edit3, placeholder: 'Masalan: Anvar Agro', required: true },
+            { key: 'name', label: 'Ism / Sotuvchi nomi', icon: Edit3, placeholder: 'Masalan: Anvar Savdo', required: true },
             { key: 'handle', label: 'Username (@handle)', icon: KeyRound, placeholder: 'anvar_agro', required: true },
             { key: 'phone', label: 'Telefon raqam', icon: Phone, placeholder: '+998 90 123 45 67' },
             { key: 'email', label: 'Email manzil', icon: Mail, placeholder: 'namuna@onbozar.uz' },
@@ -322,7 +322,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
           <button
             type="submit"
             disabled={isSaving}
-            className="flex-1 py-3.5 rounded-[18px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="flex-1 py-3.5 rounded-[18px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {isSaving ? (
               <>

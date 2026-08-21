@@ -26,7 +26,7 @@ export const StoryBar: React.FC<StoryBarProps> = ({
   onSelectSeller,
   onOpenFarmerReels,
 }) => {
-  // FAQAT obuna bo'lingan fermerlarni ko'rsat
+  // FAQAT obuna bo'lingan sotuvchilarni ko'rsat
   const followedFarmers = farmers.filter((f) => followedSellerIds.includes(f.id));
 
   // Hech kim yo'q bo'lsa — StoryBar umuman ko'rinmasin
@@ -46,7 +46,7 @@ export const StoryBar: React.FC<StoryBarProps> = ({
       >
         <div className="flex items-center justify-between px-1">
           <span className="text-[11px] font-black text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#E53935]" />
+            <Sparkles className="w-3.5 h-3.5 text-[#D84315]" />
             Obunalar
             <span className="ml-1 inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 rounded-full px-1.5 py-0.5 text-[10px] font-black">
               <UserCheck className="w-3 h-3" />
@@ -56,7 +56,7 @@ export const StoryBar: React.FC<StoryBarProps> = ({
           {selectedSeller && (
             <button
               onClick={() => onSelectSeller(null)}
-              className="text-[11px] font-bold text-[#E53935] flex items-center gap-1 hover:underline transition-all"
+              className="text-[11px] font-bold text-[#D84315] flex items-center gap-1 hover:underline transition-all"
             >
               <X className="w-3 h-3" />
               Filterni tozalash
@@ -89,8 +89,8 @@ export const StoryBar: React.FC<StoryBarProps> = ({
                     <div
                       className={`w-[58px] h-[58px] rounded-full p-[2.5px] transition-all duration-300 ${
                         isSelected
-                          ? 'bg-[#E53935] shadow-md scale-105'
-                          : 'bg-gradient-to-tr from-amber-500 via-[#E53935] to-rose-600 group-hover:shadow-sm'
+                          ? 'bg-[#D84315] shadow-md scale-105'
+                          : 'bg-gradient-to-tr from-amber-500 via-[#D84315] to-rose-600 group-hover:shadow-sm'
                       }`}
                     >
                       <div className="w-full h-full rounded-full p-[1.5px] bg-white">

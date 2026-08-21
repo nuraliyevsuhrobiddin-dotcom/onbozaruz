@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Home,
   Search,
-  Tag,
+  Building2,
   PlusSquare,
   User,
   ShieldCheck,
@@ -37,11 +37,11 @@ export const DesktopLeftSidebar: React.FC = () => {
             <Search className={`w-5 h-5 ${activeTab === 'search' ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
           </button>
 
-          <button title="Market" onClick={() => handleNavClick('market')} className={`p-3 rounded-lg ${activeTab === 'market' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-            <Tag className={`w-5 h-5 ${activeTab === 'market' ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
+          <button title="B2B" onClick={() => handleNavClick('market')} className={`p-3 rounded-lg ${activeTab === 'market' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+            <Building2 className={`w-5 h-5 ${activeTab === 'market' ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
           </button>
 
-          <button title="E'lon berish" aria-label="E'lon berish" onClick={() => setCreateModalOpen(true)} className="p-3 rounded-lg text-[#E53935] hover:bg-red-50">
+          <button title="E'lon berish" aria-label="E'lon berish" onClick={() => setCreateModalOpen(true)} className="p-3 rounded-lg text-[#D84315] hover:bg-orange-50">
             <PlusSquare className="w-5 h-5 stroke-[2.25]" />
           </button>
 
@@ -53,7 +53,7 @@ export const DesktopLeftSidebar: React.FC = () => {
             <button
               title="Admin Panel"
               onClick={() => handleNavClick('admin')}
-              className={`p-3 rounded-lg ${activeTab === 'admin' ? 'bg-[#E53935] text-white shadow-lg' : 'text-[#E53935] hover:bg-red-50'}`}
+              className={`p-3 rounded-lg ${activeTab === 'admin' ? 'bg-[#D84315] text-white shadow-lg' : 'text-[#D84315] hover:bg-orange-50'}`}
             >
               <ShieldCheck className={`w-5 h-5 ${activeTab === 'admin' ? 'stroke-[2.5]' : 'stroke-[2]'}`} />
             </button>

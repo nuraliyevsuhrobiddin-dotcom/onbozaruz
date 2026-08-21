@@ -4,7 +4,6 @@
  */
 
 import { CATEGORIES } from '../data/mockAgroData';
-import { Order } from './types';
 import { supabaseClient } from './authClient';
 
 const supabase = supabaseClient;
@@ -406,62 +405,4 @@ export const adminRepository = {
     }
   },
 
-  async updateOrderStatus(orderId: string, status: string, statusStep = 1): Promise<void> {
-
-    if (!supabase) return;
-    const { error } = await supabase.from('orders').update({
-      status,
-      status_step: statusStep,
-    }).eq('id', orderId);
-
-    if (error) throw new Error(`Buyurtma statusi yangilanmadi: ${error.message}`);
-  },
-
-  async getOrders(search = '', status = 'all'): Promise<Order[]> {
-    if (!supabase) return [];
-    try {
-      let query = supabase.from('orders').select('*');
-      if (status !== 'all') {
-        query = query.eq('status', status);
-      }
-      if (search) {
-        query = query.or(`product_name.ilike.%${search}%,seller_name.ilike.%${search}%`);
-      }
-      const { data, error } = await query.order('created_at', { ascending: false });
-      if (error || !data) return [];
-      return data.map((o) => ({
-        id: o.id,
-        userId: o.user_id,
-        productName: o.product_name,
-        sellerName: o.seller_name,
-        sellerPhone: o.seller_phone || '',
-        image: o.image || '',
-        totalPrice: o.total_price || '',
-        quantity: o.quantity || '',
-        status: o.status || 'Qabul qilindi',
-        statusStep: o.status_step || 1,
-        date: o.created_at ? new Date(o.created_at).toLocaleDateString('uz-UZ') : 'Hozirgina',
-      }));
-    } catch {
-      return [];
-    }
-  },
-
-  async updateProductModeration(productId: string, approvalStatus: 'approved' | 'rejected'): Promise<void> {
-    if (!supabase) return;
-    const updatePayload: Record<string, any> = {
-      approval_status: approvalStatus,
-    };
-    if (approvalStatus === 'approved') updatePayload.approved_at = new Date().toISOString();
-    if (approvalStatus === 'rejected') updatePayload.rejected_at = new Date().toISOString();
-
-    const { error } = await supabase.from('products').update(updatePayload).eq('id', productId);
-    if (error) throw new Error(`Mahsulot moderatsiyasi yangilanmadi: ${error.message}`);
-  },
-
-  async deleteProductByAdmin(productId: string): Promise<void> {
-    if (!supabase) return;
-    const { error } = await supabase.from('products').delete().eq('id', productId);
-    if (error) throw new Error(`Mahsulot o'chirilmadi: ${error.message}`);
-  },
 };

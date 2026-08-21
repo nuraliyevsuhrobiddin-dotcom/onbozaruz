@@ -140,7 +140,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       </div>
       <span
         className={`w-11 h-6 rounded-full p-0.5 transition-colors shrink-0 ${
-          settingsForm[field] ? 'bg-[#E53935]' : 'bg-slate-200'
+          settingsForm[field] ? 'bg-[#D84315]' : 'bg-slate-200'
         }`}
       >
         <span
@@ -170,7 +170,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {/* Bildirishnomalar */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
         <h3 className="font-black text-sm text-[#111827] mb-2 flex items-center gap-2">
-          <Bell className="w-4 h-4 text-[#E53935]" />
+          <Bell className="w-4 h-4 text-[#D84315]" />
           Bildirishnomalar
         </h3>
         <div className="divide-y divide-slate-100">
@@ -198,7 +198,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {/* Maxfiylik va xavfsizlik */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
         <h3 className="font-black text-sm text-[#111827] mb-2 flex items-center gap-2">
-          <Lock className="w-4 h-4 text-[#E53935]" />
+          <Lock className="w-4 h-4 text-[#D84315]" />
           Maxfiylik va xavfsizlik
         </h3>
         <div className="divide-y divide-slate-100">
@@ -226,7 +226,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {/* Ilova va savdo sozlamalari */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm space-y-3">
         <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
-          <Settings className="w-4 h-4 text-[#E53935]" />
+          <Settings className="w-4 h-4 text-[#D84315]" />
           Ilova parametrlari
         </h3>
 
@@ -254,13 +254,13 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
           return (
             <label key={item.field} className="block space-y-1.5">
               <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                <Icon className="w-3.5 h-3.5 text-[#E53935]" />
+                <Icon className="w-3.5 h-3.5 text-[#D84315]" />
                 {item.label}
               </span>
               <select
                 value={settingsForm[item.field as keyof typeof settingsForm] as string}
                 onChange={(e) => updateSetting(item.field as keyof typeof settingsForm, e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-bold text-[#111827] outline-none focus:border-[#E53935] focus:bg-white transition-colors cursor-pointer"
+                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-bold text-[#111827] outline-none focus:border-[#D84315] focus:bg-white transition-colors cursor-pointer"
               >
                 {item.options.map((option) => (
                   <option key={option} value={option}>
@@ -288,7 +288,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
           }}
           className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
         >
-          <Moon className="w-4 h-4 text-[#E53935]" />
+          <Moon className="w-4 h-4 text-[#D84315]" />
           {settingsForm.darkMode ? 'Yorug rejim' : 'Tungi rejim'}
         </button>
         <button
@@ -331,7 +331,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         <button
           type="button"
           onClick={() => setIsDeleteModalOpen(true)}
-          className="w-full py-3 rounded-[16px] bg-red-50 hover:bg-red-100 text-[#E53935] font-extrabold text-xs transition-colors border border-red-200 flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 rounded-[16px] bg-orange-50 hover:bg-orange-100 text-[#D84315] font-extrabold text-xs transition-colors border border-orange-200 flex items-center justify-center gap-2 cursor-pointer"
         >
           <Trash2 className="w-4 h-4" />
           Akkauntni butunlay o'chirish
@@ -342,7 +342,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-sm bg-white rounded-[26px] p-6 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
-            <div className="w-12 h-12 rounded-2xl bg-red-100 text-[#E53935] flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#D84315] flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div className="text-center space-y-1">
@@ -360,7 +360,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder="o'chirish"
-                className="w-full px-3.5 py-2.5 rounded-[14px] border border-red-200 bg-red-50/50 text-sm font-bold text-[#E53935] outline-none text-center"
+                className="w-full px-3.5 py-2.5 rounded-[14px] border border-orange-200 bg-orange-50/50 text-sm font-bold text-[#D84315] outline-none text-center"
               />
             </div>
 
@@ -377,7 +377,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
                 type="button"
                 onClick={handleDeleteAccount}
                 disabled={isDeleting || deleteConfirmText.trim().toLowerCase() !== "o'chirish"}
-                className="flex-1 py-3 rounded-[16px] bg-[#E53935] hover:bg-[#C62828] text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                className="flex-1 py-3 rounded-[16px] bg-[#D84315] hover:bg-[#BF360C] text-white font-black text-xs transition-colors shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
                 {isDeleting ? (
                   <>

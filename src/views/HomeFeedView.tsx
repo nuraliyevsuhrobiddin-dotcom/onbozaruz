@@ -92,7 +92,7 @@ export const HomeFeedView: React.FC = () => {
           >
             {/* Top progress line animation while uploading */}
             {uploadingPostStatus.isUploading && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#E53935] via-amber-400 to-emerald-400 animate-pulse" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#D84315] via-amber-400 to-emerald-400 animate-pulse" />
             )}
 
             <div className="flex items-center justify-between gap-3">
@@ -186,7 +186,7 @@ export const HomeFeedView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* 1. Obunalar (Fermerlar Yangi E'lonlari) StoryBar — only when farmers exist */}
+      {/* 1. Obunalar (Sotuvchilar Yangi E'lonlari) StoryBar — only when sellers exist */}
       {farmers.length > 0 && (
         <StoryBar
           farmers={farmers}

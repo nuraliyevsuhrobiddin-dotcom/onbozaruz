@@ -1,7 +1,7 @@
 {
-  "name": "OnBozor Agro Marketplace",
+  "name": "OnBozor Marketplace",
   "short_name": "OnBozor",
-  "description": "O'zbekistondagi agro marketplace",
+  "description": "Sotuvchilar va xaridorlarni bog'lovchi marketplace",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

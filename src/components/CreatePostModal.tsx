@@ -63,7 +63,7 @@ const inputBase =
   'w-full bg-slate-100 rounded-[14px] px-3.5 py-3 text-[13px] text-slate-900 placeholder-slate-400 outline-none focus:ring-2 transition-all';
 
 const inputError = 'ring-2 ring-red-300 bg-red-50';
-const inputOk = 'focus:ring-[#E53935]/30';
+const inputOk = 'focus:ring-[#D84315]/30';
 
 /** Tez tanlash tugmasi */
 const QuickChip: React.FC<{
@@ -186,7 +186,7 @@ export const CreatePostModal: React.FC = () => {
                   disabled={!canGoNext()}
                   className={`px-4 py-2 rounded-[14px] text-[13px] font-black transition-all ${
                     canGoNext()
-                      ? 'bg-[#E53935] text-white shadow-sm'
+                      ? 'bg-[#D84315] text-white shadow-sm'
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                   }`}
                 >
@@ -197,7 +197,7 @@ export const CreatePostModal: React.FC = () => {
                   whileTap={{ scale: 0.95 }}
                   onClick={onSubmit}
                   disabled={isPublishing}
-                  className="px-4 py-2 rounded-[14px] text-[13px] font-black bg-[#E53935] text-white shadow-sm disabled:opacity-60 disabled:cursor-wait"
+                  className="px-4 py-2 rounded-[14px] text-[13px] font-black bg-[#D84315] text-white shadow-sm disabled:opacity-60 disabled:cursor-wait"
                 >
                   {isPublishing ? (
                     <Loader2 className="w-4 h-4 animate-spin inline-block" />
@@ -214,7 +214,7 @@ export const CreatePostModal: React.FC = () => {
                 <div
                   key={s.num}
                   className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                    step >= s.num ? 'bg-[#E53935]' : 'bg-slate-100'
+                    step >= s.num ? 'bg-[#D84315]' : 'bg-slate-100'
                   }`}
                 />
               ))}
@@ -231,7 +231,7 @@ export const CreatePostModal: React.FC = () => {
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
                         isActive
-                          ? 'bg-[#E53935] text-white scale-110 shadow-md'
+                          ? 'bg-[#D84315] text-white scale-110 shadow-md'
                           : isDone
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-slate-100 text-slate-400'
@@ -245,7 +245,7 @@ export const CreatePostModal: React.FC = () => {
                     </div>
                     <span
                       className={`text-[10px] font-bold ${
-                        isActive ? 'text-[#E53935]' : isDone ? 'text-emerald-600' : 'text-slate-400'
+                        isActive ? 'text-[#D84315]' : isDone ? 'text-emerald-600' : 'text-slate-400'
                       }`}
                     >
                       {s.label}
@@ -276,7 +276,7 @@ export const CreatePostModal: React.FC = () => {
                           onClick={() => setMediaMode('video')}
                           className={`px-3 py-2 rounded-full text-[12px] font-black transition-colors ${
                             mediaMode === 'video'
-                              ? 'bg-[#E53935] text-white shadow-sm'
+                              ? 'bg-[#D84315] text-white shadow-sm'
                               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                           }`}
                         >
@@ -347,7 +347,7 @@ export const CreatePostModal: React.FC = () => {
                               e.stopPropagation();
                               removeMedia();
                             }}
-                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-[#E53935] text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-[#D84315] text-white flex items-center justify-center backdrop-blur-sm transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -453,23 +453,23 @@ export const CreatePostModal: React.FC = () => {
                             onClick={() => handleCategorySelect(c.id)}
                             className={`p-3.5 rounded-[18px] border-2 text-left flex items-center gap-3 transition-all ${
                               isSelected
-                                ? 'border-[#E53935] bg-red-50 shadow-md'
+                                ? 'border-[#D84315] bg-orange-50 shadow-md'
                                 : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'
                             }`}
                           >
                             <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                              isSelected ? 'bg-red-100 text-[#E53935]' : 'bg-slate-100 text-slate-500'
+                              isSelected ? 'bg-orange-100 text-[#D84315]' : 'bg-slate-100 text-slate-500'
                             }`}>
                               <CategoryIcon className="h-5 w-5" />
                             </span>
                             <div className="flex-1 min-w-0">
-                              <p className={`text-[13px] font-bold truncate ${isSelected ? 'text-[#E53935]' : 'text-[#111111]'}`}>
+                              <p className={`text-[13px] font-bold truncate ${isSelected ? 'text-[#D84315]' : 'text-[#111111]'}`}>
                                 {c.name}
                               </p>
                               <p className="text-[11px] text-slate-400">{c.count}</p>
                             </div>
                             {isSelected && (
-                              <CheckCircle2 className="w-4 h-4 text-[#E53935] shrink-0" />
+                              <CheckCircle2 className="w-4 h-4 text-[#D84315] shrink-0" />
                             )}
                           </motion.button>
                         );
@@ -484,7 +484,7 @@ export const CreatePostModal: React.FC = () => {
                         <select
                           value={selectedRegion}
                           onChange={(e) => setSelectedRegion(e.target.value)}
-                          className="w-full bg-slate-100 border-0 rounded-[14px] pl-9 pr-8 py-3 text-[13px] text-slate-900 font-medium outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#E53935]/30"
+                          className="w-full bg-slate-100 border-0 rounded-[14px] pl-9 pr-8 py-3 text-[13px] text-slate-900 font-medium outline-none appearance-none cursor-pointer focus:ring-2 focus:ring-[#D84315]/30"
                         >
                           {REGIONS.filter((r) => r !== 'Barchasi').map((reg) => (
                             <option key={reg} value={reg}>
@@ -668,7 +668,7 @@ export const CreatePostModal: React.FC = () => {
                         placeholder="A'lo sifat, yangi uzilgan..."
                         value={formValues.condition || ''}
                         onChange={(e) => setValue('condition', e.target.value)}
-                        className={`${inputBase} focus:ring-[#E53935]/30`}
+                        className={`${inputBase} focus:ring-[#D84315]/30`}
                       />
                       <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
                         {CONDITION_QUICK.map((option) => (
@@ -719,7 +719,7 @@ export const CreatePostModal: React.FC = () => {
                         placeholder="Mahsulot haqida batafsil: hosil sifati, yetkazib berish sharti, qadoqlash va h.k."
                         value={formValues.description || ''}
                         onChange={(e) => setValue('description', e.target.value)}
-                        className={`${inputBase} focus:ring-[#E53935]/30`}
+                        className={`${inputBase} focus:ring-[#D84315]/30`}
                       />
                     </div>
 
@@ -764,7 +764,7 @@ export const CreatePostModal: React.FC = () => {
                           <div className="absolute top-3 left-3 bg-[#111111]/90 text-[#22C55E] px-3 py-1.5 rounded-full text-[12px] font-extrabold shadow-md">
                             {formValues.price || 'Narx'}
                           </div>
-                          <div className="absolute top-3 right-3 bg-[#E53935]/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold">
+                          <div className="absolute top-3 right-3 bg-[#D84315]/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold">
                             {categories.find((c) => c.id === formValues.category)?.name || 'Kategoriya'}
                           </div>
                         </div>
@@ -831,7 +831,7 @@ export const CreatePostModal: React.FC = () => {
                       whileTap={{ scale: 0.97 }}
                       onClick={onSubmit}
                       disabled={isPublishing}
-                      className="w-full py-4 rounded-[18px] bg-[#E53935] hover:bg-[#d32f2f] text-white font-black text-[15px] flex items-center justify-center gap-3 shadow-lg transition-colors disabled:opacity-70 disabled:cursor-wait"
+                      className="w-full py-4 rounded-[18px] bg-[#D84315] hover:bg-[#d32f2f] text-white font-black text-[15px] flex items-center justify-center gap-3 shadow-lg transition-colors disabled:opacity-70 disabled:cursor-wait"
                     >
                       {isPublishing ? (
                         <>

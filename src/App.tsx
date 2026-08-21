@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, type Transition } from 'framer-motion';
 import { useAgroStore, type NavTab, type SubView } from './store/useAgroStore';
 
@@ -9,13 +9,13 @@ import { DesktopRightSidebar } from './components/DesktopRightSidebar';
 
 import { HomeFeedView } from './views/HomeFeedView';
 import { SearchExploreView } from './views/SearchExploreView';
-import { MarketShopView } from './views/MarketShopView';
+import { B2BView } from './views/B2BView';
 import { ProfileView } from './views/ProfileView';
+import { parseB2BHash, encodeB2BHash } from './utils/b2bRoute';
 
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentSheetModal } from './components/CommentSheetModal';
 import { ShareModal } from './components/ShareModal';
-import { ContactSellerModal } from './components/ContactSellerModal';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { NotificationsDrawerModal } from './components/NotificationsDrawerModal';
 import { Toast } from './components/ui/Toast';
@@ -59,6 +59,7 @@ export default function App() {
     restoreSession,
     clearSession,
     setAuthPromptOpen,
+    setB2BRoute,
   } = useAgroStore();
   const showHeader = activeTab !== 'search' && activeTab !== 'admin';
 
@@ -69,21 +70,31 @@ export default function App() {
     hydrateFromApi();
   }, [hydrateFromApi]);
 
+  // Derives {activeTab, activeSubView/b2bRoute} from window.location.hash —
+  // shared by the initial mount parse and the popstate "no history state"
+  // fallback, so both agree on what a given hash means instead of the
+  // fallback blindly resetting to home.
+  const applyHashRoute = useCallback(() => {
+    const hash = window.location.hash.slice(1); // Remove '#'
+    const [tab, ...rest] = hash.split('/');
+    if (tab && (tab === 'home' || tab === 'search' || tab === 'market' || tab === 'profile' || tab === 'admin')) {
+      setActiveTab(tab as NavTab);
+      if (tab === 'market') {
+        setB2BRoute(parseB2BHash(rest));
+      } else if (rest[0]) {
+        setActiveSubView(rest[0] as SubView);
+      }
+    } else {
+      setActiveTab('home');
+    }
+  }, [setActiveTab, setActiveSubView, setB2BRoute]);
+
   // ─── Parse initial route from URL hash ──────────────────────────────────
   useEffect(() => {
     if (isAuthCallback) return;
-    
-    const hash = window.location.hash.slice(1); // Remove '#'
-    if (!hash) return;
-    
-    const [tab, subView] = hash.split('/');
-    if (tab && (tab === 'home' || tab === 'search' || tab === 'market' || tab === 'profile' || tab === 'admin')) {
-      setActiveTab(tab as NavTab);
-      if (subView) {
-        setActiveSubView(subView as SubView);
-      }
-    }
-  }, [isAuthCallback, setActiveTab, setActiveSubView]);
+    if (!window.location.hash.slice(1)) return;
+    applyHashRoute();
+  }, [isAuthCallback, applyHashRoute]);
 
   // Online/Offline holat kuzatuvchisi
   useEffect(() => {
@@ -118,33 +129,42 @@ export default function App() {
   }, [clearSession, isAuthCallback, restoreSession]);
 
   // ─── Single Page App History & Phone Back Button Handler ─────────────────
-  const { activeSubView } = useAgroStore();
+  const { activeSubView, b2bRoute } = useAgroStore();
 
-  // Push new history state whenever activeTab or activeSubView changes
+  // Push new history state whenever activeTab/activeSubView/b2bRoute changes.
+  // Reads activeTab from getState() (not the destructured hook value) —
+  // when this effect and the hash-parse mount effect fire in the same
+  // commit, the hook value here is still last render's stale snapshot even
+  // though the store itself already has the new tab, which previously made
+  // this push the wrong (stale) tab into history right after a deep link.
   useEffect(() => {
     if (isAuthCallback) return;
 
-    const currentSubView = useAgroStore.getState().activeSubView;
-    const nextHash = currentSubView ? `#${activeTab}/${currentSubView}` : `#${activeTab}`;
+    const state = useAgroStore.getState();
+    const nextHash = state.activeTab === 'market'
+      ? `#market/${encodeB2BHash(state.b2bRoute)}`
+      : (state.activeSubView ? `#${state.activeTab}/${state.activeSubView}` : `#${state.activeTab}`);
 
     if (window.location.hash !== nextHash) {
       window.history.pushState(
-        { tab: activeTab, subView: currentSubView },
+        { tab: state.activeTab, subView: state.activeSubView, b2bRoute: state.b2bRoute },
         '',
         nextHash
       );
     }
-  }, [activeTab, activeSubView, isAuthCallback]);
+  }, [activeTab, activeSubView, b2bRoute, isAuthCallback]);
 
   // Handle hardware / browser back button (popstate)
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      const state = event.state as { tab?: NavTab; subView?: SubView } | null;
-      const { activeTab: currentTab, activeSubView: currentSubView } = useAgroStore.getState();
+      const state = event.state as { tab?: NavTab; subView?: SubView; b2bRoute?: import('./utils/b2bRoute').B2BRoute } | null;
 
       // If state is provided from history pop
       if (state) {
-        if (state.subView !== currentSubView) {
+        const { activeTab: currentTab, activeSubView: currentSubView } = useAgroStore.getState();
+        if (state.tab === 'market' && state.b2bRoute) {
+          setB2BRoute(state.b2bRoute);
+        } else if (state.subView !== currentSubView) {
           setActiveSubView(state.subView || null);
         }
         if (state.tab && state.tab !== currentTab) {
@@ -153,17 +173,17 @@ export default function App() {
         return;
       }
 
-      // Fallback if no history state (e.g. hash manually changed or direct back)
-      if (currentSubView) {
-        setActiveSubView(null);
-      } else if (currentTab !== 'home') {
-        setActiveTab('home');
-      }
+      // Fallback if no history state (e.g. hash manually changed, a history
+      // entry from before this app pushed state, or a browser/automation
+      // quirk firing popstate on load) — re-derive the route from the
+      // current hash instead of blindly resetting to home, which would
+      // otherwise clobber a valid deep link (e.g. #market/dashboard).
+      applyHashRoute();
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [setActiveSubView, setActiveTab]);
+  }, [setActiveSubView, setActiveTab, setB2BRoute, applyHashRoute]);
 
 
   if (isAuthCallback) {
@@ -274,7 +294,7 @@ export default function App() {
                   exit="exit"
                   transition={pageTransition}
                 >
-                  <MarketShopView />
+                  <B2BView />
                 </motion.div>
               )}
 
@@ -321,7 +341,6 @@ export default function App() {
       <EditListingModal />
       <CommentSheetModal />
       <ShareModal />
-      <ContactSellerModal />
       <SellerProfileModal />
       <ProductDetailModal />
 

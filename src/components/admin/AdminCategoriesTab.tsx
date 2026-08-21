@@ -21,7 +21,7 @@ const DEFAULT_CATS: CategoryItem[] = CATEGORIES.map((c, i) => ({
 
 const SCOPE_LABELS: Record<'post' | 'market' | 'both', string> = {
   post: "E'lon berish",
-  market: 'Market',
+  market: 'B2B Market',
   both: 'Ikkalasida ham',
 };
 
@@ -127,13 +127,13 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
         </div>
         <button
           onClick={() => setEditModal({ name: '', icon: '', orderIndex: categories.length, isActive: true, scope: activeScope })}
-          className="px-3.5 py-2 rounded-[16px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors flex items-center gap-1.5 shadow-md"
+          className="px-3.5 py-2 rounded-[16px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors flex items-center gap-1.5 shadow-md"
         >
           <Plus className="w-4 h-4" /> Qo'shish
         </button>
       </div>
 
-      {/* E'lon berish / Market kategoriyalari bir-biridan mustaqil boshqariladi.
+      {/* E'lon berish / B2B Market kategoriyalari bir-biridan mustaqil boshqariladi.
           'Ikkalasida ham' deb belgilangan kategoriyalar har ikkala tabda ko'rinadi. */}
       <div className="inline-flex p-1 bg-slate-100 rounded-[16px] gap-1">
         {(['post', 'market'] as const).map((scope) => (
@@ -144,7 +144,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
               activeScope === scope ? 'bg-white text-[#111827] shadow-sm' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            {scope === 'post' ? "E'lon berish" : 'Market'}
+            {scope === 'post' ? "E'lon berish" : 'B2B Market'}
           </button>
         ))}
       </div>
@@ -226,7 +226,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
                   value={editModal.name || ''}
                   onChange={(e) => setEditModal((p) => ({ ...p, name: e.target.value }))}
                   placeholder="Meva-Sabzavot"
-                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#E53935]"
+                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#D84315]"
                 />
               </label>
               <label className="block space-y-1.5">
@@ -236,7 +236,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
                   onChange={(e) => setEditModal((p) => ({ ...p, id: e.target.value }))}
                   placeholder="fruits"
                   disabled={!!editModal.createdAt}
-                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#E53935] disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#D84315] disabled:bg-slate-50 disabled:text-slate-400"
                 />
               </label>
               <label className="block space-y-1.5">
@@ -245,7 +245,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
                   value={editModal.icon || ''}
                   onChange={(e) => setEditModal((p) => ({ ...p, icon: e.target.value }))}
                   placeholder="🍎"
-                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#E53935]"
+                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#D84315]"
                 />
               </label>
               <label className="block space-y-1.5">
@@ -254,7 +254,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
                   type="number"
                   value={editModal.orderIndex ?? 0}
                   onChange={(e) => setEditModal((p) => ({ ...p, orderIndex: Number(e.target.value) }))}
-                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#E53935]"
+                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-bold outline-none focus:border-[#D84315]"
                 />
               </label>
               <label className="block space-y-1.5">
@@ -287,7 +287,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
               <button
                 disabled={isSaving}
                 onClick={handleSave}
-                className="flex-1 py-3 rounded-[16px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors disabled:opacity-50"
+                className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors disabled:opacity-50"
               >
                 {isSaving ? 'Saqlanmoqda...' : 'Saqlash'}
               </button>

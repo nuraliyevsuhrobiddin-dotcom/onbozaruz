@@ -43,13 +43,13 @@ export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
           <>
             <h1 className="text-xl font-bold text-slate-900">Email tasdiqlanmadi</h1>
             <p className="mt-3 text-sm text-red-600">{error}</p>
-            <a href="/#home" className="mt-6 inline-block text-sm font-bold text-[#E53935]">
+            <a href="/#home" className="mt-6 inline-block text-sm font-bold text-[#D84315]">
               Bosh sahifaga qaytish
             </a>
           </>
         ) : (
           <>
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#E53935]" />
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#D84315]" />
             <h1 className="mt-4 text-xl font-bold text-slate-900">Email tasdiqlanmoqda...</h1>
             <p className="mt-2 text-sm text-slate-500">Bir necha soniya kuting.</p>
           </>

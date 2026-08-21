@@ -1,4 +1,4 @@
-﻿/**
+/**
  * OnBozor - Email HTML and Text Templates (Resend)
  * Domain: onbozar.uz | Sender: noreply@onbozar.uz
  */
@@ -146,17 +146,17 @@ export function getWelcomeEmailTemplate({ name, role = 'seller' }: WelcomeEmailP
   text: string;
 } {
   const greeting = name ? `Assalomu alaykum, ${name}!` : 'Assalomu alaykum!';
-  const roleText = role === 'business' ? 'Biznes hamkor' : role === 'seller' ? 'Fermer / Sotuvchi' : 'Xaridor';
+  const roleText = role === 'business' ? 'Biznes hamkor' : role === 'seller' ? 'Sotuvchi' : 'Xaridor';
 
   const bodyContent = `
     <div style="text-align: center; margin-bottom: 24px;">
       <span class="badge">Xush kelibsiz</span>
     </div>
     <h2 style="font-size: 22px; font-weight: 800; color: #0f172a; margin: 0 0 16px 0; text-align: center;">
-      ${greeting} OnBozor oilasiga xush kelibsiz! 🌱
+      ${greeting} OnBozor oilasiga xush kelibsiz! 🛍️
     </h2>
     <p style="font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 24px 0;">
-      Sizning <strong>${roleText}</strong> sifatidagi profilingiz muvaffaqiyatli faollashtirildi. Endi siz O‘zbekiston bo‘ylab eng yaxshi qishloq xo‘jaligi mahsulotlari savdosida bevosita ishtirok etishingiz mumkin.
+      Sizning <strong>${roleText}</strong> sifatidagi profilingiz muvaffaqiyatli faollashtirildi. Endi siz O‘zbekiston bo‘ylab eng yaxshi mahsulotlar savdosida bevosita ishtirok etishingiz mumkin.
     </p>
 
     <div class="info-card">
@@ -164,7 +164,7 @@ export function getWelcomeEmailTemplate({ name, role = 'seller' }: WelcomeEmailP
       <ul style="margin: 0; padding-left: 20px; font-size: 14px; color: #475569; line-height: 1.8;">
         <li>E’lonlar joylashtiring va mahsulotlaringizni minglab xaridorlarga ko‘rsating</li>
         <li>Bozor narxlarini real vaqtda kuzating</li>
-        <li>Xaridorlar va fermerlar bilan to‘g‘ridan-to‘g‘ri bog‘laning</li>
+        <li>Xaridorlar va sotuvchilar bilan to‘g‘ridan-to‘g‘ri bog‘laning</li>
         <li>Buyurtmalaringizni shaxsiy kabinet orqali boshqaring</li>
       </ul>
     </div>

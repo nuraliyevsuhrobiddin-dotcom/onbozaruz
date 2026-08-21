@@ -940,5 +940,719 @@ CREATE TRIGGER tr_enforce_product_moderation
   FOR EACH ROW EXECUTE FUNCTION public.enforce_product_moderation();
 
 -- =====================================================================
+-- 12. B2B ULGURJI BOZOR (Supplier / Business Buyer / Commission)
+-- =====================================================================
+-- Eski "Market" (chakana do'kon) shu bilan almashtiriladi. Eski
+-- products/orders jadvallariga TEGILMAYDI — real xaridorlar tarixi
+-- saqlanib qoladi, faqat ular uchun UI olib tashlanadi.
+-- =====================================================================
+
+-- --- 12.1 Yordamchi funksiyalar (SECURITY DEFINER, is_admin() naqshi) ---
+-- Bular hech qachon o'zi himoya qilayotgan jadvalning o'ziga ichki
+-- subquery yozmaydi (rekursiya xavfi) — har biri BOSHQA jadvaldan o'qiydi.
+-- LANGUAGE sql emas, plpgsql — business_profiles/supplier_profiles hali
+-- pastda e'lon qilinadi, va LANGUAGE sql funksiyalar (plpgsql'dan farqli
+-- o'laroq) tanasidagi jadvallar CREATE FUNCTION vaqtida darhol mavjud
+-- bo'lishini talab qiladi. plpgsql tekshiruvni chaqirilish vaqtigacha
+-- kechiktiradi, shu bilan pastdagi jadvallarga oldindan murojaat qilishga
+-- imkon beradi.
+CREATE OR REPLACE FUNCTION public.is_own_business(p_business_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (SELECT 1 FROM public.business_profiles WHERE id = p_business_id AND user_id = auth.uid());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_own_supplier(p_supplier_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (SELECT 1 FROM public.supplier_profiles WHERE id = p_supplier_id AND user_id = auth.uid());
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE;
+
+CREATE OR REPLACE FUNCTION public.is_verified_supplier(p_supplier_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (SELECT 1 FROM public.supplier_profiles WHERE id = p_supplier_id AND verification_status = 'approved');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE;
+
+-- --- 12.2 business_profiles (Business Buyer — do'kon identifikatsiyasi) ---
+CREATE TABLE IF NOT EXISTS public.business_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID UNIQUE NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    store_name TEXT NOT NULL,
+    owner_name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    business_type TEXT NOT NULL DEFAULT 'other'
+      CHECK (business_type IN ('grocery','minimarket','supermarket','clothing','pharmacy','cafe_restaurant','construction','household','other')),
+    region TEXT DEFAULT '',
+    district TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    logo_url TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.business_profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Biznes profilini egasi yoki admin ko'radi" ON public.business_profiles;
+CREATE POLICY "Biznes profilini egasi yoki admin ko'radi" ON public.business_profiles FOR SELECT USING (user_id = auth.uid() OR public.is_admin());
+DROP POLICY IF EXISTS "Foydalanuvchi biznes profil yaratadi" ON public.business_profiles;
+CREATE POLICY "Foydalanuvchi biznes profil yaratadi" ON public.business_profiles FOR INSERT WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "Egasi yoki admin tahrirlaydi (business_profiles)" ON public.business_profiles;
+CREATE POLICY "Egasi yoki admin tahrirlaydi (business_profiles)" ON public.business_profiles FOR UPDATE USING (user_id = auth.uid() OR public.is_admin());
+DROP POLICY IF EXISTS "Faqat admin o'chiradi (business_profiles)" ON public.business_profiles;
+CREATE POLICY "Faqat admin o'chiradi (business_profiles)" ON public.business_profiles FOR DELETE USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_business_profiles_user_id ON public.business_profiles(user_id);
+
+-- --- 12.3 business_addresses (Xaridorning yetkazib berish manzillari) ---
+CREATE TABLE IF NOT EXISTS public.business_addresses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    business_id UUID NOT NULL REFERENCES public.business_profiles(id) ON DELETE CASCADE,
+    label TEXT DEFAULT 'Asosiy manzil',
+    store_name TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
+    region TEXT DEFAULT '',
+    district TEXT DEFAULT '',
+    address TEXT NOT NULL DEFAULT '',
+    delivery_note TEXT DEFAULT '',
+    latitude NUMERIC NULL,   -- kelajakdagi xarita moduli uchun, hozircha ishlatilmaydi
+    longitude NUMERIC NULL,  -- kelajakdagi xarita moduli uchun, hozircha ishlatilmaydi
+    is_default BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.business_addresses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Manzilni egasi yoki admin ko'radi" ON public.business_addresses;
+CREATE POLICY "Manzilni egasi yoki admin ko'radi" ON public.business_addresses FOR SELECT USING (public.is_own_business(business_id) OR public.is_admin());
+DROP POLICY IF EXISTS "Manzil qo'shish" ON public.business_addresses;
+CREATE POLICY "Manzil qo'shish" ON public.business_addresses FOR INSERT WITH CHECK (public.is_own_business(business_id));
+DROP POLICY IF EXISTS "Manzilni tahrirlash" ON public.business_addresses;
+CREATE POLICY "Manzilni tahrirlash" ON public.business_addresses FOR UPDATE USING (public.is_own_business(business_id) OR public.is_admin());
+DROP POLICY IF EXISTS "Manzilni o'chirish" ON public.business_addresses;
+CREATE POLICY "Manzilni o'chirish" ON public.business_addresses FOR DELETE USING (public.is_own_business(business_id) OR public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_business_addresses_business_id ON public.business_addresses(business_id);
+
+-- --- 12.4 supplier_profiles (Ishlab chiqaruvchi/Importyor/Distributor) ---
+CREATE TABLE IF NOT EXISTS public.supplier_profiles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID UNIQUE NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    company_name TEXT NOT NULL,
+    supplier_type TEXT NOT NULL CHECK (supplier_type IN ('manufacturer','importer','distributor','supplier')),
+    owner_name TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    email TEXT DEFAULT '',
+    region TEXT DEFAULT '',
+    district TEXT DEFAULT '',
+    address TEXT DEFAULT '',
+    latitude NUMERIC NULL,   -- kelajakdagi xarita moduli uchun, hozircha ishlatilmaydi
+    longitude NUMERIC NULL,  -- kelajakdagi xarita moduli uchun, hozircha ishlatilmaydi
+    description TEXT DEFAULT '',
+    categories TEXT[] DEFAULT ARRAY[]::TEXT[],
+    tax_id TEXT DEFAULT '',
+    logo_url TEXT DEFAULT '',
+    verification_status TEXT NOT NULL DEFAULT 'pending' CHECK (verification_status IN ('pending','approved','rejected','suspended')),
+    rejection_reason TEXT DEFAULT '',
+    commission_rate NUMERIC(5,2) NOT NULL DEFAULT 5.00,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Himoya: admin bo'lmagan foydalanuvchi ro'yxatdan o'tishda o'zini
+-- tasdiqlangan deb belgilay olmaydi yoki o'ziga komissiya stavkasi tanlay olmaydi.
+CREATE OR REPLACE FUNCTION public.enforce_supplier_verification()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    NEW.verification_status := 'pending';
+    NEW.commission_rate := 5.00;
+    NEW.rejection_reason := '';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_enforce_supplier_verification ON public.supplier_profiles;
+CREATE TRIGGER tr_enforce_supplier_verification BEFORE INSERT ON public.supplier_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_supplier_verification();
+
+-- Himoya: keyinchalik oddiy UPDATE orqali ham o'zini tasdiqlay olmaydi
+-- yoki komissiya stavkasini o'zgartira olmaydi (protect_profile_admin_flag naqshi).
+CREATE OR REPLACE FUNCTION public.protect_supplier_verification_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
+    NEW.verification_status := OLD.verification_status;
+    NEW.commission_rate := OLD.commission_rate;
+    NEW.rejection_reason := OLD.rejection_reason;
+    NEW.user_id := OLD.user_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_protect_supplier_verification_fields ON public.supplier_profiles;
+CREATE TRIGGER tr_protect_supplier_verification_fields BEFORE UPDATE ON public.supplier_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_supplier_verification_fields();
+
+ALTER TABLE public.supplier_profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Tasdiqlangan supplierlarni barcha ko'radi" ON public.supplier_profiles;
+CREATE POLICY "Tasdiqlangan supplierlarni barcha ko'radi" ON public.supplier_profiles FOR SELECT USING (
+  verification_status = 'approved' OR user_id = auth.uid() OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Supplier ro'yxatdan o'tadi" ON public.supplier_profiles;
+CREATE POLICY "Supplier ro'yxatdan o'tadi" ON public.supplier_profiles FOR INSERT WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS "Egasi yoki admin tahrirlaydi (supplier_profiles)" ON public.supplier_profiles;
+CREATE POLICY "Egasi yoki admin tahrirlaydi (supplier_profiles)" ON public.supplier_profiles FOR UPDATE USING (user_id = auth.uid() OR public.is_admin());
+DROP POLICY IF EXISTS "Faqat admin o'chiradi (supplier_profiles)" ON public.supplier_profiles;
+CREATE POLICY "Faqat admin o'chiradi (supplier_profiles)" ON public.supplier_profiles FOR DELETE USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_supplier_profiles_user_id ON public.supplier_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_profiles_verification_status ON public.supplier_profiles(verification_status);
+
+-- --- 12.5 contracts (Elektron hamkorlik shartnomasi — haqiqiy ERI emas) ---
+-- Band matnlari (to'lov shartlari, yetkazib berish, qaytarish, bekor qilish,
+-- sifat javobgarligi, hisob-kitob, tugatish) DB'da EMAS — static/versiyalangan
+-- matn sifatida src/data/b2bContractTemplate.ts faylida saqlanadi.
+CREATE TABLE IF NOT EXISTS public.contracts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_id UUID NOT NULL REFERENCES public.supplier_profiles(id) ON DELETE CASCADE,
+    contract_version TEXT NOT NULL DEFAULT 'v1',
+    commission_rate NUMERIC(5,2) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','accepted','rejected','terminated')),
+    accepted_at TIMESTAMPTZ NULL,
+    terminated_at TIMESTAMPTZ NULL,
+    termination_reason TEXT DEFAULT '',
+    signature_ref TEXT DEFAULT '', -- kelajakdagi haqiqiy ERI uchun zaxira, 1-bosqichda doim bo'sh
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Client-side INSERT siyosati YO'Q — qator faqat 12.6-bo'limdagi trigger
+-- orqali (supplier tasdiqlanganda) yaratiladi, notifications jadvali kabi.
+CREATE OR REPLACE FUNCTION public.protect_contract_integrity()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
+    NEW.supplier_id := OLD.supplier_id;
+    NEW.commission_rate := OLD.commission_rate;
+    NEW.contract_version := OLD.contract_version;
+    IF OLD.status <> 'pending' THEN
+      RAISE EXCEPTION 'Shartnoma holatini faqat admin o''zgartira oladi';
+    END IF;
+    IF NEW.status NOT IN ('accepted','rejected') THEN
+      RAISE EXCEPTION 'Ruxsatsiz holat o''zgarishi';
+    END IF;
+    IF NEW.status = 'accepted' THEN NEW.accepted_at := NOW(); END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_protect_contract_integrity ON public.contracts;
+CREATE TRIGGER tr_protect_contract_integrity BEFORE UPDATE ON public.contracts
+  FOR EACH ROW EXECUTE FUNCTION public.protect_contract_integrity();
+
+ALTER TABLE public.contracts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Shartnomani egasi yoki admin ko'radi" ON public.contracts;
+CREATE POLICY "Shartnomani egasi yoki admin ko'radi" ON public.contracts FOR SELECT USING (public.is_own_supplier(supplier_id) OR public.is_admin());
+DROP POLICY IF EXISTS "Shartnomani egasi qabul/rad etadi" ON public.contracts;
+CREATE POLICY "Shartnomani egasi qabul/rad etadi" ON public.contracts FOR UPDATE USING (public.is_own_supplier(supplier_id) OR public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_contracts_supplier_id ON public.contracts(supplier_id);
+
+-- --- 12.6 Supplier tasdiqlanganda: bildirishnoma + avtomatik shartnoma ---
+CREATE OR REPLACE FUNCTION public.handle_supplier_verification_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.verification_status IS DISTINCT FROM NEW.verification_status THEN
+    IF NEW.verification_status = 'approved' THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (NEW.user_id, 'supplier_approved', 'Tabriklaymiz! Supplier sifatida tasdiqlandingiz', NEW.company_name, 'supplier_profile', NEW.id::text);
+
+      IF NOT EXISTS (SELECT 1 FROM public.contracts WHERE supplier_id = NEW.id AND status = 'pending') THEN
+        INSERT INTO public.contracts (supplier_id, contract_version, commission_rate, status)
+        VALUES (NEW.id, 'v1', NEW.commission_rate, 'pending');
+      END IF;
+    ELSIF NEW.verification_status = 'rejected' THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (NEW.user_id, 'supplier_rejected', 'Ariza rad etildi', COALESCE(NULLIF(NEW.rejection_reason,''), NEW.company_name), 'supplier_profile', NEW.id::text);
+    ELSIF NEW.verification_status = 'suspended' THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (NEW.user_id, 'supplier_suspended', 'Akkauntingiz vaqtincha to''xtatildi', COALESCE(NULLIF(NEW.rejection_reason,''), NEW.company_name), 'supplier_profile', NEW.id::text);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_handle_supplier_verification_change ON public.supplier_profiles;
+CREATE TRIGGER tr_handle_supplier_verification_change AFTER UPDATE OF verification_status ON public.supplier_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.handle_supplier_verification_change();
+
+-- --- 12.7 b2b_products (Ulgurji mahsulotlar) ---
+CREATE TABLE IF NOT EXISTS public.b2b_products (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_id UUID NOT NULL REFERENCES public.supplier_profiles(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    brand TEXT DEFAULT '',
+    category TEXT NOT NULL,        -- categories.id, scope='market' (B2B kategoriyalari)
+    description TEXT DEFAULT '',
+    sku TEXT DEFAULT '',
+    images TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    video_url TEXT DEFAULT '',     -- oddiy video fayl URL, mavjud listing-media bucket orqali
+    wholesale_price NUMERIC NOT NULL CHECK (wholesale_price >= 0),
+    moq INTEGER NOT NULL DEFAULT 1 CHECK (moq >= 1),
+    available_qty INTEGER NOT NULL DEFAULT 0 CHECK (available_qty >= 0),
+    unit TEXT NOT NULL DEFAULT 'dona',
+    packaging TEXT DEFAULT '',
+    delivery_available BOOLEAN NOT NULL DEFAULT FALSE,
+    delivery_regions TEXT[] DEFAULT ARRAY[]::TEXT[],
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','pending','approved','rejected','inactive')),
+    rejection_reason TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- enforce_product_moderation() naqshini takrorlaydi + tasdiqlangan/shartnoma
+-- qabul qilgan supplierlargina qo'sha olishini majburlaydi.
+CREATE OR REPLACE FUNCTION public.enforce_b2b_product_submission()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_contract_ok BOOLEAN;
+BEGIN
+  IF NOT public.is_admin() THEN
+    IF NOT public.is_own_supplier(NEW.supplier_id) THEN
+      RAISE EXCEPTION 'Ruxsat yo''q';
+    END IF;
+    IF NOT public.is_verified_supplier(NEW.supplier_id) THEN
+      RAISE EXCEPTION 'Faqat tasdiqlangan supplierlar mahsulot qo''sha oladi';
+    END IF;
+    SELECT EXISTS (SELECT 1 FROM public.contracts WHERE supplier_id = NEW.supplier_id AND status = 'accepted') INTO v_contract_ok;
+    IF NOT v_contract_ok THEN
+      RAISE EXCEPTION 'Avval hamkorlik shartnomasini qabul qiling';
+    END IF;
+    NEW.status := 'pending';
+    NEW.rejection_reason := '';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_enforce_b2b_product_submission ON public.b2b_products;
+CREATE TRIGGER tr_enforce_b2b_product_submission BEFORE INSERT ON public.b2b_products
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_b2b_product_submission();
+
+-- Supplier o'z mahsulotini tahrirlashi/faolsizlantirishi mumkin, lekin
+-- hech qachon o'zini-o'zi tasdiqlay olmaydi.
+CREATE OR REPLACE FUNCTION public.protect_b2b_product_status()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    NEW.supplier_id := OLD.supplier_id;
+    IF NEW.status = 'approved' AND OLD.status <> 'approved' THEN
+      NEW.status := 'pending';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_protect_b2b_product_status ON public.b2b_products;
+CREATE TRIGGER tr_protect_b2b_product_status BEFORE UPDATE ON public.b2b_products
+  FOR EACH ROW EXECUTE FUNCTION public.protect_b2b_product_status();
+
+ALTER TABLE public.b2b_products ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Tasdiqlangan B2B mahsulotni barcha ko'radi" ON public.b2b_products;
+CREATE POLICY "Tasdiqlangan B2B mahsulotni barcha ko'radi" ON public.b2b_products FOR SELECT USING (
+  status = 'approved' OR public.is_own_supplier(supplier_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Supplier mahsulot qo'shadi" ON public.b2b_products;
+CREATE POLICY "Supplier mahsulot qo'shadi" ON public.b2b_products FOR INSERT WITH CHECK (public.is_own_supplier(supplier_id) OR public.is_admin());
+DROP POLICY IF EXISTS "Supplier o'z mahsulotini tahrirlaydi" ON public.b2b_products;
+CREATE POLICY "Supplier o'z mahsulotini tahrirlaydi" ON public.b2b_products FOR UPDATE USING (public.is_own_supplier(supplier_id) OR public.is_admin());
+DROP POLICY IF EXISTS "Supplier o'z mahsulotini o'chiradi" ON public.b2b_products;
+CREATE POLICY "Supplier o'z mahsulotini o'chiradi" ON public.b2b_products FOR DELETE USING (public.is_own_supplier(supplier_id) OR public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_b2b_products_supplier_id ON public.b2b_products(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_products_status_category ON public.b2b_products(status, category);
+
+CREATE OR REPLACE FUNCTION public.notify_on_b2b_product_status_change()
+RETURNS TRIGGER AS $$
+DECLARE v_user_id UUID;
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('approved','rejected') THEN
+    SELECT user_id INTO v_user_id FROM public.supplier_profiles WHERE id = NEW.supplier_id;
+    IF v_user_id IS NOT NULL THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (v_user_id,
+        CASE WHEN NEW.status = 'approved' THEN 'b2b_product_approved' ELSE 'b2b_product_rejected' END,
+        CASE WHEN NEW.status = 'approved' THEN 'Mahsulotingiz tasdiqlandi' ELSE 'Mahsulotingiz rad etildi' END,
+        NEW.name, 'b2b_product', NEW.id::text);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_notify_on_b2b_product_status_change ON public.b2b_products;
+CREATE TRIGGER tr_notify_on_b2b_product_status_change AFTER UPDATE OF status ON public.b2b_products
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_b2b_product_status_change();
+
+-- --- 12.8 b2b_orders + b2b_order_items (Supplier bo'yicha bo'lingan buyurtmalar) ---
+CREATE SEQUENCE IF NOT EXISTS public.b2b_order_number_seq START WITH 1;
+
+CREATE TABLE IF NOT EXISTS public.b2b_orders (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_number TEXT UNIQUE NOT NULL DEFAULT ('ONB-' || LPAD(nextval('public.b2b_order_number_seq')::text, 6, '0')),
+    business_id UUID NOT NULL REFERENCES public.business_profiles(id) ON DELETE CASCADE,
+    supplier_id UUID NOT NULL REFERENCES public.supplier_profiles(id) ON DELETE CASCADE,
+    buyer_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    subtotal NUMERIC NOT NULL DEFAULT 0,
+    delivery_fee NUMERIC NOT NULL DEFAULT 0,   -- 1-bosqichda doim 0, kelajakdagi tarif dvigateli uchun ustun tayyor
+    total NUMERIC NOT NULL DEFAULT 0,
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('cash','online')),
+    payment_status TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('pending','cash_pending','cash_confirmed','paid','failed')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','supplier_confirmed','preparing','ready','delivering','delivered','cancelled','rejected')),
+    rejection_reason TEXT DEFAULT '',
+    commission_rate NUMERIC(5,2) NOT NULL,
+    commission_amount NUMERIC NOT NULL DEFAULT 0,
+    supplier_amount NUMERIC NOT NULL DEFAULT 0,
+    delivery_store_name TEXT DEFAULT '',
+    delivery_phone TEXT DEFAULT '',
+    delivery_region TEXT DEFAULT '',
+    delivery_district TEXT DEFAULT '',
+    delivery_address TEXT NOT NULL DEFAULT '',
+    delivery_note TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.b2b_order_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID NOT NULL REFERENCES public.b2b_orders(id) ON DELETE CASCADE,
+    product_id UUID NULL REFERENCES public.b2b_products(id) ON DELETE SET NULL,
+    product_name TEXT NOT NULL,
+    product_image TEXT DEFAULT '',
+    unit TEXT NOT NULL DEFAULT 'dona',
+    unit_price NUMERIC NOT NULL,
+    quantity INTEGER NOT NULL CHECK (quantity >= 1),
+    line_total NUMERIC NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- can_view_b2b_order — b2b_orders yozilgandan KEYIN e'lon qilinadi (jadval mavjud bo'lishi kerak).
+CREATE OR REPLACE FUNCTION public.can_view_b2b_order(p_order_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.b2b_orders o
+    WHERE o.id = p_order_id AND (o.buyer_user_id = auth.uid() OR public.is_own_supplier(o.supplier_id))
+  );
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE;
+
+-- Moliyaviy/identifikatsiya maydonlarini himoya qilish + rad etish sababi
+-- majburiyligi + payment_status='paid'ni faqat server/admin o'rnata olishi.
+CREATE OR REPLACE FUNCTION public.protect_b2b_order_integrity()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.payment_status = 'paid' AND OLD.payment_status IS DISTINCT FROM 'paid' THEN
+    IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
+      RAISE EXCEPTION 'payment_status=paid faqat server-side to''lov integratsiyasi orqali o''rnatiladi';
+    END IF;
+  END IF;
+
+  IF NEW.status = 'rejected' AND (NEW.rejection_reason IS NULL OR trim(NEW.rejection_reason) = '') THEN
+    RAISE EXCEPTION 'Rad etish sababi kiritilishi shart';
+  END IF;
+
+  IF NOT public.is_admin() AND CURRENT_USER <> 'postgres' THEN
+    NEW.business_id := OLD.business_id;
+    NEW.supplier_id := OLD.supplier_id;
+    NEW.buyer_user_id := OLD.buyer_user_id;
+    NEW.order_number := OLD.order_number;
+    NEW.subtotal := OLD.subtotal;
+    NEW.delivery_fee := OLD.delivery_fee;
+    NEW.total := OLD.total;
+    NEW.commission_rate := OLD.commission_rate;
+    NEW.commission_amount := OLD.commission_amount;
+    NEW.supplier_amount := OLD.supplier_amount;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_protect_b2b_order_integrity ON public.b2b_orders;
+CREATE TRIGGER tr_protect_b2b_order_integrity BEFORE UPDATE ON public.b2b_orders
+  FOR EACH ROW EXECUTE FUNCTION public.protect_b2b_order_integrity();
+
+-- Bekor qilinsa zaxira qaytariladi va komissiya bekor qilinadi;
+-- yetkazilganda komissiya "settled" bo'ladi.
+CREATE OR REPLACE FUNCTION public.handle_b2b_order_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('rejected','cancelled') THEN
+    UPDATE public.b2b_products p SET available_qty = p.available_qty + oi.quantity, updated_at = NOW()
+    FROM public.b2b_order_items oi WHERE oi.order_id = NEW.id AND oi.product_id = p.id;
+    UPDATE public.commission_ledger SET status = 'voided', updated_at = NOW() WHERE order_id = NEW.id;
+  END IF;
+  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'delivered' THEN
+    UPDATE public.commission_ledger SET status = 'settled', updated_at = NOW() WHERE order_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_handle_b2b_order_status_change ON public.b2b_orders;
+CREATE TRIGGER tr_handle_b2b_order_status_change AFTER UPDATE OF status ON public.b2b_orders
+  FOR EACH ROW EXECUTE FUNCTION public.handle_b2b_order_status_change();
+
+CREATE OR REPLACE FUNCTION public.notify_on_new_b2b_order()
+RETURNS TRIGGER AS $$
+DECLARE v_supplier_user_id UUID;
+BEGIN
+  SELECT user_id INTO v_supplier_user_id FROM public.supplier_profiles WHERE id = NEW.supplier_id;
+  IF v_supplier_user_id IS NOT NULL THEN
+    INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+    VALUES (v_supplier_user_id, 'b2b_new_order', 'Yangi ulgurji buyurtma', NEW.order_number, 'b2b_order', NEW.id::text);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_notify_on_new_b2b_order ON public.b2b_orders;
+CREATE TRIGGER tr_notify_on_new_b2b_order AFTER INSERT ON public.b2b_orders
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_new_b2b_order();
+
+CREATE OR REPLACE FUNCTION public.notify_on_b2b_order_status_change()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status THEN
+    INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+    VALUES (NEW.buyer_user_id, 'b2b_order_status', 'Buyurtma holati yangilandi', NEW.order_number || ' — ' || NEW.status, 'b2b_order', NEW.id::text);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_notify_on_b2b_order_status_change ON public.b2b_orders;
+CREATE TRIGGER tr_notify_on_b2b_order_status_change AFTER UPDATE OF status ON public.b2b_orders
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_b2b_order_status_change();
+
+-- No INSERT policy on either table — the only writer is create_b2b_order() (12.9).
+ALTER TABLE public.b2b_orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Xaridor yoki supplier o'z buyurtmasini ko'radi" ON public.b2b_orders;
+CREATE POLICY "Xaridor yoki supplier o'z buyurtmasini ko'radi" ON public.b2b_orders FOR SELECT USING (
+  buyer_user_id = auth.uid() OR public.is_own_supplier(supplier_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Supplier yoki admin holatni yangilaydi" ON public.b2b_orders;
+CREATE POLICY "Supplier yoki admin holatni yangilaydi" ON public.b2b_orders FOR UPDATE USING (
+  public.is_own_supplier(supplier_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Faqat admin o'chiradi (b2b_orders)" ON public.b2b_orders;
+CREATE POLICY "Faqat admin o'chiradi (b2b_orders)" ON public.b2b_orders FOR DELETE USING (public.is_admin());
+
+ALTER TABLE public.b2b_order_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Buyurtma qatorini tegishli tomon ko'radi" ON public.b2b_order_items;
+CREATE POLICY "Buyurtma qatorini tegishli tomon ko'radi" ON public.b2b_order_items FOR SELECT USING (
+  public.can_view_b2b_order(order_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Admin qatorlarni boshqaradi" ON public.b2b_order_items;
+CREATE POLICY "Admin qatorlarni boshqaradi" ON public.b2b_order_items FOR ALL USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_b2b_orders_business_id ON public.b2b_orders(business_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_orders_supplier_id ON public.b2b_orders(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_orders_buyer_user_id ON public.b2b_orders(buyer_user_id);
+CREATE INDEX IF NOT EXISTS idx_b2b_orders_status ON public.b2b_orders(status);
+CREATE INDEX IF NOT EXISTS idx_b2b_order_items_order_id ON public.b2b_order_items(order_id);
+
+-- --- 12.9 commission_ledger + atomik checkout RPC ---
+CREATE TABLE IF NOT EXISTS public.commission_ledger (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    order_id UUID UNIQUE NOT NULL REFERENCES public.b2b_orders(id) ON DELETE CASCADE,
+    supplier_id UUID NOT NULL REFERENCES public.supplier_profiles(id) ON DELETE CASCADE,
+    gross_amount NUMERIC NOT NULL,
+    commission_rate NUMERIC(5,2) NOT NULL,
+    commission_amount NUMERIC NOT NULL,
+    supplier_amount NUMERIC NOT NULL,
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('cash','online')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','settled','voided')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.commission_ledger ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Supplier yoki admin komissiyani ko'radi" ON public.commission_ledger;
+CREATE POLICY "Supplier yoki admin komissiyani ko'radi" ON public.commission_ledger FOR SELECT USING (
+  public.is_own_supplier(supplier_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Admin komissiya yozuvini boshqaradi" ON public.commission_ledger;
+CREATE POLICY "Admin komissiya yozuvini boshqaradi" ON public.commission_ledger FOR ALL USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_commission_ledger_supplier_id ON public.commission_ledger(supplier_id);
+
+-- Bitta supplier uchun bitta chaqiruv, bitta tranzaksiya: MOQ va zaxirani
+-- tekshiradi (FOR UPDATE qulf bilan), buyurtma+qatorlarni yaratadi,
+-- komissiyani hisoblab suratga oladi, ledger yozadi. Xato bo'lsa —
+-- BUTUN tranzaksiya bekor bo'ladi (boshqa supplierlarga ta'sir qilmaydi,
+-- chunki har biri alohida chaqiriladi).
+CREATE OR REPLACE FUNCTION public.create_b2b_order(
+  p_business_id UUID,
+  p_supplier_id UUID,
+  p_items JSONB, -- [{"product_id": "...", "quantity": 5}, ...]
+  p_payment_method TEXT,
+  p_delivery_store_name TEXT,
+  p_delivery_phone TEXT,
+  p_delivery_region TEXT,
+  p_delivery_district TEXT,
+  p_delivery_address TEXT,
+  p_delivery_note TEXT
+) RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+DECLARE
+  v_order_id UUID;
+  v_item RECORD;
+  v_product RECORD;
+  v_subtotal NUMERIC := 0;
+  v_commission_rate NUMERIC;
+  v_commission_amount NUMERIC;
+  v_supplier_amount NUMERIC;
+  v_line_total NUMERIC;
+BEGIN
+  IF NOT public.is_own_business(p_business_id) THEN
+    RAISE EXCEPTION 'Ruxsat yo''q: bu biznes profiliga tegishli emassiz';
+  END IF;
+  IF NOT public.is_verified_supplier(p_supplier_id) THEN
+    RAISE EXCEPTION 'Supplier tasdiqlanmagan';
+  END IF;
+  IF p_payment_method NOT IN ('cash','online') THEN
+    RAISE EXCEPTION 'Noto''g''ri to''lov usuli';
+  END IF;
+  IF p_payment_method = 'online' THEN
+    RAISE EXCEPTION 'Onlayn to''lov hali mavjud emas';
+  END IF;
+
+  SELECT commission_rate INTO v_commission_rate FROM public.supplier_profiles WHERE id = p_supplier_id;
+
+  INSERT INTO public.b2b_orders (
+    business_id, supplier_id, buyer_user_id, payment_method, payment_status, commission_rate,
+    delivery_store_name, delivery_phone, delivery_region, delivery_district, delivery_address, delivery_note
+  ) VALUES (
+    p_business_id, p_supplier_id, auth.uid(), p_payment_method, 'cash_pending', v_commission_rate,
+    p_delivery_store_name, p_delivery_phone, p_delivery_region, p_delivery_district, p_delivery_address, p_delivery_note
+  ) RETURNING id INTO v_order_id;
+
+  FOR v_item IN SELECT * FROM jsonb_to_recordset(p_items) AS x(product_id UUID, quantity INTEGER)
+  LOOP
+    SELECT * INTO v_product FROM public.b2b_products
+      WHERE id = v_item.product_id AND supplier_id = p_supplier_id AND status = 'approved'
+      FOR UPDATE;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Mahsulot topilmadi yoki faol emas';
+    END IF;
+    IF v_item.quantity < v_product.moq THEN
+      RAISE EXCEPTION 'Miqdor MOQ dan kam: % (min %)', v_product.name, v_product.moq;
+    END IF;
+    IF v_product.available_qty < v_item.quantity THEN
+      RAISE EXCEPTION 'Yetarli zaxira yo''q: %', v_product.name;
+    END IF;
+
+    v_line_total := v_product.wholesale_price * v_item.quantity;
+    v_subtotal := v_subtotal + v_line_total;
+
+    INSERT INTO public.b2b_order_items (order_id, product_id, product_name, product_image, unit, unit_price, quantity, line_total)
+    VALUES (v_order_id, v_product.id, v_product.name, COALESCE(v_product.images[1], ''), v_product.unit, v_product.wholesale_price, v_item.quantity, v_line_total);
+
+    UPDATE public.b2b_products SET available_qty = available_qty - v_item.quantity, updated_at = NOW() WHERE id = v_product.id;
+  END LOOP;
+
+  IF v_subtotal <= 0 THEN
+    RAISE EXCEPTION 'Savat bo''sh';
+  END IF;
+
+  v_commission_amount := ROUND(v_subtotal * v_commission_rate / 100, 2);
+  v_supplier_amount := v_subtotal - v_commission_amount;
+
+  UPDATE public.b2b_orders
+  SET subtotal = v_subtotal, total = v_subtotal, commission_amount = v_commission_amount, supplier_amount = v_supplier_amount
+  WHERE id = v_order_id;
+
+  INSERT INTO public.commission_ledger (order_id, supplier_id, gross_amount, commission_rate, commission_amount, supplier_amount, payment_method, status)
+  VALUES (v_order_id, p_supplier_id, v_subtotal, v_commission_rate, v_commission_amount, v_supplier_amount, p_payment_method, 'pending');
+
+  RETURN v_order_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.create_b2b_order(UUID, UUID, JSONB, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
+
+-- --- 12.10 supplier_settlements (kelajakdagi to'lov-hisob moduli uchun tayyor) ---
+CREATE TABLE IF NOT EXISTS public.supplier_settlements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    supplier_id UUID NOT NULL REFERENCES public.supplier_profiles(id) ON DELETE CASCADE,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    gross_sales NUMERIC NOT NULL DEFAULT 0,
+    total_commission NUMERIC NOT NULL DEFAULT 0,
+    net_payable NUMERIC NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','paid')),
+    paid_at TIMESTAMPTZ NULL,
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.supplier_settlements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Supplier yoki admin hisob-kitobni ko'radi" ON public.supplier_settlements;
+CREATE POLICY "Supplier yoki admin hisob-kitobni ko'radi" ON public.supplier_settlements FOR SELECT USING (
+  public.is_own_supplier(supplier_id) OR public.is_admin()
+);
+DROP POLICY IF EXISTS "Faqat admin boshqaradi (supplier_settlements)" ON public.supplier_settlements;
+CREATE POLICY "Faqat admin boshqaradi (supplier_settlements)" ON public.supplier_settlements FOR ALL USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_supplier_settlements_supplier_id ON public.supplier_settlements(supplier_id);
+
+-- --- 12.11 GRANTs ---
+GRANT SELECT, INSERT, UPDATE ON public.business_profiles, public.business_addresses TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.supplier_profiles TO authenticated;
+GRANT SELECT ON public.supplier_profiles, public.b2b_products TO anon;
+GRANT SELECT, UPDATE ON public.contracts TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.b2b_products TO authenticated;
+GRANT SELECT, UPDATE ON public.b2b_orders TO authenticated;
+GRANT SELECT ON public.b2b_order_items, public.commission_ledger, public.supplier_settlements TO authenticated;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public' AND tablename='b2b_orders') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.b2b_orders;
+  END IF;
+END $$;
+
+-- --- 12.12 B2B kategoriyalari (categories.scope='market' endi B2B'ni anglatadi) ---
+INSERT INTO public.categories (id, name, icon, order_index, is_active, scope) VALUES
+  ('b2b-food', 'Oziq-ovqat', 'utensils', 1, true, 'market'),
+  ('b2b-drinks', 'Ichimliklar', 'cup-soda', 2, true, 'market'),
+  ('b2b-household', 'Maishiy', 'home', 3, true, 'market'),
+  ('b2b-clothing', 'Kiyim-kechak', 'shirt', 4, true, 'market'),
+  ('b2b-pharma', 'Farmatsevtika', 'pill', 5, true, 'market'),
+  ('b2b-agro', 'Qishloq xo''jaligi', 'wheat', 6, true, 'market'),
+  ('b2b-construction', 'Qurilish', 'hammer', 7, true, 'market'),
+  ('b2b-other', 'Boshqa', 'tag', 8, true, 'market')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, icon = EXCLUDED.icon, order_index = EXCLUDED.order_index, scope = EXCLUDED.scope;
+
+-- --- 12.13 Eski kategoriyalarni B2B'dan ajratish ---
+-- Yangi B2B kategoriyalari qo'shilgunga qadar mavjud bo'lgan barcha
+-- kategoriyalar (Meva-Sabzavot, G'alla & Don va h.k.) scope='both' (yoki
+-- NULL) bilan saqlangan — bu ularni E'lon berish VA B2B Market ikkalasida
+-- ham ko'rsatib, ikki bo'lim kategoriyalarini aralashtirib yuborardi.
+-- Bu yerda ularni faqat E'lon berishga tegishli qilib belgilaymiz —
+-- B2B endi faqat yuqoridagi 'b2b-*' kategoriyalarini ko'radi.
+UPDATE public.categories
+SET scope = 'post'
+WHERE id NOT LIKE 'b2b-%' AND id <> 'all' AND (scope IS NULL OR scope = 'both');
+
+-- =====================================================================
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!
 -- =====================================================================

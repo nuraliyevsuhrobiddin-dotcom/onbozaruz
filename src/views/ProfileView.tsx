@@ -7,7 +7,6 @@ import { ProfileListingsGrid, ProfileTabType } from '../components/profile/Profi
 import { EditProfileSubView } from '../components/profile/EditProfileSubView';
 import { ProfileOrdersSubView } from '../components/profile/ProfileOrdersSubView';
 import { ProfileSettingsSubView } from '../components/profile/ProfileSettingsSubView';
-import { ProfileAdminSubView } from '../components/profile/ProfileAdminSubView';
 
 export const ProfileView: React.FC = () => {
   const {
@@ -22,9 +21,6 @@ export const ProfileView: React.FC = () => {
     setProductDetail,
     openVideoViewer,
     showToast,
-    approveProduct,
-    rejectProduct,
-    addProduct,
     isAdminUser,
     setEditModalItem,
     deletePost,
@@ -67,7 +63,7 @@ export const ProfileView: React.FC = () => {
   if (!isAuthenticated || !currentUser) {
     return (
       <div className="w-full max-w-lg mx-auto py-12 px-4 text-center space-y-6 select-none">
-        <div className="w-24 h-24 mx-auto rounded-full bg-red-50 text-[#E53935] flex items-center justify-center border-4 border-white shadow-xl">
+        <div className="w-24 h-24 mx-auto rounded-full bg-orange-50 text-[#D84315] flex items-center justify-center border-4 border-white shadow-xl">
           <LogIn className="w-10 h-10 stroke-[2.5]" />
         </div>
         <div className="space-y-2">
@@ -79,7 +75,7 @@ export const ProfileView: React.FC = () => {
         <div className="flex items-center justify-center gap-3 pt-2">
           <button
             onClick={() => setAuthPromptOpen(true)}
-            className="px-6 py-3.5 rounded-[18px] bg-[#E53935] hover:bg-[#C62828] text-white font-black text-xs shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
+            className="px-6 py-3.5 rounded-[18px] bg-[#D84315] hover:bg-[#BF360C] text-white font-black text-xs shadow-lg transition-colors flex items-center gap-2 cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
             <span>Kirish / Ro'yxatdan o'tish</span>
@@ -107,9 +103,6 @@ export const ProfileView: React.FC = () => {
   );
 
   const savedPosts = posts.filter((post) => savedPostIds.includes(post.id));
-
-  const pendingProducts = products.filter((p) => p.approvalStatus === 'pending');
-  const approvedProducts = products.filter((p) => p.approvalStatus === 'approved');
 
   // Handle post/reel/product selection
   const handleSelectPost = (post: Post) => {
@@ -169,27 +162,12 @@ export const ProfileView: React.FC = () => {
     );
   }
 
-  if (activeSubView === 'admin-panel' && isAdminUser) {
-    return (
-      <ProfileAdminSubView
-        onBack={() => setActiveSubView(null)}
-        pendingProducts={pendingProducts}
-        approvedProducts={approvedProducts}
-        ordersCount={orders.length}
-        onApproveProduct={approveProduct}
-        onRejectProduct={rejectProduct}
-        onAddAdminProduct={addProduct}
-        showToast={showToast}
-      />
-    );
-  }
-
   return (
     <div className="w-full max-w-xl mx-auto py-3 px-3.5 space-y-3.5 select-none pb-20">
       <ProfileHeader
         currentUser={currentUser}
         profileData={{
-          name: currentUser.name || 'Fermer',
+          name: currentUser.name || 'Sotuvchi',
           handle: currentUser.handle || (currentUser.email ? currentUser.email.split('@')[0] : 'user'),
           avatar: currentUser.avatar || '',
           cover: currentUser.cover || '',
@@ -205,7 +183,6 @@ export const ProfileView: React.FC = () => {
         productsCount={ownProducts.length}
         savedCount={savedPosts.length}
         viewsCount={ownPosts.reduce((sum, post) => sum + (post.viewsCount || 0), 0)}
-        isAdminUser={isAdminUser}
         ordersCount={orders.length}
         isProfileMenuOpen={isProfileMenuOpen}
         setProfileMenuOpen={setProfileMenuOpen}

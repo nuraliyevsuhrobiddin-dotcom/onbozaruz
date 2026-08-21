@@ -121,7 +121,14 @@ export type NotificationType =
   | 'post_approved'
   | 'post_rejected'
   | 'product_approved'
-  | 'product_rejected';
+  | 'product_rejected'
+  | 'supplier_approved'
+  | 'supplier_rejected'
+  | 'supplier_suspended'
+  | 'b2b_product_approved'
+  | 'b2b_product_rejected'
+  | 'b2b_new_order'
+  | 'b2b_order_status';
 
 export interface Notification {
   id: string;
@@ -129,7 +136,7 @@ export interface Notification {
   type: NotificationType;
   title: string;
   body: string;
-  targetType?: 'post' | 'order' | 'product' | '';
+  targetType?: 'post' | 'order' | 'product' | 'supplier_profile' | 'b2b_product' | 'b2b_order' | '';
   targetId?: string;
   actorId?: string;
   actorName?: string;
@@ -138,13 +145,178 @@ export interface Notification {
   createdAt: string;
 }
 
-export type NavTab = 'home' | 'search' | 'market' | 'profile';
-export type SubView =
-  | 'orders'
-  | 'saved'
-  | 'my-listings'
-  | 'seller-panel'
-  | 'admin-panel'
-  | 'settings'
-  | 'edit-profile'
-  | null;
+// =====================================================================
+// B2B (Ulgurji savdo) — Supplier / Business Buyer / Commission
+// =====================================================================
+
+export type BusinessType =
+  | 'grocery' | 'minimarket' | 'supermarket' | 'clothing' | 'pharmacy'
+  | 'cafe_restaurant' | 'construction' | 'household' | 'other';
+
+export type SupplierType = 'manufacturer' | 'importer' | 'distributor' | 'supplier';
+export type SupplierVerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
+export type ContractStatus = 'pending' | 'accepted' | 'rejected' | 'terminated';
+export type B2BProductStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'inactive';
+export type B2BOrderStatus =
+  | 'pending' | 'supplier_confirmed' | 'preparing' | 'ready'
+  | 'delivering' | 'delivered' | 'cancelled' | 'rejected';
+export type B2BPaymentMethod = 'cash' | 'online';
+export type B2BPaymentStatus = 'pending' | 'cash_pending' | 'cash_confirmed' | 'paid' | 'failed';
+
+export interface BusinessProfile {
+  id: string;
+  userId: string;
+  storeName: string;
+  ownerName: string;
+  phone: string;
+  businessType: BusinessType;
+  region?: string;
+  district?: string;
+  description?: string;
+  logoUrl?: string;
+  status: 'active' | 'suspended';
+  createdAt: string;
+}
+
+export interface BusinessAddress {
+  id: string;
+  businessId: string;
+  label?: string;
+  storeName?: string;
+  phone?: string;
+  region?: string;
+  district?: string;
+  address: string;
+  deliveryNote?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  isDefault?: boolean;
+}
+
+export interface SupplierProfile {
+  id: string;
+  userId: string;
+  companyName: string;
+  supplierType: SupplierType;
+  ownerName: string;
+  phone: string;
+  email?: string;
+  region?: string;
+  district?: string;
+  address?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  description?: string;
+  categories: string[];
+  taxId?: string;
+  logoUrl?: string;
+  verificationStatus: SupplierVerificationStatus;
+  rejectionReason?: string;
+  commissionRate: number;
+  createdAt: string;
+}
+
+export interface Contract {
+  id: string;
+  supplierId: string;
+  contractVersion: string;
+  commissionRate: number;
+  status: ContractStatus;
+  acceptedAt?: string | null;
+  terminatedAt?: string | null;
+  terminationReason?: string;
+  createdAt: string;
+}
+
+export interface B2BProduct {
+  id: string;
+  supplierId: string;
+  name: string;
+  brand?: string;
+  category: string;
+  description?: string;
+  sku?: string;
+  images: string[];
+  videoUrl?: string;
+  wholesalePrice: number;
+  moq: number;
+  availableQty: number;
+  unit: string;
+  packaging?: string;
+  deliveryAvailable: boolean;
+  deliveryRegions: string[];
+  status: B2BProductStatus;
+  rejectionReason?: string;
+  createdAt: string;
+  // Ro'yxat/kartochka ko'rinishida ishlatish uchun — repository join orqali to'ldiradi.
+  supplierName?: string;
+  supplierVerified?: boolean;
+}
+
+export interface B2BOrderItem {
+  id: string;
+  orderId: string;
+  productId?: string | null;
+  productName: string;
+  productImage?: string;
+  unit: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+}
+
+export interface B2BOrder {
+  id: string;
+  orderNumber: string;
+  businessId: string;
+  supplierId: string;
+  buyerUserId: string;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  paymentMethod: B2BPaymentMethod;
+  paymentStatus: B2BPaymentStatus;
+  status: B2BOrderStatus;
+  rejectionReason?: string;
+  commissionRate: number;
+  commissionAmount: number;
+  supplierAmount: number;
+  deliveryStoreName?: string;
+  deliveryPhone?: string;
+  deliveryRegion?: string;
+  deliveryDistrict?: string;
+  deliveryAddress: string;
+  deliveryNote?: string;
+  createdAt: string;
+  items?: B2BOrderItem[];
+  // Ro'yxat ko'rinishlari uchun — repository join orqali to'ldiradi.
+  supplierName?: string;
+  businessName?: string;
+}
+
+export interface CommissionLedgerEntry {
+  id: string;
+  orderId: string;
+  supplierId: string;
+  grossAmount: number;
+  commissionRate: number;
+  commissionAmount: number;
+  supplierAmount: number;
+  paymentMethod: B2BPaymentMethod;
+  status: 'pending' | 'settled' | 'voided';
+  createdAt: string;
+}
+
+export interface SupplierFinanceSummary {
+  grossSales: number;
+  totalCommission: number;
+  netAmount: number;
+  completedOrders: number;
+  pendingOrders: number;
+  cashOrders: number;
+  onlineOrders: number;
+}
+
+export type CreateSupplierProfileInput = Omit<SupplierProfile, 'id' | 'userId' | 'verificationStatus' | 'rejectionReason' | 'commissionRate' | 'createdAt'>;
+export type CreateBusinessProfileInput = Omit<BusinessProfile, 'id' | 'userId' | 'status' | 'createdAt'>;
+export type CreateB2BProductInput = Omit<B2BProduct, 'id' | 'status' | 'rejectionReason' | 'createdAt' | 'supplierName' | 'supplierVerified'>;

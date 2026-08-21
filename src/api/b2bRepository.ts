@@ -1,0 +1,772 @@
+/**
+ * B2B (ulgurji savdo) repository.
+ *
+ * adminRepository.ts naqshini takrorlaydi: to'g'ridan-to'g'ri Supabase'ga
+ * murojaat qiladi (src/api/http.ts orqali emas), chunki checkout bitta
+ * SECURITY DEFINER RPC chaqiruvi orqali ishlaydi va buni umumiy REST
+ * o'ramchisi qo'llab-quvvatlamaydi. Mock rejimda (Supabase sozlanmaganda)
+ * localStorage'ga asoslangan yengil bekor qiluvchi qatlam ishlatiladi —
+ * to'liq server emulyatsiyasi emas, faqat lokal test uchun yetarli.
+ */
+import { supabaseClient } from './authClient';
+import {
+  BusinessProfile,
+  BusinessAddress,
+  SupplierProfile,
+  Contract,
+  B2BProduct,
+  B2BOrder,
+  B2BOrderItem,
+  SupplierFinanceSummary,
+  CreateSupplierProfileInput,
+  CreateBusinessProfileInput,
+  CreateB2BProductInput,
+  B2BOrderStatus,
+  B2BPaymentMethod,
+} from './types';
+
+const supabase = supabaseClient;
+
+// ---------- Mock-mode (localStorage) fallback ----------
+const MOCK_KEYS = {
+  business: 'onbozor-b2b-business-profiles',
+  supplier: 'onbozor-b2b-supplier-profiles',
+  contracts: 'onbozor-b2b-contracts',
+  products: 'onbozor-b2b-products',
+  orders: 'onbozor-b2b-orders',
+  orderItems: 'onbozor-b2b-order-items',
+  ledger: 'onbozor-b2b-commission-ledger',
+};
+
+function readMock<T>(key: string, fallback: T): T {
+  if (typeof localStorage === 'undefined') return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeMock<T>(key: string, value: T): void {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
+}
+
+function genId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function currentMockUserId(): string {
+  try {
+    const raw = localStorage.getItem('onbozor-auth-session');
+    const user = raw ? JSON.parse(raw) : null;
+    return user?.id || 'mock-user';
+  } catch {
+    return 'mock-user';
+  }
+}
+
+// ---------- Mappers (snake_case DB row -> camelCase domain type) ----------
+function mapBusinessProfile(r: any): BusinessProfile {
+  return {
+    id: r.id,
+    userId: r.user_id ?? r.userId,
+    storeName: r.store_name ?? r.storeName,
+    ownerName: r.owner_name ?? r.ownerName ?? '',
+    phone: r.phone ?? '',
+    businessType: r.business_type ?? r.businessType ?? 'other',
+    region: r.region ?? '',
+    district: r.district ?? '',
+    description: r.description ?? '',
+    logoUrl: r.logo_url ?? r.logoUrl ?? '',
+    status: r.status ?? 'active',
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+  };
+}
+
+function mapSupplierProfile(r: any): SupplierProfile {
+  return {
+    id: r.id,
+    userId: r.user_id ?? r.userId,
+    companyName: r.company_name ?? r.companyName,
+    supplierType: r.supplier_type ?? r.supplierType ?? 'supplier',
+    ownerName: r.owner_name ?? r.ownerName ?? '',
+    phone: r.phone ?? '',
+    email: r.email ?? '',
+    region: r.region ?? '',
+    district: r.district ?? '',
+    address: r.address ?? '',
+    description: r.description ?? '',
+    categories: r.categories ?? [],
+    taxId: r.tax_id ?? r.taxId ?? '',
+    logoUrl: r.logo_url ?? r.logoUrl ?? '',
+    verificationStatus: r.verification_status ?? r.verificationStatus ?? 'pending',
+    rejectionReason: r.rejection_reason ?? r.rejectionReason ?? '',
+    commissionRate: Number(r.commission_rate ?? r.commissionRate ?? 5),
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+  };
+}
+
+function mapContract(r: any): Contract {
+  return {
+    id: r.id,
+    supplierId: r.supplier_id ?? r.supplierId,
+    contractVersion: r.contract_version ?? r.contractVersion ?? 'v1',
+    commissionRate: Number(r.commission_rate ?? r.commissionRate ?? 0),
+    status: r.status ?? 'pending',
+    acceptedAt: r.accepted_at ?? r.acceptedAt ?? null,
+    terminatedAt: r.terminated_at ?? r.terminatedAt ?? null,
+    terminationReason: r.termination_reason ?? r.terminationReason ?? '',
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+  };
+}
+
+function mapB2BProduct(r: any): B2BProduct {
+  return {
+    id: r.id,
+    supplierId: r.supplier_id ?? r.supplierId,
+    name: r.name,
+    brand: r.brand ?? '',
+    category: r.category,
+    description: r.description ?? '',
+    sku: r.sku ?? '',
+    images: r.images ?? [],
+    videoUrl: r.video_url ?? r.videoUrl ?? '',
+    wholesalePrice: Number(r.wholesale_price ?? r.wholesalePrice ?? 0),
+    moq: Number(r.moq ?? 1),
+    availableQty: Number(r.available_qty ?? r.availableQty ?? 0),
+    unit: r.unit ?? 'dona',
+    packaging: r.packaging ?? '',
+    deliveryAvailable: Boolean(r.delivery_available ?? r.deliveryAvailable),
+    deliveryRegions: r.delivery_regions ?? r.deliveryRegions ?? [],
+    status: r.status ?? 'draft',
+    rejectionReason: r.rejection_reason ?? r.rejectionReason ?? '',
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+    supplierName: r.supplier_profiles?.company_name ?? r.supplierName,
+    supplierVerified: r.supplier_profiles ? r.supplier_profiles.verification_status === 'approved' : r.supplierVerified,
+  };
+}
+
+function mapB2BOrder(r: any): B2BOrder {
+  return {
+    id: r.id,
+    orderNumber: r.order_number ?? r.orderNumber,
+    businessId: r.business_id ?? r.businessId,
+    supplierId: r.supplier_id ?? r.supplierId,
+    buyerUserId: r.buyer_user_id ?? r.buyerUserId,
+    subtotal: Number(r.subtotal ?? 0),
+    deliveryFee: Number(r.delivery_fee ?? r.deliveryFee ?? 0),
+    total: Number(r.total ?? 0),
+    paymentMethod: r.payment_method ?? r.paymentMethod ?? 'cash',
+    paymentStatus: r.payment_status ?? r.paymentStatus ?? 'pending',
+    status: r.status ?? 'pending',
+    rejectionReason: r.rejection_reason ?? r.rejectionReason ?? '',
+    commissionRate: Number(r.commission_rate ?? r.commissionRate ?? 0),
+    commissionAmount: Number(r.commission_amount ?? r.commissionAmount ?? 0),
+    supplierAmount: Number(r.supplier_amount ?? r.supplierAmount ?? 0),
+    deliveryStoreName: r.delivery_store_name ?? r.deliveryStoreName ?? '',
+    deliveryPhone: r.delivery_phone ?? r.deliveryPhone ?? '',
+    deliveryRegion: r.delivery_region ?? r.deliveryRegion ?? '',
+    deliveryDistrict: r.delivery_district ?? r.deliveryDistrict ?? '',
+    deliveryAddress: r.delivery_address ?? r.deliveryAddress ?? '',
+    deliveryNote: r.delivery_note ?? r.deliveryNote ?? '',
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+    supplierName: r.supplier_profiles?.company_name ?? r.supplierName,
+    businessName: r.business_profiles?.store_name ?? r.businessName,
+  };
+}
+
+function mapB2BOrderItem(r: any): B2BOrderItem {
+  return {
+    id: r.id,
+    orderId: r.order_id ?? r.orderId,
+    productId: r.product_id ?? r.productId ?? null,
+    productName: r.product_name ?? r.productName,
+    productImage: r.product_image ?? r.productImage ?? '',
+    unit: r.unit ?? 'dona',
+    unitPrice: Number(r.unit_price ?? r.unitPrice ?? 0),
+    quantity: Number(r.quantity ?? 0),
+    lineTotal: Number(r.line_total ?? r.lineTotal ?? 0),
+  };
+}
+
+// ---------- Business profile ----------
+export async function fetchOwnBusinessProfile(): Promise<BusinessProfile | null> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.business, []);
+    const row = all.find((b) => b.user_id === currentMockUserId());
+    return row ? mapBusinessProfile(row) : null;
+  }
+  const { data: session } = await supabase.auth.getUser();
+  if (!session.user) return null;
+  const { data, error } = await supabase.from('business_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
+  if (error || !data) return null;
+  return mapBusinessProfile(data);
+}
+
+export async function registerBusinessBuyer(input: CreateBusinessProfileInput): Promise<BusinessProfile> {
+  if (!supabase) {
+    const row = {
+      id: genId('biz'), user_id: currentMockUserId(), store_name: input.storeName, owner_name: input.ownerName,
+      phone: input.phone, business_type: input.businessType, region: input.region || '', district: input.district || '',
+      description: input.description || '', logo_url: input.logoUrl || '', status: 'active', created_at: new Date().toISOString(),
+    };
+    const all = readMock<any[]>(MOCK_KEYS.business, []);
+    writeMock(MOCK_KEYS.business, [...all.filter((b) => b.user_id !== row.user_id), row]);
+    return mapBusinessProfile(row);
+  }
+  const { data: session } = await supabase.auth.getUser();
+  if (!session.user) throw new Error('Sessiya topilmadi');
+  const { data, error } = await supabase.from('business_profiles').insert({
+    user_id: session.user.id,
+    store_name: input.storeName,
+    owner_name: input.ownerName,
+    phone: input.phone,
+    business_type: input.businessType,
+    region: input.region || '',
+    district: input.district || '',
+    description: input.description || '',
+    logo_url: input.logoUrl || '',
+  }).select().single();
+  if (error || !data) throw new Error(error?.message || "Biznes profil yaratilmadi");
+  return mapBusinessProfile(data);
+}
+
+export async function addBusinessAddress(businessId: string, input: Omit<BusinessAddress, 'id' | 'businessId'>): Promise<BusinessAddress> {
+  if (!supabase) {
+    return { id: genId('addr'), businessId, ...input };
+  }
+  const { data, error } = await supabase.from('business_addresses').insert({
+    business_id: businessId,
+    label: input.label || 'Asosiy manzil',
+    store_name: input.storeName || '',
+    phone: input.phone || '',
+    region: input.region || '',
+    district: input.district || '',
+    address: input.address,
+    delivery_note: input.deliveryNote || '',
+  }).select().single();
+  if (error || !data) throw new Error(error?.message || 'Manzil saqlanmadi');
+  return {
+    id: data.id, businessId: data.business_id, label: data.label, storeName: data.store_name, phone: data.phone,
+    region: data.region, district: data.district, address: data.address, deliveryNote: data.delivery_note,
+  };
+}
+
+// ---------- Supplier profile ----------
+export async function fetchOwnSupplierProfile(): Promise<SupplierProfile | null> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.supplier, []);
+    const row = all.find((s) => s.user_id === currentMockUserId());
+    return row ? mapSupplierProfile(row) : null;
+  }
+  const { data: session } = await supabase.auth.getUser();
+  if (!session.user) return null;
+  const { data, error } = await supabase.from('supplier_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
+  if (error || !data) return null;
+  return mapSupplierProfile(data);
+}
+
+export async function registerSupplier(input: CreateSupplierProfileInput): Promise<SupplierProfile> {
+  if (!supabase) {
+    const row = {
+      id: genId('sup'), user_id: currentMockUserId(), company_name: input.companyName, supplier_type: input.supplierType,
+      owner_name: input.ownerName, phone: input.phone, email: input.email || '', region: input.region || '',
+      district: input.district || '', address: input.address || '', description: input.description || '',
+      categories: input.categories || [], tax_id: input.taxId || '', logo_url: input.logoUrl || '',
+      verification_status: 'pending', rejection_reason: '', commission_rate: 5, created_at: new Date().toISOString(),
+    };
+    const all = readMock<any[]>(MOCK_KEYS.supplier, []);
+    writeMock(MOCK_KEYS.supplier, [...all.filter((s) => s.user_id !== row.user_id), row]);
+    return mapSupplierProfile(row);
+  }
+  const { data: session } = await supabase.auth.getUser();
+  if (!session.user) throw new Error('Sessiya topilmadi');
+  const { data, error } = await supabase.from('supplier_profiles').insert({
+    user_id: session.user.id,
+    company_name: input.companyName,
+    supplier_type: input.supplierType,
+    owner_name: input.ownerName,
+    phone: input.phone,
+    email: input.email || '',
+    region: input.region || '',
+    district: input.district || '',
+    address: input.address || '',
+    description: input.description || '',
+    categories: input.categories || [],
+    tax_id: input.taxId || '',
+    logo_url: input.logoUrl || '',
+  }).select().single();
+  if (error || !data) throw new Error(error?.message || 'Supplier profil yaratilmadi');
+  return mapSupplierProfile(data);
+}
+
+export async function listVerifiedSuppliers(search = ''): Promise<SupplierProfile[]> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.supplier, []).filter((s) => s.verification_status === 'approved');
+    return all.map(mapSupplierProfile);
+  }
+  let query = supabase.from('supplier_profiles').select('*').eq('verification_status', 'approved');
+  if (search) query = query.ilike('company_name', `%${search}%`);
+  const { data, error } = await query.order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapSupplierProfile);
+}
+
+export async function getSupplier(id: string): Promise<SupplierProfile | null> {
+  if (!supabase) {
+    const row = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === id);
+    return row ? mapSupplierProfile(row) : null;
+  }
+  const { data, error } = await supabase.from('supplier_profiles').select('*').eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return mapSupplierProfile(data);
+}
+
+// ---------- Contract ----------
+export async function fetchOwnContract(supplierId: string): Promise<Contract | null> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.contracts, []).filter((c) => c.supplier_id === supplierId);
+    const row = all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+    return row ? mapContract(row) : null;
+  }
+  const { data, error } = await supabase.from('contracts').select('*').eq('supplier_id', supplierId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (error || !data) return null;
+  return mapContract(data);
+}
+
+export async function respondToContract(contractId: string, accept: boolean): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.contracts, []);
+    const next = all.map((c) => c.id === contractId ? { ...c, status: accept ? 'accepted' : 'rejected', accepted_at: accept ? new Date().toISOString() : null } : c);
+    writeMock(MOCK_KEYS.contracts, next);
+    return;
+  }
+  const { error } = await supabase.from('contracts').update({ status: accept ? 'accepted' : 'rejected' }).eq('id', contractId);
+  if (error) throw new Error(error.message);
+}
+
+// ---------- B2B products ----------
+export interface B2BProductFilters {
+  search?: string;
+  category?: string;
+  region?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  minMoq?: number;
+  verifiedOnly?: boolean;
+  deliveryOnly?: boolean;
+}
+
+export async function listB2BProducts(filters: B2BProductFilters = {}): Promise<B2BProduct[]> {
+  if (!supabase) {
+    let rows = readMock<any[]>(MOCK_KEYS.products, []).filter((p) => p.status === 'approved');
+    const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      rows = rows.filter((p) => p.name.toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q));
+    }
+    if (filters.category) rows = rows.filter((p) => p.category === filters.category);
+    if (filters.minMoq != null) rows = rows.filter((p) => p.moq >= filters.minMoq!);
+    return rows.map((r) => {
+      const sup = suppliers.find((s) => s.id === r.supplier_id);
+      return mapB2BProduct({ ...r, supplierName: sup?.company_name, supplierVerified: sup?.verification_status === 'approved' });
+    });
+  }
+  let query = supabase.from('b2b_products').select('*, supplier_profiles(company_name, verification_status, region)').eq('status', 'approved');
+  if (filters.search) query = query.or(`name.ilike.%${filters.search}%,brand.ilike.%${filters.search}%`);
+  if (filters.category) query = query.eq('category', filters.category);
+  if (filters.minPrice != null) query = query.gte('wholesale_price', filters.minPrice);
+  if (filters.maxPrice != null) query = query.lte('wholesale_price', filters.maxPrice);
+  if (filters.minMoq != null) query = query.lte('moq', filters.minMoq);
+  if (filters.deliveryOnly) query = query.eq('delivery_available', true);
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(60);
+  if (error || !data) return [];
+  let mapped = data.map(mapB2BProduct);
+  if (filters.verifiedOnly) mapped = mapped.filter((p) => p.supplierVerified);
+  if (filters.region) mapped = mapped.filter((p) => p.deliveryRegions.includes(filters.region!) || p.deliveryRegions.length === 0);
+  return mapped;
+}
+
+export async function getB2BProduct(id: string): Promise<B2BProduct | null> {
+  if (!supabase) {
+    const row = readMock<any[]>(MOCK_KEYS.products, []).find((p) => p.id === id);
+    if (!row) return null;
+    const sup = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === row.supplier_id);
+    return mapB2BProduct({ ...row, supplierName: sup?.company_name, supplierVerified: sup?.verification_status === 'approved' });
+  }
+  const { data, error } = await supabase.from('b2b_products').select('*, supplier_profiles(company_name, verification_status)').eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return mapB2BProduct(data);
+}
+
+export async function listOwnB2BProducts(supplierId: string): Promise<B2BProduct[]> {
+  if (!supabase) {
+    return readMock<any[]>(MOCK_KEYS.products, []).filter((p) => p.supplier_id === supplierId).map(mapB2BProduct);
+  }
+  const { data, error } = await supabase.from('b2b_products').select('*').eq('supplier_id', supplierId).order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapB2BProduct);
+}
+
+export async function submitB2BProduct(input: CreateB2BProductInput): Promise<B2BProduct> {
+  if (!supabase) {
+    const row = {
+      id: genId('b2bp'), supplier_id: input.supplierId, name: input.name, brand: input.brand || '', category: input.category,
+      description: input.description || '', sku: input.sku || '', images: input.images, video_url: input.videoUrl || '',
+      wholesale_price: input.wholesalePrice, moq: input.moq, available_qty: input.availableQty, unit: input.unit,
+      packaging: input.packaging || '', delivery_available: input.deliveryAvailable, delivery_regions: input.deliveryRegions,
+      status: 'pending', rejection_reason: '', created_at: new Date().toISOString(),
+    };
+    const all = readMock<any[]>(MOCK_KEYS.products, []);
+    writeMock(MOCK_KEYS.products, [row, ...all]);
+    return mapB2BProduct(row);
+  }
+  const { data, error } = await supabase.from('b2b_products').insert({
+    supplier_id: input.supplierId,
+    name: input.name,
+    brand: input.brand || '',
+    category: input.category,
+    description: input.description || '',
+    sku: input.sku || '',
+    images: input.images,
+    video_url: input.videoUrl || '',
+    wholesale_price: input.wholesalePrice,
+    moq: input.moq,
+    available_qty: input.availableQty,
+    unit: input.unit,
+    packaging: input.packaging || '',
+    delivery_available: input.deliveryAvailable,
+    delivery_regions: input.deliveryRegions,
+  }).select().single();
+  if (error || !data) throw new Error(error?.message || "Mahsulot qo'shilmadi");
+  return mapB2BProduct(data);
+}
+
+export async function updateB2BProduct(id: string, patch: Partial<CreateB2BProductInput>): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.products, []);
+    writeMock(MOCK_KEYS.products, all.map((p) => p.id === id ? { ...p, ...patch } : p));
+    return;
+  }
+  const payload: Record<string, unknown> = {};
+  if (patch.name !== undefined) payload.name = patch.name;
+  if (patch.brand !== undefined) payload.brand = patch.brand;
+  if (patch.category !== undefined) payload.category = patch.category;
+  if (patch.description !== undefined) payload.description = patch.description;
+  if (patch.wholesalePrice !== undefined) payload.wholesale_price = patch.wholesalePrice;
+  if (patch.moq !== undefined) payload.moq = patch.moq;
+  if (patch.availableQty !== undefined) payload.available_qty = patch.availableQty;
+  if (patch.unit !== undefined) payload.unit = patch.unit;
+  if (patch.packaging !== undefined) payload.packaging = patch.packaging;
+  if (patch.deliveryAvailable !== undefined) payload.delivery_available = patch.deliveryAvailable;
+  if (patch.deliveryRegions !== undefined) payload.delivery_regions = patch.deliveryRegions;
+  if (patch.images !== undefined) payload.images = patch.images;
+  const { error } = await supabase.from('b2b_products').update(payload).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteB2BProduct(id: string): Promise<void> {
+  if (!supabase) {
+    writeMock(MOCK_KEYS.products, readMock<any[]>(MOCK_KEYS.products, []).filter((p) => p.id !== id));
+    return;
+  }
+  const { error } = await supabase.from('b2b_products').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ---------- Checkout ----------
+export interface B2BCartLine {
+  product: B2BProduct;
+  quantity: number;
+}
+
+export interface B2BDeliveryInfo {
+  storeName: string;
+  phone: string;
+  region: string;
+  district: string;
+  address: string;
+  note?: string;
+}
+
+/** Bitta supplier uchun bitta atomik buyurtma yaratadi (create_b2b_order RPC). */
+async function createOrderForSupplier(
+  businessId: string,
+  supplierId: string,
+  lines: B2BCartLine[],
+  paymentMethod: B2BPaymentMethod,
+  delivery: B2BDeliveryInfo
+): Promise<string> {
+  if (!supabase) {
+    // Mock rejimda RPC yo'q — atomiklik kafolatlanmaydi, faqat lokal test uchun.
+    let subtotal = 0;
+    const orderId = genId('b2bo');
+    const items: any[] = [];
+    for (const line of lines) {
+      if (line.quantity < line.product.moq) throw new Error(`Miqdor MOQ dan kam: ${line.product.name} (min ${line.product.moq})`);
+      if (line.product.availableQty < line.quantity) throw new Error(`Yetarli zaxira yo'q: ${line.product.name}`);
+      const lineTotal = line.product.wholesalePrice * line.quantity;
+      subtotal += lineTotal;
+      items.push({
+        id: genId('b2boi'), order_id: orderId, product_id: line.product.id, product_name: line.product.name,
+        product_image: line.product.images[0] || '', unit: line.product.unit, unit_price: line.product.wholesalePrice,
+        quantity: line.quantity, line_total: lineTotal,
+      });
+    }
+    const supplier = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === supplierId);
+    const commissionRate = Number(supplier?.commission_rate ?? 5);
+    const commissionAmount = Math.round(subtotal * commissionRate) / 100;
+    const order = {
+      id: orderId, order_number: `ONB-${String(Date.now()).slice(-6)}`, business_id: businessId, supplier_id: supplierId,
+      buyer_user_id: currentMockUserId(), subtotal, delivery_fee: 0, total: subtotal, payment_method: paymentMethod,
+      payment_status: 'cash_pending', status: 'pending', rejection_reason: '', commission_rate: commissionRate,
+      commission_amount: commissionAmount, supplier_amount: subtotal - commissionAmount,
+      delivery_store_name: delivery.storeName, delivery_phone: delivery.phone, delivery_region: delivery.region,
+      delivery_district: delivery.district, delivery_address: delivery.address, delivery_note: delivery.note || '',
+      created_at: new Date().toISOString(),
+    };
+    writeMock(MOCK_KEYS.orders, [order, ...readMock<any[]>(MOCK_KEYS.orders, [])]);
+    writeMock(MOCK_KEYS.orderItems, [...items, ...readMock<any[]>(MOCK_KEYS.orderItems, [])]);
+    writeMock(MOCK_KEYS.ledger, [{
+      id: genId('ledger'), order_id: orderId, supplier_id: supplierId, gross_amount: subtotal, commission_rate: commissionRate,
+      commission_amount: commissionAmount, supplier_amount: subtotal - commissionAmount, payment_method: paymentMethod,
+      status: 'pending', created_at: new Date().toISOString(),
+    }, ...readMock<any[]>(MOCK_KEYS.ledger, [])]);
+    const products = readMock<any[]>(MOCK_KEYS.products, []);
+    writeMock(MOCK_KEYS.products, products.map((p) => {
+      const line = lines.find((l) => l.product.id === p.id);
+      return line ? { ...p, available_qty: p.available_qty - line.quantity } : p;
+    }));
+    return orderId;
+  }
+
+  const { data, error } = await supabase.rpc('create_b2b_order', {
+    p_business_id: businessId,
+    p_supplier_id: supplierId,
+    p_items: lines.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+    p_payment_method: paymentMethod,
+    p_delivery_store_name: delivery.storeName,
+    p_delivery_phone: delivery.phone,
+    p_delivery_region: delivery.region,
+    p_delivery_district: delivery.district,
+    p_delivery_address: delivery.address,
+    p_delivery_note: delivery.note || '',
+  });
+  if (error || !data) throw new Error(error?.message || 'Buyurtma yaratilmadi');
+  return data as string;
+}
+
+export interface CheckoutResult {
+  succeededSupplierIds: string[];
+  failed: { supplierId: string; supplierName: string; error: string }[];
+}
+
+/** Savatni supplier bo'yicha guruhlab, har biriga alohida buyurtma yaratadi. */
+export async function checkoutB2BCart(
+  businessId: string,
+  cartLines: B2BCartLine[],
+  paymentMethod: B2BPaymentMethod,
+  delivery: B2BDeliveryInfo
+): Promise<CheckoutResult> {
+  const groups = new Map<string, B2BCartLine[]>();
+  for (const line of cartLines) {
+    const key = line.product.supplierId;
+    const arr = groups.get(key) || [];
+    arr.push(line);
+    groups.set(key, arr);
+  }
+
+  const succeededSupplierIds: string[] = [];
+  const failed: CheckoutResult['failed'] = [];
+
+  const results = await Promise.allSettled(
+    Array.from(groups.entries()).map(async ([supplierId, lines]) => {
+      await createOrderForSupplier(businessId, supplierId, lines, paymentMethod, delivery);
+      return supplierId;
+    })
+  );
+
+  results.forEach((result, idx) => {
+    const supplierId = Array.from(groups.keys())[idx];
+    const lines = groups.get(supplierId)!;
+    if (result.status === 'fulfilled') {
+      succeededSupplierIds.push(supplierId);
+    } else {
+      failed.push({
+        supplierId,
+        supplierName: lines[0]?.product.supplierName || '',
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      });
+    }
+  });
+
+  return { succeededSupplierIds, failed };
+}
+
+// ---------- Orders ----------
+export async function listB2BOrdersForBuyer(): Promise<B2BOrder[]> {
+  if (!supabase) {
+    const orders = readMock<any[]>(MOCK_KEYS.orders, []).filter((o) => o.buyer_user_id === currentMockUserId());
+    const items = readMock<any[]>(MOCK_KEYS.orderItems, []);
+    const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
+    return orders.map((o) => ({
+      ...mapB2BOrder({ ...o, supplierName: suppliers.find((s) => s.id === o.supplier_id)?.company_name }),
+      items: items.filter((i) => i.order_id === o.id).map(mapB2BOrderItem),
+    }));
+  }
+  const { data: session } = await supabase.auth.getUser();
+  if (!session.user) return [];
+  const { data, error } = await supabase
+    .from('b2b_orders')
+    .select('*, supplier_profiles(company_name)')
+    .eq('buyer_user_id', session.user.id)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapB2BOrder);
+}
+
+export async function listB2BOrdersForSupplier(supplierId: string): Promise<B2BOrder[]> {
+  if (!supabase) {
+    const orders = readMock<any[]>(MOCK_KEYS.orders, []).filter((o) => o.supplier_id === supplierId);
+    const items = readMock<any[]>(MOCK_KEYS.orderItems, []);
+    const businesses = readMock<any[]>(MOCK_KEYS.business, []);
+    return orders.map((o) => ({
+      ...mapB2BOrder({ ...o, businessName: businesses.find((b) => b.id === o.business_id)?.store_name }),
+      items: items.filter((i) => i.order_id === o.id).map(mapB2BOrderItem),
+    }));
+  }
+  const { data, error } = await supabase
+    .from('b2b_orders')
+    .select('*, business_profiles(store_name)')
+    .eq('supplier_id', supplierId)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapB2BOrder);
+}
+
+export async function getB2BOrder(orderId: string): Promise<B2BOrder | null> {
+  if (!supabase) {
+    const row = readMock<any[]>(MOCK_KEYS.orders, []).find((o) => o.id === orderId);
+    if (!row) return null;
+    const items = readMock<any[]>(MOCK_KEYS.orderItems, []).filter((i) => i.order_id === orderId);
+    const supplierName = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === row.supplier_id)?.company_name;
+    const businessName = readMock<any[]>(MOCK_KEYS.business, []).find((b) => b.id === row.business_id)?.store_name;
+    return { ...mapB2BOrder({ ...row, supplierName, businessName }), items: items.map(mapB2BOrderItem) };
+  }
+  const { data, error } = await supabase
+    .from('b2b_orders')
+    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const items = await getB2BOrderItems(orderId);
+  return { ...mapB2BOrder(data), items };
+}
+
+export async function getB2BOrderItems(orderId: string): Promise<B2BOrderItem[]> {
+  if (!supabase) {
+    return readMock<any[]>(MOCK_KEYS.orderItems, []).filter((i) => i.order_id === orderId).map(mapB2BOrderItem);
+  }
+  const { data, error } = await supabase.from('b2b_order_items').select('*').eq('order_id', orderId);
+  if (error || !data) return [];
+  return data.map(mapB2BOrderItem);
+}
+
+export async function supplierUpdateOrderStatus(orderId: string, status: B2BOrderStatus, rejectionReason?: string): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.orders, []);
+    writeMock(MOCK_KEYS.orders, all.map((o) => o.id === orderId ? { ...o, status, rejection_reason: rejectionReason || '' } : o));
+
+    // Mirrors the real handle_b2b_order_status_change SQL trigger: settle
+    // commission on delivery, void it (and restock) on cancel/reject.
+    if (status === 'delivered') {
+      const ledger = readMock<any[]>(MOCK_KEYS.ledger, []);
+      writeMock(MOCK_KEYS.ledger, ledger.map((l) => l.order_id === orderId ? { ...l, status: 'settled' } : l));
+    } else if (status === 'cancelled' || status === 'rejected') {
+      const ledger = readMock<any[]>(MOCK_KEYS.ledger, []);
+      writeMock(MOCK_KEYS.ledger, ledger.map((l) => l.order_id === orderId ? { ...l, status: 'voided' } : l));
+      const items = readMock<any[]>(MOCK_KEYS.orderItems, []).filter((i) => i.order_id === orderId);
+      const products = readMock<any[]>(MOCK_KEYS.products, []);
+      writeMock(MOCK_KEYS.products, products.map((p) => {
+        const item = items.find((i) => i.product_id === p.id);
+        return item ? { ...p, available_qty: p.available_qty + item.quantity } : p;
+      }));
+    }
+    return;
+  }
+  const payload: Record<string, unknown> = { status };
+  if (rejectionReason !== undefined) payload.rejection_reason = rejectionReason;
+  const { error } = await supabase.from('b2b_orders').update(payload).eq('id', orderId);
+  if (error) throw new Error(error.message);
+}
+
+export async function supplierConfirmCashPayment(orderId: string): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.orders, []);
+    writeMock(MOCK_KEYS.orders, all.map((o) => o.id === orderId ? { ...o, payment_status: 'cash_confirmed' } : o));
+    return;
+  }
+  const { error } = await supabase.from('b2b_orders').update({ payment_status: 'cash_confirmed' }).eq('id', orderId);
+  if (error) throw new Error(error.message);
+}
+
+// ---------- Finance ----------
+export async function fetchSupplierFinanceSummary(supplierId: string, sinceIso?: string): Promise<SupplierFinanceSummary> {
+  const empty: SupplierFinanceSummary = { grossSales: 0, totalCommission: 0, netAmount: 0, completedOrders: 0, pendingOrders: 0, cashOrders: 0, onlineOrders: 0 };
+  if (!supabase) {
+    let ledger = readMock<any[]>(MOCK_KEYS.ledger, []).filter((l) => l.supplier_id === supplierId);
+    if (sinceIso) ledger = ledger.filter((l) => l.created_at >= sinceIso);
+    const orders = readMock<any[]>(MOCK_KEYS.orders, []).filter((o) => o.supplier_id === supplierId);
+    return summarize(ledger, orders);
+  }
+  let ledgerQuery = supabase.from('commission_ledger').select('*').eq('supplier_id', supplierId);
+  if (sinceIso) ledgerQuery = ledgerQuery.gte('created_at', sinceIso);
+  const [ledgerRes, ordersRes] = await Promise.all([
+    ledgerQuery,
+    supabase.from('b2b_orders').select('status, payment_method').eq('supplier_id', supplierId),
+  ]);
+  if (ledgerRes.error || !ledgerRes.data) return empty;
+  return summarize(ledgerRes.data, ordersRes.data || []);
+}
+
+function summarize(ledger: any[], orders: any[]): SupplierFinanceSummary {
+  const active = ledger.filter((l) => l.status !== 'voided');
+  const grossSales = active.reduce((s, l) => s + Number(l.gross_amount || 0), 0);
+  const totalCommission = active.reduce((s, l) => s + Number(l.commission_amount || 0), 0);
+  return {
+    grossSales,
+    totalCommission,
+    netAmount: grossSales - totalCommission,
+    completedOrders: orders.filter((o) => o.status === 'delivered').length,
+    pendingOrders: orders.filter((o) => !['delivered', 'cancelled', 'rejected'].includes(o.status)).length,
+    cashOrders: orders.filter((o) => o.payment_method === 'cash').length,
+    onlineOrders: orders.filter((o) => o.payment_method === 'online').length,
+  };
+}
+
+export const b2bRepository = {
+  fetchOwnBusinessProfile,
+  registerBusinessBuyer,
+  addBusinessAddress,
+  fetchOwnSupplierProfile,
+  registerSupplier,
+  listVerifiedSuppliers,
+  getSupplier,
+  fetchOwnContract,
+  respondToContract,
+  listB2BProducts,
+  getB2BProduct,
+  listOwnB2BProducts,
+  submitB2BProduct,
+  updateB2BProduct,
+  deleteB2BProduct,
+  checkoutB2BCart,
+  listB2BOrdersForBuyer,
+  listB2BOrdersForSupplier,
+  getB2BOrder,
+  getB2BOrderItems,
+  supplierUpdateOrderStatus,
+  supplierConfirmCashPayment,
+  fetchSupplierFinanceSummary,
+};

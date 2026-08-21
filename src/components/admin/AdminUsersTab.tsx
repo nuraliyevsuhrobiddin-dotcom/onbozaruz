@@ -73,7 +73,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ onLogAction, showT
           value={search}
           onChange={(e) => { setSearch(e.target.value); setPage(1); }}
           placeholder="Ism, email yoki telefon..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-[16px] border border-slate-200 bg-slate-50 text-sm font-semibold outline-none focus:border-[#E53935] focus:bg-white transition-colors"
+          className="w-full pl-10 pr-4 py-2.5 rounded-[16px] border border-slate-200 bg-slate-50 text-sm font-semibold outline-none focus:border-[#D84315] focus:bg-white transition-colors"
         />
       </div>
 
@@ -107,7 +107,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ onLogAction, showT
               <div key={user.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
                 {/* Avatar */}
                 <div className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-sm shrink-0 ${
-                  user.isAdmin ? 'bg-[#E53935] text-white' : 'bg-slate-200 text-slate-600'
+                  user.isAdmin ? 'bg-[#D84315] text-white' : 'bg-slate-200 text-slate-600'
                 }`}>
                   {(user.name || 'U').charAt(0).toUpperCase()}
                 </div>
@@ -116,7 +116,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ onLogAction, showT
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-bold text-xs text-[#111827] truncate">{user.name}</span>
                     {user.isAdmin && (
-                      <span className="px-1.5 py-0.5 rounded-full bg-[#E53935] text-white text-[9px] font-black flex items-center gap-0.5">
+                      <span className="px-1.5 py-0.5 rounded-full bg-[#D84315] text-white text-[9px] font-black flex items-center gap-0.5">
                         <ShieldCheck className="w-2.5 h-2.5" /> Admin
                       </span>
                     )}
@@ -160,7 +160,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({ onLogAction, showT
             <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="p-2 rounded-[12px] bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="px-3 py-1.5 rounded-[12px] bg-[#E53935] text-white text-xs font-black">{page}/{totalPages}</span>
+            <span className="px-3 py-1.5 rounded-[12px] bg-[#D84315] text-white text-xs font-black">{page}/{totalPages}</span>
             <button disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} className="p-2 rounded-[12px] bg-slate-100 hover:bg-slate-200 disabled:opacity-40 transition-colors">
               <ChevronRight className="w-4 h-4" />
             </button>

@@ -58,20 +58,20 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
               type="button"
               onClick={() => onTabChange(tab.id)}
               className={`flex-1 py-3 px-2 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 font-black text-xs transition-colors relative cursor-pointer ${
-                isActive ? 'text-[#E53935]' : 'text-slate-400 hover:text-slate-600'
+                isActive ? 'text-[#D84315]' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span className="truncate">{tab.label}</span>
               {tab.count > 0 && (
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  isActive ? 'bg-red-50 text-[#E53935]' : 'bg-slate-100 text-slate-500'
+                  isActive ? 'bg-orange-50 text-[#D84315]' : 'bg-slate-100 text-slate-500'
                 }`}>
                   {tab.count}
                 </span>
               )}
               {isActive && (
-                <motion.div layoutId="profile-tab-indicator" className="absolute bottom-0 inset-x-0 h-0.5 bg-[#E53935]" />
+                <motion.div layoutId="profile-tab-indicator" className="absolute bottom-0 inset-x-0 h-0.5 bg-[#D84315]" />
               )}
             </button>
           );
@@ -184,7 +184,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
               <button
                 type="button"
                 onClick={onOpenCreateModal}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#E53935] hover:bg-[#C62828] text-white text-xs font-black shadow-md transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#D84315] hover:bg-[#BF360C] text-white text-xs font-black shadow-md transition-colors cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>E'lon berish</span>
@@ -224,19 +224,11 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                 <Tag className="w-7 h-7" />
               </div>
               <div>
-                <h4 className="font-black text-sm text-[#111827]">Hali mahsulotlar qo'shilmagan</h4>
+                <h4 className="font-black text-sm text-[#111827]">Mahsulotlar yo'q</h4>
                 <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1 font-medium">
-                  OnBozar Marketiga o'z tovarlaringiz va ulgurji mahsulotlaringizni kiriting.
+                  Avval joylashtirgan mahsulotlaringiz bo'lsa, shu yerda ko'rinadi.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onOpenCreateModal}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#E53935] hover:bg-[#C62828] text-white text-xs font-black shadow-md transition-colors cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Mahsulot qo'shish</span>
-              </button>
             </div>
           )
         )}

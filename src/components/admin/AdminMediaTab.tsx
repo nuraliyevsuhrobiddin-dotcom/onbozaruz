@@ -91,7 +91,7 @@ export const AdminMediaTab: React.FC<AdminMediaTabProps> = ({ posts, products, s
         <button
           onClick={runCheck}
           disabled={isChecking}
-          className="px-3.5 py-2 rounded-[16px] bg-[#E53935] text-white font-black text-xs hover:bg-[#C62828] transition-colors flex items-center gap-1.5 shadow-md disabled:opacity-60"
+          className="px-3.5 py-2 rounded-[16px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors flex items-center gap-1.5 shadow-md disabled:opacity-60"
         >
           <RefreshCw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />
           {isChecking ? 'Tekshirilyapti...' : 'Tekshirishni boshlash'}

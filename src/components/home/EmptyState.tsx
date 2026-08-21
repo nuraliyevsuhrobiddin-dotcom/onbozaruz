@@ -64,11 +64,11 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           Ushbu mezonlar bo'yicha e'lon topilmadi
         </h3>
         <p className="text-xs text-slate-500 max-w-xs leading-relaxed font-medium">
-          Filtrni tozalab barcha fermerlar e'lonlarini ko'rishingiz mumkin.
+          Filtrni tozalab barcha sotuvchilar e'lonlarini ko'rishingiz mumkin.
         </p>
         <button
           onClick={onReset}
-          className="px-6 py-3 rounded-full bg-[#111827] text-white text-xs font-extrabold hover:bg-[#E53935] transition-colors mt-2 shadow-md cursor-pointer active:scale-95"
+          className="px-6 py-3 rounded-full bg-[#111827] text-white text-xs font-extrabold hover:bg-[#D84315] transition-colors mt-2 shadow-md cursor-pointer active:scale-95"
         >
           Filtrlarni tozalash
         </button>
@@ -90,12 +90,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         Hozircha e'lonlar mavjud emas
       </h3>
       <p className="text-xs text-slate-500 max-w-xs leading-relaxed font-medium">
-        Fermerlar yangi hosil va mahsulotlar e'lonini joylaganida bu yerda paydo bo'ladi.
+        Sotuvchilar yangi mahsulotlar e'lonini joylaganida bu yerda paydo bo'ladi.
       </p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#111827] text-white text-xs font-extrabold hover:bg-[#E53935] transition-colors mt-2 shadow-md cursor-pointer active:scale-95"
+          className="flex items-center gap-2 px-6 py-3 rounded-full bg-[#111827] text-white text-xs font-extrabold hover:bg-[#D84315] transition-colors mt-2 shadow-md cursor-pointer active:scale-95"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Yangilash

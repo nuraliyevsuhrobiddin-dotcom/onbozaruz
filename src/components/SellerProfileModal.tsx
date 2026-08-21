@@ -8,7 +8,7 @@ export const SellerProfileModal: React.FC = () => {
   const { selectedSellerModal, setSelectedSellerModal, posts, products, followedSellerIds, toggleFollowSeller, setProductDetail, openVideoViewer, showToast } = useAgroStore();
   const [activeTab, setActiveTab] = useState<'all' | 'posts' | 'products'>('all');
   if (!selectedSellerModal) return null;
-  const sellerName = selectedSellerModal.sellerName || 'Fermer';
+  const sellerName = selectedSellerModal.sellerName || 'Sotuvchi';
   const sellerId = selectedSellerModal.sellerId || sellerName;
   const sellerPosts = posts.filter(p => p.sellerId === sellerId || p.sellerName === sellerName || p.userId === sellerId);
   const sellerProducts = products.filter(p => p.sellerId === sellerId || p.seller === sellerName || p.submittedBy === sellerId);
@@ -18,7 +18,7 @@ export const SellerProfileModal: React.FC = () => {
   const phone = selectedSellerModal.phone || '';
   const telegram = selectedSellerModal.telegram?.replace(/^@/, '').replace(/\s+/g, '') || '';
   const avatar = selectedSellerModal.sellerAvatar || '';
-  const initials = sellerName.trim().charAt(0).toUpperCase() || 'F';
+  const initials = sellerName.trim().charAt(0).toUpperCase() || 'S';
   const totalViews = sellerPosts.reduce((sum, post) => sum + (post.viewsCount || 0), 0);
   const selectItem = (item: Post | Product) => {
     setSelectedSellerModal(null);

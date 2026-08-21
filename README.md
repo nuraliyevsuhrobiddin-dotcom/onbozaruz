@@ -1,6 +1,6 @@
-# OnBozor — Agro Marketplace Platform
+# OnBozor — Marketplace Platform
 
-> O'zbekistondagi birinchi Instagram/TikTok UX formatidagi Agro Marketplace platformasi. Fermerlar va xaridorlarni yagona raqamli bozorda bog'laydi.
+> O'zbekistondagi birinchi Instagram/TikTok UX formatidagi Marketplace platformasi. Sotuvchilar va xaridorlarni yagona raqamli bozorda bog'laydi.
 
 Sayt: **[onbozar.uz](https://onbozar.uz)**
 
@@ -11,8 +11,8 @@ Sayt: **[onbozar.uz](https://onbozar.uz)**
 ### Lenta va ijtimoiy funksiyalar
 - Instagram uslubidagi lenta: rasm va video (Reels) formatidagi e'lonlar
 - To'liq ekranli Reels ko'ruvchi — scroll-snap navigatsiya, avtomatik ijro, ovozni boshqarish
-- Layklar, saqlash, izohlar, ulashish, fermerlarga obuna bo'lish
-- Story-uslubidagi fermerlar paneli
+- Layklar, saqlash, izohlar, ulashish, sotuvchilarga obuna bo'lish
+- Story-uslubidagi sotuvchilar paneli
 - Qidiruv va kategoriya bo'yicha ko'rish
 
 ### Market (B2B do'kon)

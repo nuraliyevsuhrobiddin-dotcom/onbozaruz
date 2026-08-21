@@ -49,7 +49,7 @@ export function InstallAppPrompt() {
         <button
           type="button"
           onClick={() => void installApp()}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#E53935] px-3 py-2 text-[11px] font-black text-white"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-[#D84315] px-3 py-2 text-[11px] font-black text-white"
         >
           <Download className="h-3.5 w-3.5" />
           O‘rnatish

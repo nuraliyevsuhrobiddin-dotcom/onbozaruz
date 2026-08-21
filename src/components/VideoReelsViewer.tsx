@@ -50,33 +50,19 @@ interface SlideProps {
   isActive: boolean;
   preloadMode: PreloadMode;
   globalMuted: boolean;
-  // True only for the brief window right after the viewer opens. Used to
-  // hold off the very first play() so it doesn't compete with the open
-  // transition — later swipes should never wait for this, since the slide
-  // has already been pre-buffering as "next" while the user watched the
-  // previous one.
-  justOpened: boolean;
   onUnmute?: () => void;
 }
 
 // memo prevents re-renders when the parent's state changes but this slide's
 // props haven't changed (e.g. globalMuted toggle causes full list re-render).
-const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted, justOpened, onUnmute: _onUnmute }) => {
+const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted, onUnmute: _onUnmute }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [showHeart, setShowHeart] = useState(false);
-  // True once this slide (active or "next") has had a brief moment to avoid
-  // competing with an entrance transition. Gates the preload upgrade from
-  // 'metadata' to 'auto' for BOTH roles, so the "next" slide quietly buffers
-  // real video data ahead of time — that's what makes a swipe feel instant
-  // instead of showing a black screen while the browser starts fetching.
-  const [hasSettled, setHasSettled] = useState(false);
   // True once the <video> has actually painted a frame for the current src.
-  // Drives the poster/placeholder overlay: it stays up until there is real
-  // video content underneath it, so the user never sees raw black.
   const [hasFrame, setHasFrame] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   // Double-tap detection
@@ -110,53 +96,59 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     setPosterFailed(false);
   }, [retryKey, post.mediaUrl]);
 
-  // Settle timer: applies to both the active slide and the pre-buffered
-  // "next" slide. A short delay before upgrading preload to 'auto' keeps
-  // the very first paint from competing with this slide's entrance.
-  useEffect(() => {
-    if (preloadMode === 'none') {
-      setHasSettled(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setHasSettled(true), 220);
-    return () => window.clearTimeout(timer);
-  }, [preloadMode]);
-
-  // Active slide: play; inactive: pause + mute completely.
-  // On the viewer's initial open we wait for the settle timer so playback
-  // doesn't compete with the open transition. On every later swipe we play
-  // immediately — this slide was already sitting as "next" and pre-buffering
-  // real video data, so there's nothing left to wait for.
+  // Active slide: play immediately without artificial delay.
+  // Inactive slide: pause + mute completely.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (isActive) {
-      if (justOpened && !hasSettled) return;
+    let isCancelled = false;
 
+    if (isActive) {
       video.muted = globalMuted;
       video.volume = globalMuted ? 0 : 1;
 
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise
-          .then(() => setIsPlaying(true))
+          .then(() => {
+            if (!isCancelled) {
+              setIsPlaying(true);
+              setIsBuffering(false);
+            }
+          })
           .catch(() => {
-            // Browser policies may block autoplay with sound until user interaction.
+            if (isCancelled) return;
+            // Browser policies may block autoplay with sound; fallback to muted playback instantly
             video.muted = true;
             video.volume = 0;
-            video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+            video.play()
+              .then(() => {
+                if (!isCancelled) {
+                  setIsPlaying(true);
+                  setIsBuffering(false);
+                }
+              })
+              .catch(() => {
+                if (!isCancelled) {
+                  setIsPlaying(false);
+                }
+              });
           });
       }
     } else {
-      // Immediately silence and pause inactive slides to prevent audio mixing.
+      // Immediately silence and pause inactive slides to prevent audio mixing & conserve RAM/CPU
       video.volume = 0;
       video.muted = true;
       video.pause();
       setIsPlaying(false);
       setIsBuffering(false);
     }
-  }, [isActive, hasSettled, justOpened, globalMuted]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isActive, globalMuted, retryKey]);
 
   // Keep audio state aligned when the viewer mute toggle changes.
   useEffect(() => {
@@ -174,7 +166,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     }
   }, [globalMuted, isActive]);
 
-  // Komponent unmount bo'lganda video ni to'xtatish va ovozni butunlay o'chirish
+  // Cleanup on unmount
   useEffect(() => {
     const video = videoRef.current;
     return () => {
@@ -182,8 +174,6 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
         video.volume = 0;
         video.muted = true;
         video.pause();
-        // Remove src to release memory for slides far from current index
-        if (!video.paused) video.pause();
       }
     };
   }, []);
@@ -195,7 +185,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const handleDoubleTap = useCallback(() => {
     setShowHeart(true);
     if (!isLiked) toggleLikePost(post.id);
-    confetti({ particleCount: 25, spread: 55, origin: { y: 0.5 }, colors: ['#E53935', '#FFFFFF'] });
+    confetti({ particleCount: 25, spread: 55, origin: { y: 0.5 }, colors: ['#D84315', '#FFFFFF'] });
     setTimeout(() => setShowHeart(false), 800);
   }, [isLiked, post.id, toggleLikePost]);
 
@@ -237,20 +227,14 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const telLink = `tel:${cleanPhone}`;
 
   // Determine video src: only attach for active + next slides.
-  // Removing src from distant slides lets the browser reclaim memory and
-  // network connections. preload="none" alone is not always honored.
   const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
-
-  // Poster: use only the dedicated thumbnail, not the video URL itself.
-  // Using the video URL as a poster causes a second network request for the
-  // same resource, doubling network usage on mobile.
   const posterSrc = post.posterUrl || undefined;
 
-  // preload attribute mapped to mode: both 'active' and 'next' start at a
-  // light 'metadata' fetch and upgrade to a full 'auto' buffer once settled
-  // — this is what lets the "next" video have real data ready before the
-  // user ever swipes to it.
-  const preloadAttr = preloadMode === 'none' ? 'none' : hasSettled ? 'auto' : 'metadata';
+  // Preload strategy:
+  // - active slide: 'auto' (instant download and decode)
+  // - next slide: 'auto' (pre-buffer chunks so swipe has 0 latency)
+  // - distant slides: 'none' (zero network & RAM waste)
+  const preloadAttr = preloadMode === 'active' || preloadMode === 'next' ? 'auto' : 'none';
 
   return (
     <div
@@ -261,45 +245,51 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
       <div
         className="relative bg-slate-950 overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
       >
-        {/* Blurred background backdrop — use only poster, never the video URL */}
-        {posterSrc && (
+        {/* Blurred background backdrop — vibrant and instant */}
+        {posterSrc ? (
           <div
             aria-hidden="true"
             className="absolute inset-[-24px] bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none"
             style={{ backgroundImage: `url(${posterSrc})` }}
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#334155,_#020617_72%)] pointer-events-none"
           />
         )}
 
         {/* Video / Image */}
         {post.type === 'video' ? (
           <>
-            {/* key={retryKey} forces a fresh <video> element on retry,
-                clearing any stalled network state from the previous attempt. */}
             <video
               key={retryKey}
               ref={videoRef}
               src={videoSrc}
               poster={posterSrc}
               loop
-              muted={false}
+              muted={globalMuted}
               playsInline
               preload={preloadAttr}
               onClick={handleClick}
               onLoadedData={() => setHasFrame(true)}
+              onLoadedMetadata={() => {
+                // If poster is missing, first metadata event indicates readiness
+                setHasFrame(true);
+              }}
               onPlay={() => { setIsPlaying(true); setIsBuffering(false); }}
               onPause={() => setIsPlaying(false)}
               onWaiting={() => { if (isActive) setIsBuffering(true); }}
+              onStalled={() => { if (isActive) setIsBuffering(true); }}
               onCanPlay={() => { setIsBuffering(false); setHasFrame(true); }}
               onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
               onError={() => { setHasError(true); setIsBuffering(false); }}
               className="relative z-[1] w-full h-full object-cover sm:object-contain cursor-pointer"
             />
 
-            {/* Poster/placeholder — covers the video until it has actually
-                painted a frame, so a swipe never reveals raw black while the
-                next clip is still starting to buffer. */}
+            {/* Poster / Placeholder Overlay — smoothly covers video until first frame arrives */}
             {!hasFrame && !hasError && (
-              <div className="absolute inset-0 z-[1] pointer-events-none">
+              <div className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-slate-950/80 transition-opacity duration-300">
                 {posterSrc && !posterFailed ? (
                   <img
                     src={posterSrc}
@@ -308,8 +298,12 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                     className="w-full h-full object-cover sm:object-contain"
                   />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-black flex items-center justify-center">
-                    <Loader2 className="w-8 h-8 text-white/50 animate-spin" />
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-black">
+                    <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10">
+                      <Play className="w-6 h-6 text-white/80 fill-white/80 translate-x-0.5" />
+                    </div>
+                    <span className="text-xs font-bold text-white/70 max-w-[200px] truncate">{post.title}</span>
+                    <Loader2 className="w-6 h-6 text-[#D84315] animate-spin mt-1" />
                   </div>
                 )}
               </div>
@@ -384,7 +378,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               transition={{ duration: 0.4, ease: 'easeOut' }}
               className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
             >
-              <Heart className="w-28 h-28 fill-[#E53935] text-[#E53935] drop-shadow-2xl" />
+              <Heart className="w-28 h-28 fill-[#D84315] text-[#D84315] drop-shadow-2xl" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -402,7 +396,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
               <Heart
                 className={`w-6 h-6 drop-shadow-md ${
-                  isLiked ? 'fill-[#E53935] text-[#E53935]' : 'text-white stroke-[2]'
+                  isLiked ? 'fill-[#D84315] text-[#D84315]' : 'text-white stroke-[2]'
                 }`}
               />
             </div>
@@ -446,7 +440,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
               <Bookmark
                 className={`w-6 h-6 drop-shadow-md ${
-                  isSaved ? 'fill-[#E53935] text-[#E53935]' : 'text-white stroke-[2]'
+                  isSaved ? 'fill-[#D84315] text-[#D84315]' : 'text-white stroke-[2]'
                 }`}
               />
             </div>
@@ -509,7 +503,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                 className={`shrink-0 text-[11px] font-extrabold px-3 py-1.5 rounded-full transition-all border backdrop-blur-md shadow-sm ${
                   isFollowing
                     ? 'bg-white/20 text-white border-white/30 hover:bg-white/30'
-                    : 'bg-[#E53935] text-white border-transparent hover:bg-[#d32f2f]'
+                    : 'bg-[#D84315] text-white border-transparent hover:bg-[#d32f2f]'
                 }`}
               >
                 {isFollowing ? '✓ Obuna' : '+ Obuna'}
@@ -541,7 +535,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               href={telLink}
               whileTap={{ scale: 0.95 }}
               onClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#E53935] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors"
+              className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#D84315] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors"
             >
               <PhoneCall className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">Bog'lanish</span>
@@ -586,9 +580,6 @@ export const VideoReelsViewer: React.FC = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   // Ovozli boshlanadi — foydalanuvchi bosib kirdi (user gesture)
   const [globalMuted, setGlobalMuted] = useState(false);
-  // True only for a brief window right after the viewer opens — see
-  // VideoSlide's `justOpened` prop for why this exists.
-  const [justOpened, setJustOpened] = useState(true);
   // Floating control visibility: appears on scroll, hides after inactivity
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const floatingControlsTimer = useRef<number | null>(null);
@@ -628,21 +619,11 @@ export const VideoReelsViewer: React.FC = () => {
       }
       setTimeout(() => {
         isScrolling.current = false;
-      }, 100);
-    }, 30);
+      }, 50);
+    }, 10);
 
     return () => clearTimeout(timer);
   }, [isVideoViewerOpen, videoViewerStartIndex]);
-
-  // "Just opened" window: slightly longer than VideoSlide's own 220ms settle
-  // timer so it reliably covers the open transition, then clears so every
-  // later swipe plays without an artificial delay.
-  useEffect(() => {
-    if (!isVideoViewerOpen) return;
-    setJustOpened(true);
-    const timer = window.setTimeout(() => setJustOpened(false), 260);
-    return () => window.clearTimeout(timer);
-  }, [isVideoViewerOpen]);
 
   // Floating controls auto-hide timer
   useEffect(() => {
@@ -927,11 +908,20 @@ export const VideoReelsViewer: React.FC = () => {
                     isActive={idx === currentIndex}
                     preloadMode={preloadMode}
                     globalMuted={globalMuted}
-                    justOpened={justOpened}
                     onUnmute={() => setGlobalMuted(false)}
                   />
                 ) : (
-                  <div className="w-full h-full bg-black" />
+                  <div className="relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                    {post.posterUrl ? (
+                      <img
+                        src={post.posterUrl}
+                        alt={post.title}
+                        className="w-full h-full object-cover opacity-60 filter blur-sm"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-[radial-gradient(circle_at_center,_#1e293b,_#020617)]" />
+                    )}
+                  </div>
                 )}
               </div>
             );

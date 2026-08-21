@@ -27,11 +27,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const { isVideoViewerOpen } = useAgroStore();
 
+  const [hasFrame, setHasFrame] = useState(false);
+
   // src o'zgarganda xato va play holatini tiklash
   useEffect(() => {
     setHasError(false);
     setIsPlaying(false);
     setIsBuffering(false);
+    setHasFrame(false);
     setAspectRatio(null);
   }, [src, poster, retryKey]);
 
@@ -69,11 +72,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }
 
         if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
-          video.play().then(() => setIsPlaying(true)).catch(() => {
+          video.play().then(() => {
+            setIsPlaying(true);
+            setIsBuffering(false);
+          }).catch(() => {
             // Muted fallback
             video.muted = true;
             setIsMuted(true);
-            video.play().then(() => setIsPlaying(true)).catch(() => {});
+            video.play().then(() => {
+              setIsPlaying(true);
+              setIsBuffering(false);
+            }).catch(() => {});
           });
         } else {
           video.pause();
@@ -147,8 +156,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
           style={{ backgroundImage: `url(${bgPoster})` }}
         />
       ) : (
-        // Do not create a second video element here. It would download and decode
-        // the same file twice for every card in the feed.
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#334155,_#020617_72%)] pointer-events-none z-0"
@@ -164,24 +171,37 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         loop
         muted={isMuted}
         playsInline
-        // Feed cards only need a small amount of data until they become visible.
         preload="metadata"
+        onLoadedData={() => setHasFrame(true)}
         onError={() => { setHasError(true); setIsBuffering(false); }}
         onWaiting={() => setIsBuffering(true)}
-        onCanPlay={() => setIsBuffering(false)}
-        onPlaying={() => { setIsPlaying(true); setIsBuffering(false); }}
+        onStalled={() => setIsBuffering(true)}
+        onCanPlay={() => { setIsBuffering(false); setHasFrame(true); }}
+        onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
         onLoadedMetadata={(event) => {
+          setHasFrame(true);
           const video = event.currentTarget;
           if (video.videoWidth > 0 && video.videoHeight > 0) {
             setAspectRatio(video.videoWidth / video.videoHeight);
           }
         }}
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => { setIsPlaying(true); setIsBuffering(false); }}
         onPause={() => setIsPlaying(false)}
         className={`relative z-[1] w-full h-full max-h-[540px] ${
           fit === 'cover' ? 'object-cover' : 'object-contain'
         }`}
       />
+
+      {/* Poster overlay until first frame decodes */}
+      {!hasFrame && !hasError && poster && (
+        <div className="absolute inset-0 z-[2] pointer-events-none">
+          <img
+            src={poster}
+            alt="Video thumbnail"
+            className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+          />
+        </div>
+      )}
 
       {/* Error display with retry */}
       {hasError && (

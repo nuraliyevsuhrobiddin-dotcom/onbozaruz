@@ -133,7 +133,7 @@ export const CommentSheetModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => toggleCommentLike(c.id)}
-                  className={`transition-colors ${c.liked ? 'text-[#E53935]' : 'text-slate-300 hover:text-[#E53935]'}`}
+                  className={`transition-colors ${c.liked ? 'text-[#D84315]' : 'text-slate-300 hover:text-[#D84315]'}`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${c.liked ? 'fill-current' : ''}`} />
                 </button>
@@ -153,7 +153,7 @@ export const CommentSheetModal: React.FC = () => {
           <button
             type="submit"
             disabled={!newComment.trim()}
-            className="p-2.5 rounded-full bg-[#E53935] text-white hover:bg-[#D32F2F] transition-colors disabled:opacity-50"
+            className="p-2.5 rounded-full bg-[#D84315] text-white hover:bg-[#D32F2F] transition-colors disabled:opacity-50"
           >
             <Send className="w-4 h-4" />
           </button>

@@ -34,7 +34,7 @@ export const supabaseClient = isSupabaseConfigured
 
 const supabase = supabaseClient;
 
-const PRODUCTION_AUTH_CALLBACK_URL = 'https://www.onbozar.uz/auth/callback';
+const PRODUCTION_AUTH_CALLBACK_URL = 'https://onbozar.uz/auth/callback';
 
 export function getAuthCallbackUrl(): string {
   if (typeof window === 'undefined') return PRODUCTION_AUTH_CALLBACK_URL;
@@ -258,6 +258,14 @@ export async function decrementProductStockOnServer(productId: string, quantity:
 }
 
 // ---------- Types ----------
+// B2B ro'yxatdan o'tish natijasida qo'shiladigan qiymatlar (supplier,
+// business_buyer va h.k.) faqat ko'rsatish/yorliq uchun — haqiqiy huquq
+// tekshiruvi supplier_profiles.verificationStatus / businessProfile orqali
+// bo'ladi, bu maydon orqali emas.
+export type UserRole =
+  | 'seller' | 'buyer' | 'business'
+  | 'business_buyer' | 'supplier' | 'manufacturer' | 'importer' | 'distributor';
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -267,7 +275,7 @@ export interface AuthUser {
   location?: string;
   businessName?: string;
   bio?: string;
-  role?: 'seller' | 'buyer' | 'business';
+  role?: UserRole;
   avatar?: string;
   cover?: string;
   website?: string;
@@ -287,7 +295,7 @@ export interface SignUpFields {
   phone: string;
   location?: string;
   businessName?: string;
-  role?: 'seller' | 'buyer' | 'business';
+  role?: UserRole;
 }
 
 export interface AuthResult {
@@ -453,7 +461,7 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
     bio: profile?.bio || '',
     avatar: profile?.avatar_url || '',
     cover: profile?.cover_url || '',
-    role: (profile?.role as 'seller' | 'buyer' | 'business') || (meta?.role as 'seller' | 'buyer' | 'business') || 'seller',
+    role: (profile?.role as UserRole) || (meta?.role as UserRole) || 'seller',
     website: profile?.website || '',
     telegram: profile?.telegram || '',
     createdAt: user.created_at || new Date().toISOString(),
@@ -481,7 +489,7 @@ async function supabaseGetUserProfile(userId: string): Promise<AuthUser | null> 
     location: profile.location || '',
     businessName: profile.business_name || '',
     bio: profile.bio || '',
-    role: (profile.role as 'seller' | 'buyer' | 'business') || 'seller',
+    role: (profile.role as UserRole) || 'seller',
     avatar: profile.avatar_url || '',
     cover: profile.cover_url || '',
     website: profile.website || '',
@@ -541,7 +549,7 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
     location: data.location || '',
     businessName: data.business_name || '',
     bio: data.bio || '',
-    role: (data.role as 'seller' | 'buyer' | 'business') || 'seller',
+    role: (data.role as UserRole) || 'seller',
     avatar: data.avatar_url || '',
     cover: data.cover_url || '',
     website: data.website || '',

@@ -64,7 +64,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
     <div className="space-y-5 select-none">
       <div>
         <h2 className="font-black text-xl text-[#111827]">Dashboard</h2>
-        <p className="text-xs text-slate-400 font-medium mt-0.5">Xush kelibsiz, <span className="text-[#E53935] font-bold">{adminEmail}</span></p>
+        <p className="text-xs text-slate-400 font-medium mt-0.5">Xush kelibsiz, <span className="text-[#D84315] font-bold">{adminEmail}</span></p>
       </div>
 
       {error && (
@@ -108,7 +108,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#E53935]" />
+            <BarChart3 className="w-4 h-4 text-[#D84315]" />
             Haftalik buyurtmalar va savdo
           </h3>
           <span className="text-[10px] text-slate-400 font-bold">So'nggi 7 kun</span>
@@ -118,8 +118,8 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
             <AreaChart data={MOCK_CHART} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gOrders" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#E53935" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#E53935" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#D84315" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#D84315" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -129,7 +129,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
                 contentStyle={{ borderRadius: 14, border: '1px solid #e2e8f0', fontSize: 11, fontWeight: 700 }}
                 formatter={(val) => [val, 'Buyurtma']}
               />
-              <Area type="monotone" dataKey="orders" stroke="#E53935" strokeWidth={2.5} fill="url(#gOrders)" dot={{ r: 3, fill: '#E53935' }} />
+              <Area type="monotone" dataKey="orders" stroke="#D84315" strokeWidth={2.5} fill="url(#gOrders)" dot={{ r: 3, fill: '#D84315' }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>

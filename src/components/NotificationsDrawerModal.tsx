@@ -1,7 +1,7 @@
 import React from 'react';
 import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
-import { Bell, Heart, MessageCircle, PackageCheck, CheckCircle2, XCircle, CheckCheck } from 'lucide-react';
+import { Bell, Heart, MessageCircle, PackageCheck, CheckCircle2, XCircle, CheckCheck, Building2, Truck } from 'lucide-react';
 import { Notification, NotificationType } from '../api/types';
 
 const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
@@ -12,16 +12,30 @@ const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
   post_rejected: XCircle,
   product_approved: CheckCircle2,
   product_rejected: XCircle,
+  supplier_approved: Building2,
+  supplier_rejected: XCircle,
+  supplier_suspended: XCircle,
+  b2b_product_approved: CheckCircle2,
+  b2b_product_rejected: XCircle,
+  b2b_new_order: Truck,
+  b2b_order_status: Truck,
 };
 
 const TONE_BY_TYPE: Record<NotificationType, string> = {
   comment: 'text-blue-600 bg-blue-50',
-  like: 'text-[#E53935] bg-red-50',
+  like: 'text-[#D84315] bg-orange-50',
   order_status: 'text-emerald-600 bg-emerald-50',
   post_approved: 'text-emerald-600 bg-emerald-50',
   product_approved: 'text-emerald-600 bg-emerald-50',
   post_rejected: 'text-rose-600 bg-rose-50',
   product_rejected: 'text-rose-600 bg-rose-50',
+  supplier_approved: 'text-emerald-600 bg-emerald-50',
+  supplier_rejected: 'text-rose-600 bg-rose-50',
+  supplier_suspended: 'text-rose-600 bg-rose-50',
+  b2b_product_approved: 'text-emerald-600 bg-emerald-50',
+  b2b_product_rejected: 'text-rose-600 bg-rose-50',
+  b2b_new_order: 'text-blue-600 bg-blue-50',
+  b2b_order_status: 'text-blue-600 bg-blue-50',
 };
 
 function formatRelativeTime(iso: string): string {
@@ -48,6 +62,8 @@ export const NotificationsDrawerModal: React.FC = () => {
     orders,
     setProductDetail,
     setActiveSubView,
+    setActiveTab,
+    setB2BRoute,
   } = useAgroStore();
 
   const handleSelect = (notification: Notification) => {
@@ -59,6 +75,15 @@ export const NotificationsDrawerModal: React.FC = () => {
     } else if (notification.targetType === 'order') {
       const order = orders.find((o) => o.id === notification.targetId);
       if (order) setActiveSubView('orders');
+    } else if (notification.targetType === 'b2b_order' && notification.targetId) {
+      setActiveTab('market');
+      setB2BRoute({ view: 'order', id: notification.targetId });
+    } else if (notification.targetType === 'supplier_profile') {
+      setActiveTab('market');
+      setB2BRoute({ view: 'dashboard' });
+    } else if (notification.targetType === 'b2b_product' && notification.targetId) {
+      setActiveTab('market');
+      setB2BRoute({ view: 'product', id: notification.targetId });
     }
     setNotificationsOpen(false);
   };
@@ -72,7 +97,7 @@ export const NotificationsDrawerModal: React.FC = () => {
       <div className="space-y-3 py-2 select-none">
         <div className="flex items-center justify-between rounded-[18px] bg-slate-50 px-3 py-2 border border-slate-100">
           <div className="flex items-center gap-2">
-            <span className="w-9 h-9 rounded-full bg-red-50 text-[#E53935] flex items-center justify-center">
+            <span className="w-9 h-9 rounded-full bg-orange-50 text-[#D84315] flex items-center justify-center">
               <Bell className="w-4 h-4" />
             </span>
             <div>
@@ -134,7 +159,7 @@ export const NotificationsDrawerModal: React.FC = () => {
                     </span>
                   </span>
                   {!notification.isRead && (
-                    <span className="absolute right-3 top-3 w-2 h-2 rounded-full bg-[#E53935]" />
+                    <span className="absolute right-3 top-3 w-2 h-2 rounded-full bg-[#D84315]" />
                   )}
                 </button>
               );

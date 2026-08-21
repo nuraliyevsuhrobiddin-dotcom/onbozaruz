@@ -1,12 +1,12 @@
 import React from 'react';
 import {
-  LayoutDashboard, Users, Megaphone, ShoppingBag, ShoppingCart,
+  LayoutDashboard, Users, Megaphone, Factory, Package, ShoppingCart, Percent,
   Tag, Image, Flag, FileText, X,
 } from 'lucide-react';
 
 type AdminTab =
-  | 'dashboard' | 'users' | 'posts' | 'products'
-  | 'orders' | 'categories' | 'media' | 'reports' | 'audit';
+  | 'dashboard' | 'users' | 'posts' | 'b2b_suppliers' | 'b2b_products'
+  | 'b2b_orders' | 'b2b_commission' | 'categories' | 'media' | 'reports' | 'audit';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -19,8 +19,10 @@ const NAV_ITEMS: { id: AdminTab; label: string; icon: React.ElementType; badge?:
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'users', label: 'Foydalanuvchilar', icon: Users },
   { id: 'posts', label: "E'lonlar", icon: Megaphone, badge: true },
-  { id: 'products', label: 'Market', icon: ShoppingBag },
-  { id: 'orders', label: 'Buyurtmalar', icon: ShoppingCart },
+  { id: 'b2b_suppliers', label: 'B2B Supplierlar', icon: Factory },
+  { id: 'b2b_products', label: 'B2B Mahsulotlar', icon: Package },
+  { id: 'b2b_orders', label: 'B2B Buyurtmalar', icon: ShoppingCart },
+  { id: 'b2b_commission', label: 'Komissiya', icon: Percent },
   { id: 'categories', label: 'Kategoriyalar', icon: Tag },
   { id: 'media', label: 'Media', icon: Image },
   { id: 'reports', label: 'Shikoyatlar', icon: Flag },
@@ -36,7 +38,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
         <div>
           <span className="font-black text-sm text-white tracking-tight">OnBozar</span>
-          <span className="ml-1 px-1.5 py-0.5 rounded-md bg-[#E53935] text-white text-[9px] font-black uppercase">
+          <span className="ml-1 px-1.5 py-0.5 rounded-md bg-[#D84315] text-white text-[9px] font-black uppercase">
             Admin
           </span>
         </div>
@@ -59,7 +61,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               onClick={() => onTabChange(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2.5 rounded-[14px] text-left transition-all text-xs font-bold group ${
                 isActive
-                  ? 'bg-[#E53935] text-white shadow-lg'
+                  ? 'bg-[#D84315] text-white shadow-lg'
                   : 'text-white/60 hover:text-white hover:bg-white/8'
               }`}
             >
@@ -69,7 +71,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </span>
               {item.badge && pendingCount > 0 && (
                 <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black ${
-                  isActive ? 'bg-white/30 text-white' : 'bg-[#E53935] text-white'
+                  isActive ? 'bg-white/30 text-white' : 'bg-[#D84315] text-white'
                 }`}>
                   {pendingCount}
                 </span>

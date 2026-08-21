@@ -23,7 +23,7 @@ export const InstagramHeader: React.FC = () => {
           >
             <Heart className="w-5 h-5 stroke-[1.75]" />
             {unreadNotificationsCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#E53935] text-white text-[9px] font-black flex items-center justify-center">
+              <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-[#D84315] text-white text-[9px] font-black flex items-center justify-center">
                 {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
               </span>
             )}

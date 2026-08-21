@@ -95,7 +95,7 @@ export const EditListingModal: React.FC = () => {
         {/* Sarlavha / Nomi */}
         <label className="block space-y-1.5">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <Edit3 className="w-3.5 h-3.5 text-[#E53935]" />
+            <Edit3 className="w-3.5 h-3.5 text-[#D84315]" />
             E'lon sarlavhasi
           </span>
           <input
@@ -103,7 +103,7 @@ export const EditListingModal: React.FC = () => {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Mahsulot nomi"
-            className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+            className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
           />
         </label>
 
@@ -111,7 +111,7 @@ export const EditListingModal: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <label className="block space-y-1.5">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5 text-[#E53935]" />
+              <DollarSign className="w-3.5 h-3.5 text-[#D84315]" />
               Matnli narx
             </span>
             <input
@@ -119,13 +119,13 @@ export const EditListingModal: React.FC = () => {
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder="8,500 so'm / kg"
-              className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
             />
           </label>
 
           <label className="block space-y-1.5">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5 text-[#E53935]" />
+              <DollarSign className="w-3.5 h-3.5 text-[#D84315]" />
               Raqamli narx (so'm)
             </span>
             <input
@@ -134,7 +134,7 @@ export const EditListingModal: React.FC = () => {
               value={numericPrice}
               onChange={(e) => setNumericPrice(e.target.value.replace(/[^0-9]/g, ''))}
               placeholder="8500"
-              className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
             />
           </label>
         </div>
@@ -143,13 +143,13 @@ export const EditListingModal: React.FC = () => {
         <div className="grid grid-cols-2 gap-2">
           <label className="block space-y-1.5">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-[#E53935]" />
+              <Tag className="w-3.5 h-3.5 text-[#D84315]" />
               Kategoriya
             </span>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full bg-slate-100 rounded-[14px] px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              className="w-full bg-slate-100 rounded-[14px] px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
             >
               {categories.filter((cat) => cat.id !== 'all').map((cat) => (
                 <option key={cat.id} value={cat.id}>
@@ -161,13 +161,13 @@ export const EditListingModal: React.FC = () => {
 
           <label className="block space-y-1.5">
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-[#E53935]" />
+              <MapPin className="w-3.5 h-3.5 text-[#D84315]" />
               Hudud
             </span>
             <select
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full bg-slate-100 rounded-[14px] px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+              className="w-full bg-slate-100 rounded-[14px] px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
             >
               {REGIONS.filter((region) => region !== 'Barchasi').map((region) => (
                 <option key={region} value={region}>
@@ -187,7 +187,7 @@ export const EditListingModal: React.FC = () => {
                 value={image}
                 onChange={(e) => setImage(e.target.value)}
                 placeholder="Mahsulot rasm URL"
-                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
               />
             </label>
             <label className="block space-y-1.5">
@@ -197,7 +197,7 @@ export const EditListingModal: React.FC = () => {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Mahsulot haqida batafsil ma'lumot"
-                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none resize-none focus:ring-2 focus:ring-[#D84315]/30"
               />
             </label>
             <label className="block space-y-1.5">
@@ -207,7 +207,7 @@ export const EditListingModal: React.FC = () => {
                 value={features}
                 onChange={(e) => setFeatures(e.target.value)}
                 placeholder="Mahsulotning asosiy afzalliklari"
-                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none resize-none focus:ring-2 focus:ring-[#E53935]/30"
+                className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none resize-none focus:ring-2 focus:ring-[#D84315]/30"
               />
             </label>
           </>
@@ -216,7 +216,7 @@ export const EditListingModal: React.FC = () => {
         {/* Min Buyurtma */}
         <label className="block space-y-1.5">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-            <Package className="w-3.5 h-3.5 text-[#E53935]" />
+            <Package className="w-3.5 h-3.5 text-[#D84315]" />
             Minimal buyurtma hajmi
           </span>
           <input
@@ -224,7 +224,7 @@ export const EditListingModal: React.FC = () => {
             value={minOrder}
             onChange={(e) => setMinOrder(e.target.value)}
             placeholder="1 dona / 10 kg / 1 tonna"
-            className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#E53935]/30"
+            className="w-full bg-slate-100 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-[#D84315]/30"
           />
         </label>
 
@@ -233,7 +233,7 @@ export const EditListingModal: React.FC = () => {
           <button
             type="button"
             onClick={handleDelete}
-            className="px-4 py-3 rounded-[16px] bg-red-50 text-[#E53935] font-extrabold text-xs flex items-center justify-center gap-1.5 hover:bg-red-100 transition-colors"
+            className="px-4 py-3 rounded-[16px] bg-orange-50 text-[#D84315] font-extrabold text-xs flex items-center justify-center gap-1.5 hover:bg-orange-100 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
             O'chirish

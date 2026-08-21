@@ -65,7 +65,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
           {/* Header */}
           <div className="px-5 py-4 bg-[#111111] text-white flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-[14px] bg-[#E53935] flex items-center justify-center text-xl shadow-md">
+              <div className="w-10 h-10 rounded-[14px] bg-[#D84315] flex items-center justify-center text-xl shadow-md">
                 <CategoryIcon className="h-5 w-5" />
               </div>
               <div>
@@ -89,7 +89,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
           {/* Filter Bar */}
           <div className="px-4 py-3 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between gap-2 overflow-x-auto">
             <div className="flex items-center gap-1 text-xs font-bold text-slate-700 shrink-0">
-              <Filter className="w-3.5 h-3.5 text-[#E53935]" />
+              <Filter className="w-3.5 h-3.5 text-[#D84315]" />
               <span>Saralash:</span>
             </div>
 
@@ -153,13 +153,13 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
                       <div>
-                        <span className="font-extrabold text-sm text-[#E53935] block">{post.price}</span>
+                        <span className="font-extrabold text-sm text-[#D84315] block">{post.price}</span>
                         <span className="text-[10px] text-slate-400">Min: {post.minOrder}</span>
                       </div>
 
                       <a
                         href={`tel:${post.phone.replace(/\s+/g, '').replace(/[()]/g, '')}`}
-                        className="px-3 py-1.5 rounded-xl bg-[#E53935] text-white text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-[#d32f2f]"
+                        className="px-3 py-1.5 rounded-xl bg-[#D84315] text-white text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-[#d32f2f]"
                       >
                         <PhoneCall className="w-3.5 h-3.5" />
                         <span>Bog'lanish</span>

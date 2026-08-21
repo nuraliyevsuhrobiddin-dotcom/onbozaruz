@@ -151,7 +151,10 @@ export function useCreatePostForm() {
 
       const selectedType = file.type.startsWith('video') ? 'video' : 'image';
       setMediaType(selectedType);
-      setMediaContentType(file.type || (selectedType === 'video' ? 'video/mp4' : 'image/jpeg'));
+      const standardContentType = selectedType === 'video'
+        ? (file.type && file.type.startsWith('video/') ? file.type : 'video/mp4')
+        : (file.type || 'image/jpeg');
+      setMediaContentType(standardContentType);
       setMediaMode(selectedType);
 
       if (selectedType === 'video') {
@@ -159,13 +162,14 @@ export function useCreatePostForm() {
         video.src = previewUrl;
         video.muted = true;
         video.playsInline = true;
+        video.preload = 'auto';
         video.crossOrigin = 'anonymous';
 
         const captureFrame = () => {
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth || 480;
-            canvas.height = video.videoHeight || 640;
+            canvas.width = Math.min(video.videoWidth || 480, 720);
+            canvas.height = Math.min(video.videoHeight || 640, 1280);
             const ctx = canvas.getContext('2d');
             if (ctx && canvas.width > 0 && canvas.height > 0) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -175,15 +179,16 @@ export function useCreatePostForm() {
               }
             }
           } catch {
-            // Ignore canvas taint or capture errors
+            // Ignore canvas capture exceptions
           }
         };
 
         video.onloadedmetadata = () => {
-          video.currentTime = Math.min(0.5, (video.duration || 1) / 2);
+          video.currentTime = Math.min(0.2, (video.duration || 1) / 4);
         };
         video.onseeked = captureFrame;
         video.onloadeddata = captureFrame;
+        video.oncanplay = captureFrame;
         video.onerror = () => setSelectedPosterUrl('');
       } else {
         setSelectedPosterUrl('');
@@ -387,9 +392,15 @@ export function useCreatePostForm() {
 
       // Background upload process
       try {
+        let extension = 'jpg';
+        if (mediaTypeToUpload === 'video') {
+          extension = mediaContentTypeToUpload.includes('webm') ? 'webm' : 'mp4';
+        } else {
+          extension = mediaContentTypeToUpload.includes('png') ? 'png' : mediaContentTypeToUpload.includes('webp') ? 'webp' : 'jpg';
+        }
         const mediaUrl = await uploadListingMedia(
           fileToUpload,
-          `${currentUserId}/${now}-media.${mediaContentTypeToUpload.split('/')[1] || 'bin'}`,
+          `${currentUserId}/${now}-media.${extension}`,
           mediaContentTypeToUpload
         );
         const posterUrl = posterToUpload

@@ -8,14 +8,10 @@ import {
   Edit3,
   Trash2,
   Play,
-  ShoppingCart,
-  Plus,
-  Minus,
   Truck,
   Star,
   Package,
 } from 'lucide-react';
-import type { Product } from '../api/types';
 import { VideoPlayer } from './ui/VideoPlayer';
 
 export const ProductDetailModal: React.FC = () => {
@@ -27,10 +23,6 @@ export const ProductDetailModal: React.FC = () => {
     deleteProduct,
     openVideoViewer,
     isAdminUser,
-    cart,
-    addToCart,
-    updateCartQuantity,
-    showToast,
     currentUser,
     setAuthPromptOpen,
     setSelectedSellerModal,
@@ -81,22 +73,6 @@ export const ProductDetailModal: React.FC = () => {
   const description = 'description' in productDetail ? productDetail.description : '';
   const features = 'features' in productDetail ? productDetail.features : '';
 
-  // Cart quantity check
-  const inCart = isProductItem && cart[productDetail.id] ? cart[productDetail.id].quantity : 0;
-
-  const handleAddToCart = () => {
-    if (!currentUser && isProductItem) {
-      showToast("Savatga qo'shish uchun tizimga kiring");
-      setAuthPromptOpen(true);
-      return;
-    }
-    addToCart(productDetail as Product);
-  };
-
-  const handleUpdateQuantity = (newQty: number) => {
-    updateCartQuantity(productDetail.id, newQty);
-  };
-
   return (
     <Modal
       isOpen={Boolean(productDetail)}
@@ -126,7 +102,7 @@ export const ProductDetailModal: React.FC = () => {
                   setProductDetail(null);
                 }
               }}
-              className="px-3 py-2 rounded-[12px] bg-red-100 text-[#E53935] font-black text-xs flex items-center justify-center gap-1.5 hover:bg-red-200 transition-colors"
+              className="px-3 py-2 rounded-[12px] bg-orange-100 text-[#D84315] font-black text-xs flex items-center justify-center gap-1.5 hover:bg-orange-200 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>O'chirish</span>
@@ -159,7 +135,7 @@ export const ProductDetailModal: React.FC = () => {
             />
           )}
           {discount && (
-            <span className="absolute left-3 top-3 z-10 rounded-full bg-[#E53935] px-3 py-1 text-xs font-black text-white shadow-md">
+            <span className="absolute left-3 top-3 z-10 rounded-full bg-[#D84315] px-3 py-1 text-xs font-black text-white shadow-md">
               {discount}
             </span>
           )}
@@ -179,7 +155,7 @@ export const ProductDetailModal: React.FC = () => {
                 type="button"
                 onClick={() => setActiveImage(index)}
                 className={`w-14 h-14 shrink-0 rounded-[14px] overflow-hidden border-2 transition-all ${
-                  activeImage === index ? 'border-[#E53935] scale-105 shadow-sm' : 'border-transparent opacity-70'
+                  activeImage === index ? 'border-[#D84315] scale-105 shadow-sm' : 'border-transparent opacity-70'
                 }`}
               >
                 <img
@@ -201,7 +177,7 @@ export const ProductDetailModal: React.FC = () => {
           {/* Price & Rating */}
           <div className="flex items-center justify-between">
             <div>
-              <span className="font-black text-xl text-[#E53935]">{price}</span>
+              <span className="font-black text-xl text-[#D84315]">{price}</span>
               {numericPrice > 0 && (
                 <p className="text-[10px] text-slate-400 font-semibold">({numericPrice.toLocaleString('uz-UZ')} so'm)</p>
               )}
@@ -221,7 +197,7 @@ export const ProductDetailModal: React.FC = () => {
             onClick={() =>
               setSelectedSellerModal({
                 sellerId: 'sellerId' in productDetail ? productDetail.sellerId : undefined,
-                sellerName: seller || 'Fermer',
+                sellerName: seller || 'Sotuvchi',
                 location: location,
                 phone: phone,
                 telegram: 'telegram' in productDetail ? productDetail.telegram : undefined,
@@ -232,7 +208,7 @@ export const ProductDetailModal: React.FC = () => {
             <span className="font-bold text-[#111827]">{seller}</span>
             <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50" />
             <span>•</span>
-            <MapPin className="w-3.5 h-3.5 text-[#E53935]" />
+            <MapPin className="w-3.5 h-3.5 text-[#D84315]" />
             <span className="font-bold text-slate-600">{location}</span>
           </button>
 
@@ -257,7 +233,7 @@ export const ProductDetailModal: React.FC = () => {
               Mahsulot haqida ma'lumot
             </span>
             <p className="text-xs text-slate-700 leading-relaxed font-medium">
-              {description || "Sifatli fermer mahsuloti. Birinchi qo'l yetkazib beriladi va kafolatlangan!"}
+              {description || "Sifatli mahsulot. Birinchi qo'l yetkazib beriladi va kafolatlangan!"}
             </p>
             {features && (
               <div className="rounded-[14px] bg-white p-3 border border-slate-200">
@@ -371,98 +347,42 @@ export const ProductDetailModal: React.FC = () => {
           )}
         </div>
 
-        {/* Action Buttons: Uzum/Ozon Cart vs Phone Call */}
+        {/* Action Buttons: Phone & Telegram — sotuvchi bilan bog'lanish */}
         <div className="pt-2 border-t border-slate-100">
-          {isProductItem ? (
-            /* 🛒 UZUM / OZON STYLE CART ACTIONS FOR MARKET PRODUCTS */
-            <div className="space-y-2">
-              {inCart > 0 ? (
-                <div className="flex items-center gap-2">
-                  {/* Quantity Counter */}
-                  <div className="flex items-center rounded-[18px] bg-slate-100 p-1 border border-slate-200">
-                    <button
-                      onClick={() => handleUpdateQuantity(inCart - 1)}
-                      className="w-10 h-10 rounded-[14px] bg-white text-slate-800 flex items-center justify-center shadow-xs font-black active:scale-95 transition-transform"
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="w-12 text-center text-sm font-black text-[#111827]">{inCart} ta</span>
-                    <button
-                      onClick={() => handleUpdateQuantity(inCart + 1)}
-                      disabled={stock != null && inCart >= stock}
-                      className="w-10 h-10 rounded-[14px] bg-white text-slate-800 flex items-center justify-center shadow-xs font-black active:scale-95 transition-transform disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Open Cart Button */}
-                  <button
-                    onClick={() => {
-                      setProductDetail(null);
-                      // Trigger cart view in Market tab
-                    }}
-                    className="flex-1 py-3.5 rounded-[18px] bg-[#111827] text-white font-black text-xs flex items-center justify-center gap-2 shadow-md hover:bg-black transition-colors"
-                  >
-                    <ShoppingCart className="w-4 h-4 text-[#E53935]" />
-                    <span>Savatda ({inCart} ta) — Rasmiylashtirish</span>
-                  </button>
-                </div>
-              ) : stock === 0 ? (
-                <button
-                  disabled
-                  className="w-full py-4 rounded-[20px] bg-slate-100 text-slate-400 font-black text-sm flex items-center justify-center gap-2 cursor-not-allowed"
-                >
-                  <span>Zaxira tugagan</span>
-                </button>
-              ) : (
-                /* Add to Cart Button */
-                <button
-                  onClick={handleAddToCart}
-                  className="w-full py-4 rounded-[20px] bg-[#E53935] hover:bg-[#C62828] text-white font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
-                >
-                  <ShoppingCart className="w-5 h-5" />
-                  <span>Savatga qo'shish</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            /* 📞 PHONE & TELEGRAM FOR SOCIAL FEED POSTS */
-            <div className="flex items-center gap-2">
-              {isVideoPost && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const videoPost = productDetail as typeof productDetail & { mediaUrl: string };
-                    setProductDetail(null);
-                    openVideoViewer([videoPost], 0);
-                  }}
-                  className="w-11 h-11 rounded-[16px] bg-[#111827] text-white flex items-center justify-center shadow-sm hover:bg-black transition-colors shrink-0"
-                  title="Video ko'rish"
-                  aria-label="Video ko'rish"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                </button>
-              )}
-              <a
-                href={`tel:${phone.replace(/\s+/g, '')}`}
-                className="flex-1 py-3 rounded-[16px] bg-[#E53935] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#C62828] transition-colors"
+          <div className="flex items-center gap-2">
+            {isVideoPost && (
+              <button
+                type="button"
+                onClick={() => {
+                  const videoPost = productDetail as typeof productDetail & { mediaUrl: string };
+                  setProductDetail(null);
+                  openVideoViewer([videoPost], 0);
+                }}
+                className="w-11 h-11 rounded-[16px] bg-[#111827] text-white flex items-center justify-center shadow-sm hover:bg-black transition-colors shrink-0"
+                title="Video ko'rish"
+                aria-label="Video ko'rish"
               >
-                <PhoneCall className="w-4 h-4" />
-                <span>Qo'ng'iroq qilish</span>
+                <Play className="w-4 h-4 fill-current" />
+              </button>
+            )}
+            <a
+              href={`tel:${phone.replace(/\s+/g, '')}`}
+              className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#BF360C] transition-colors"
+            >
+              <PhoneCall className="w-4 h-4" />
+              <span>Qo'ng'iroq qilish</span>
+            </a>
+            {telegram && (
+              <a
+                href={`https://t.me/${telegram}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-3 rounded-[16px] bg-[#0088cc] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#0077bb] transition-colors"
+              >
+                <span>Telegram</span>
               </a>
-              {telegram && (
-                <a
-                  href={`https://t.me/${telegram}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 py-3 rounded-[16px] bg-[#0088cc] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#0077bb] transition-colors"
-                >
-                  <span>Telegram</span>
-                </a>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </Modal>

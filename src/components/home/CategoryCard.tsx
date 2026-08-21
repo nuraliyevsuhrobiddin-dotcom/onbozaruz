@@ -20,9 +20,9 @@ export const CategoryCard: React.FC = () => {
           <button
             key={cat.id}
             onClick={() => setSelectedCategoryModalId(cat.id)}
-            className="group min-w-[132px] max-w-[150px] rounded-[14px] border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-left transition-all hover:border-[#E53935]/40 hover:bg-white focus:outline-none"
+            className="group min-w-[132px] max-w-[150px] rounded-[14px] border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-left transition-all hover:border-[#D84315]/40 hover:bg-white focus:outline-none"
           >
-            <span className="block truncate text-[13px] font-extrabold text-slate-800 group-hover:text-[#E53935] transition-colors">
+            <span className="block truncate text-[13px] font-extrabold text-slate-800 group-hover:text-[#D84315] transition-colors">
               {cat.name}
             </span>
             <span className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 border border-slate-200/80">

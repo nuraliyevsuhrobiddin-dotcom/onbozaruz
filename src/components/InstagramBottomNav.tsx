@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, Search, Plus, Tag, User, ShieldCheck } from 'lucide-react';
+import { Home, Search, Plus, Building2, User, ShieldCheck } from 'lucide-react';
 import { useAgroStore, NavTab } from '../store/useAgroStore';
 
 export const InstagramBottomNav: React.FC = () => {
@@ -11,13 +11,13 @@ export const InstagramBottomNav: React.FC = () => {
     : ['home', 'search', 'market', 'profile'];
 
   const icons = isAdminUser
-    ? [Home, Search, Tag, ShieldCheck, User]
-    : [Home, Search, Tag, User];
+    ? [Home, Search, Building2, ShieldCheck, User]
+    : [Home, Search, Building2, User];
 
   const labels: Record<NavTab, string> = {
     home: 'Asosiy',
     search: 'Qidiruv',
-    market: 'Market',
+    market: 'B2B',
     profile: 'Profil',
     admin: 'Admin',
   };
@@ -42,7 +42,7 @@ export const InstagramBottomNav: React.FC = () => {
                 aria-label="E'lon berish"
                 className="flex items-center justify-center"
               >
-                <div className="w-11 h-11 rounded-[16px] bg-[#111111] text-white flex items-center justify-center hover:bg-[#E53935] transition-colors duration-200 shadow-md">
+                <div className="w-11 h-11 rounded-[16px] bg-[#111111] text-white flex items-center justify-center hover:bg-[#D84315] transition-colors duration-200 shadow-md">
                   <Plus className="w-5 h-5 stroke-[2.5]" />
                 </div>
               </motion.button>
@@ -61,7 +61,7 @@ export const InstagramBottomNav: React.FC = () => {
                 className={`w-[26px] h-[26px] transition-all duration-200 ${
                   isActive
                     ? id === 'admin'
-                      ? 'text-[#E53935] stroke-[2.25]'
+                      ? 'text-[#D84315] stroke-[2.25]'
                       : 'text-[#111111] stroke-[2.25]'
                     : 'text-slate-400 stroke-[1.75] hover:text-slate-600'
                 }`}
@@ -69,7 +69,7 @@ export const InstagramBottomNav: React.FC = () => {
               {isActive && (
                 <motion.div
                   layoutId="activeNavDot"
-                  className={`absolute bottom-1 w-1 h-1 rounded-full ${id === 'admin' ? 'bg-[#E53935]' : 'bg-[#E53935]'}`}
+                  className={`absolute bottom-1 w-1 h-1 rounded-full ${id === 'admin' ? 'bg-[#D84315]' : 'bg-[#D84315]'}`}
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}

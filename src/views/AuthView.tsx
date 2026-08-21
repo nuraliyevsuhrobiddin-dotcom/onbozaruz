@@ -81,7 +81,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   const switchMode = (next: AuthMode) => { setMode(next); resetMessages(); };
 
   const validate = () => {
-    if (mode === 'signup' && name.trim().length < 2) return 'Ism yoki fermer nomini kiriting.';
+    if (mode === 'signup' && name.trim().length < 2) return 'Ism yoki sotuvchi nomini kiriting.';
     if (contactMode === 'email' && !emailRegex.test(identifier.trim())) return "To'g'ri email manzilini kiriting.";
     if (contactMode === 'phone' && !phoneRegex.test(identifier.replace(/\s/g, ''))) return '+998 XX XXX XX XX formatida telefon kiriting.';
     if (password.length < 6) return "Parol kamida 6 ta belgidan iborat bo'lsin.";
@@ -200,7 +200,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki fermer nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Anvar Agro" className={inputClass} /></div></label>}
+              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki sotuvchi nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Anvar Savdo" className={inputClass} /></div></label>}
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
                   <span className="text-xs font-bold text-[#4c433b]">{contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'}</span>
@@ -215,7 +215,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </form>
           </>}
         </motion.section>
-        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozor — fermerlar va xaridorlar uchun ishonchli bozor</p>
+        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozor — sotuvchilar va xaridorlar uchun ishonchli bozor</p>
       </div>
     </main>
   );

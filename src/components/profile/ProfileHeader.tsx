@@ -11,7 +11,6 @@ import {
   ExternalLink,
   ShoppingBag,
   Share2,
-  ShieldCheck,
   Edit3,
   Package,
 } from 'lucide-react';
@@ -28,7 +27,7 @@ interface ProfileHeaderProps {
     location: string;
     bio: string;
     businessName?: string;
-    role?: 'seller' | 'buyer' | 'business';
+    role?: 'seller' | 'buyer' | 'business' | 'business_buyer' | 'supplier' | 'manufacturer' | 'importer' | 'distributor';
     website?: string;
     telegram?: string;
   };
@@ -36,12 +35,11 @@ interface ProfileHeaderProps {
   productsCount: number;
   savedCount: number;
   viewsCount?: number;
-  isAdminUser: boolean;
   ordersCount: number;
   isProfileMenuOpen: boolean;
   setProfileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   profileMenuRef: React.RefObject<HTMLDivElement | null>;
-  onNavigateSubView: (subView: 'edit-profile' | 'orders' | 'admin-panel' | 'settings') => void;
+  onNavigateSubView: (subView: 'edit-profile' | 'orders' | 'settings') => void;
   onSelectGridTab?: (tab: 'posts' | 'products' | 'saved') => void;
   onOpenCreateModal: () => void;
   onShareProfile: () => void;
@@ -54,7 +52,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   productsCount,
   savedCount,
   viewsCount = 0,
-  isAdminUser,
   ordersCount,
   isProfileMenuOpen,
   setProfileMenuOpen,
@@ -111,7 +108,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-[#E53935] via-[#D32F2F] to-[#B71C1C] text-white font-black text-2xl sm:text-3xl flex items-center justify-center">
+                <div className="w-full h-full bg-gradient-to-br from-[#D84315] via-[#D32F2F] to-[#B71C1C] text-white font-black text-2xl sm:text-3xl flex items-center justify-center">
                   {(profileData.name || currentUser?.name || 'U').charAt(0).toUpperCase()}
                 </div>
               )}
@@ -119,7 +116,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             <button
               type="button"
               onClick={() => onNavigateSubView('edit-profile')}
-              className="absolute bottom-0 right-0 p-1.5 sm:p-2 rounded-full bg-[#E53935] text-white border-2 border-white shadow-md hover:bg-[#C62828] transition-colors cursor-pointer"
+              className="absolute bottom-0 right-0 p-1.5 sm:p-2 rounded-full bg-[#D84315] text-white border-2 border-white shadow-md hover:bg-[#BF360C] transition-colors cursor-pointer"
               title="Rasmni almashtirish"
             >
               <Camera className="w-3.5 h-3.5" />
@@ -191,7 +188,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <div className="flex flex-wrap items-center gap-2 pt-0.5">
             {profileData.location && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
-                <MapPin className="w-3 h-3 text-[#E53935]" />
+                <MapPin className="w-3 h-3 text-[#D84315]" />
                 {profileData.location}
               </span>
             )}
@@ -216,7 +213,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               href={profileData.website.startsWith('http') ? profileData.website : `https://${profileData.website}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#E53935] hover:underline pt-0.5"
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-[#D84315] hover:underline pt-0.5"
             >
               <ExternalLink className="w-3 h-3" />
               <span>{profileData.website.replace(/^https?:\/\//, '')}</span>
@@ -255,7 +252,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={onOpenCreateModal}
-              className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-[14px] bg-[#E53935] hover:bg-[#D32F2F] text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-[14px] bg-[#D84315] hover:bg-[#D32F2F] text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>E'lon berish</span>
@@ -300,20 +297,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                       <Settings className="w-4 h-4 text-slate-500" />
                       <span>Sozlamalar</span>
                     </button>
-
-                    {isAdminUser && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileMenuOpen(false);
-                          onNavigateSubView('admin-panel');
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-red-50 transition-colors text-[#E53935] text-xs font-extrabold cursor-pointer"
-                      >
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Admin paneli</span>
-                      </button>
-                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
