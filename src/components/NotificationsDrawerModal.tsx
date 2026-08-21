@@ -1,8 +1,9 @@
 import React from 'react';
 import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
-import { Bell, Heart, MessageCircle, PackageCheck, CheckCircle2, XCircle, CheckCheck, Building2, Truck } from 'lucide-react';
+import { Bell, Heart, MessageCircle, PackageCheck, CheckCircle2, XCircle, CheckCheck, Building2, Truck, Volume2 } from 'lucide-react';
 import { Notification, NotificationType } from '../api/types';
+import { playNotificationSound } from '../utils/notificationSound';
 
 const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
   comment: MessageCircle,
@@ -64,7 +65,13 @@ export const NotificationsDrawerModal: React.FC = () => {
     setActiveSubView,
     setActiveTab,
     setB2BRoute,
+    showToast,
   } = useAgroStore();
+
+  const handleTestSound = () => {
+    playNotificationSound();
+    showToast("Bildirishnoma ovozi chalindi 🔔");
+  };
 
   const handleSelect = (notification: Notification) => {
     if (!notification.isRead) void markNotificationRead(notification.id);
@@ -107,17 +114,28 @@ export const NotificationsDrawerModal: React.FC = () => {
               </p>
             </div>
           </div>
-          {unreadNotificationsCount > 0 && (
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => void markAllNotificationsRead()}
-              title="Barchasini o'qilgan deb belgilash"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white border border-slate-200 text-[10px] font-black text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              onClick={handleTestSound}
+              title="Ovozni sinash"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white border border-slate-200 text-[10px] font-black text-[#D84315] hover:bg-orange-50 transition-colors cursor-pointer"
             >
-              <CheckCheck className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Hammasi o'qilgan</span>
+              <Volume2 className="w-3.5 h-3.5" />
+              <span>Ovozni sinash</span>
             </button>
-          )}
+            {unreadNotificationsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void markAllNotificationsRead()}
+                title="Barchasini o'qilgan deb belgilash"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white border border-slate-200 text-[10px] font-black text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Hammasi o'qilgan</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {notifications.length === 0 ? (
