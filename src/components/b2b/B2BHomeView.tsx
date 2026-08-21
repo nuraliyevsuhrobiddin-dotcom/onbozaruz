@@ -278,17 +278,7 @@ export const B2BHomeView: React.FC = () => {
         </button>
       </div>
 
-      {/* Floating Action Button for Map (Dumaloq Xarita tugmasi) */}
-      <button
-        onClick={() => setB2BRoute({ view: 'map' })}
-        className="fixed bottom-20 right-4 z-40 lg:bottom-8 lg:right-8 flex items-center gap-2 px-4 py-3.5 rounded-full bg-gradient-to-r from-[#DB2777] via-[#E11D48] to-[#9333EA] text-white shadow-2xl hover:scale-105 active:scale-95 transition-all group border-2 border-white/90 cursor-pointer"
-        title="Do'konlar Xaritasi"
-      >
-        <div className="w-5 h-5 flex items-center justify-center">
-          <MapPin className="w-5 h-5 animate-pulse" />
-        </div>
-        <span className="text-xs font-black tracking-wide pr-1">Do'konlar Xaritasi</span>
-      </button>
+
 
       {/* Categories */}
       <div className="space-y-2">

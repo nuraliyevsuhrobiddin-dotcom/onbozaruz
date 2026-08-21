@@ -60,8 +60,11 @@ export default function App() {
     clearSession,
     setAuthPromptOpen,
     setB2BRoute,
+    b2bRoute,
+    activeSubView,
   } = useAgroStore();
-  const showHeader = activeTab !== 'search' && activeTab !== 'admin';
+  const isMarketMap = activeTab === 'market' && b2bRoute.view === 'map';
+  const showHeader = activeTab !== 'search' && activeTab !== 'admin' && !isMarketMap;
 
   const isAuthCallback = window.location.pathname === '/auth/callback';
 
@@ -129,8 +132,6 @@ export default function App() {
   }, [clearSession, isAuthCallback, restoreSession]);
 
   // ─── Single Page App History & Phone Back Button Handler ─────────────────
-  const { activeSubView, b2bRoute } = useAgroStore();
-
   // Push new history state whenever activeTab/activeSubView/b2bRoute changes.
   // Reads activeTab from getState() (not the destructured hook value) —
   // when this effect and the hash-parse mount effect fire in the same
@@ -255,9 +256,9 @@ export default function App() {
 
       {/* ─── Main Layout Area (Shifted right by sidebar width 80px) ─── */}
       <div className="flex-1 w-full lg:pl-20 flex justify-center">
-        <div className={`w-full flex justify-center gap-5 px-0 sm:px-4 py-1.5 sm:py-3 lg:py-5 ${activeTab === 'admin' ? 'max-w-none' : 'max-w-275'}`}>
+        <div className={`w-full flex justify-center gap-5 ${isMarketMap ? 'px-0 py-0 max-w-none' : 'px-0 sm:px-4 py-1.5 sm:py-3 lg:py-5'} ${activeTab === 'admin' || isMarketMap ? 'max-w-none' : 'max-w-275'}`}>
           {/* Main Feed / Content View */}
-          <main className={`flex-1 min-w-0 px-0 sm:px-0 mobile-content-bottom lg:pb-10 ${activeTab === 'admin' ? 'max-w-none' : 'max-w-150'}`}>
+          <main className={`flex-1 min-w-0 px-0 sm:px-0 ${isMarketMap ? 'pb-0 lg:pb-0 max-w-none' : 'mobile-content-bottom lg:pb-10'} ${activeTab === 'admin' || isMarketMap ? 'max-w-none' : 'max-w-150'}`}>
             <AnimatePresence mode="wait">
               {activeTab === 'home' && (
                 <motion.div
