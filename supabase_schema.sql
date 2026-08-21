@@ -1006,7 +1006,8 @@ CREATE TABLE IF NOT EXISTS public.business_profiles (
 
 ALTER TABLE public.business_profiles ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Biznes profilini egasi yoki admin ko'radi" ON public.business_profiles;
-CREATE POLICY "Biznes profilini egasi yoki admin ko'radi" ON public.business_profiles FOR SELECT USING (user_id = auth.uid() OR public.is_admin());
+DROP POLICY IF EXISTS "Xarita uchun do'konlarni hamma ko'radi" ON public.business_profiles;
+CREATE POLICY "Xarita uchun do'konlarni hamma ko'radi" ON public.business_profiles FOR SELECT USING (status = 'active' OR user_id = auth.uid() OR public.is_admin());
 DROP POLICY IF EXISTS "Foydalanuvchi biznes profil yaratadi" ON public.business_profiles;
 CREATE POLICY "Foydalanuvchi biznes profil yaratadi" ON public.business_profiles FOR INSERT WITH CHECK (user_id = auth.uid());
 DROP POLICY IF EXISTS "Egasi yoki admin tahrirlaydi (business_profiles)" ON public.business_profiles;
@@ -1027,21 +1028,61 @@ CREATE TABLE IF NOT EXISTS public.business_addresses (
     district TEXT DEFAULT '',
     address TEXT NOT NULL DEFAULT '',
     delivery_note TEXT DEFAULT '',
-    latitude NUMERIC NULL,   -- kelajakdagi xarita moduli uchun, hozircha ishlatilmaydi
-    longitude NUMERIC NULL,  -- kelajakdagi xarita moduli uchun, hozircha ishlatilmaydi
+    latitude NUMERIC NULL,
+    longitude NUMERIC NULL,
     is_default BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE public.business_addresses ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Manzilni egasi yoki admin ko'radi" ON public.business_addresses;
-CREATE POLICY "Manzilni egasi yoki admin ko'radi" ON public.business_addresses FOR SELECT USING (public.is_own_business(business_id) OR public.is_admin());
+DROP POLICY IF EXISTS "Xarita uchun manzillarni hamma ko'radi" ON public.business_addresses;
+CREATE POLICY "Xarita uchun manzillarni hamma ko'radi" ON public.business_addresses FOR SELECT USING (is_default = TRUE OR public.is_own_business(business_id) OR public.is_admin());
 DROP POLICY IF EXISTS "Manzil qo'shish" ON public.business_addresses;
 CREATE POLICY "Manzil qo'shish" ON public.business_addresses FOR INSERT WITH CHECK (public.is_own_business(business_id));
 DROP POLICY IF EXISTS "Manzilni tahrirlash" ON public.business_addresses;
 CREATE POLICY "Manzilni tahrirlash" ON public.business_addresses FOR UPDATE USING (public.is_own_business(business_id) OR public.is_admin());
 DROP POLICY IF EXISTS "Manzilni o'chirish" ON public.business_addresses;
 CREATE POLICY "Manzilni o'chirish" ON public.business_addresses FOR DELETE USING (public.is_own_business(business_id) OR public.is_admin());
+
+-- Xarita uchun ommaviy do'konlar ro'yxatini qaytaruvchi xavfsiz RPC
+CREATE OR REPLACE FUNCTION public.get_public_stores_for_map()
+RETURNS TABLE (
+  id UUID,
+  store_name TEXT,
+  business_type TEXT,
+  region TEXT,
+  district TEXT,
+  address TEXT,
+  latitude NUMERIC,
+  longitude NUMERIC,
+  logo_url TEXT,
+  description TEXT,
+  created_at TIMESTAMPTZ
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT 
+    bp.id,
+    bp.store_name,
+    bp.business_type,
+    bp.region,
+    bp.district,
+    COALESCE(ba.address, '') AS address,
+    COALESCE(ba.latitude, 41.2995) AS latitude,
+    COALESCE(ba.longitude, 69.2401) AS longitude,
+    bp.logo_url,
+    bp.description,
+    bp.created_at
+  FROM public.business_profiles bp
+  LEFT JOIN public.business_addresses ba ON ba.business_id = bp.id AND ba.is_default = TRUE
+  WHERE bp.status = 'active';
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_public_stores_for_map() TO anon, authenticated;
 
 CREATE INDEX IF NOT EXISTS idx_business_addresses_business_id ON public.business_addresses(business_id);
 

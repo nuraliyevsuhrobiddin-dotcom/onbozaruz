@@ -386,20 +386,69 @@ export async function fetchOwnBusinessProfile(): Promise<BusinessProfile | null>
   return mapBusinessProfile(data);
 }
 
+const REGION_CENTERS: Record<string, [number, number]> = {
+  'toshkent sh': [41.2995, 69.2401],
+  'toshkent v': [41.2825, 69.2044],
+  'toshkent': [41.2995, 69.2401],
+  "farg'ona": [40.3842, 71.7843],
+  'fargona': [40.3842, 71.7843],
+  'andijon': [40.7821, 72.3442],
+  'namangan': [40.9983, 71.6726],
+  'samarqand': [39.6542, 66.9597],
+  'buxoro': [39.7747, 64.4286],
+  'xorazm': [41.5564, 60.6317],
+  'surxondaryo': [37.2286, 67.2753],
+  'qashqadaryo': [38.8606, 65.7891],
+  'jizzax': [40.1158, 67.8422],
+  'sirdaryo': [40.8373, 68.6618],
+  'navoiy': [40.1039, 65.3688],
+  "qoraqalpog'iston": [42.4619, 59.6166],
+};
+
+function getStoreCoordinates(region?: string, lat?: number | null, lng?: number | null): { latitude: number; longitude: number } {
+  if (typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+    return { latitude: lat, longitude: lng };
+  }
+  const cleanReg = (region || '').toLowerCase().replace(/\s+(sh\.|v\.|r\.|viloyati|shahri|respublikasi)/g, '').trim();
+  for (const [key, center] of Object.entries(REGION_CENTERS)) {
+    if (cleanReg.includes(key) || key.includes(cleanReg)) {
+      const jitterLat = (Math.random() - 0.5) * 0.02;
+      const jitterLng = (Math.random() - 0.5) * 0.02;
+      return { latitude: center[0] + jitterLat, longitude: center[1] + jitterLng };
+    }
+  }
+  return { latitude: 41.2995 + (Math.random() - 0.5) * 0.02, longitude: 69.2401 + (Math.random() - 0.5) * 0.02 };
+}
+
 export async function registerBusinessBuyer(input: CreateBusinessProfileInput): Promise<BusinessProfile> {
+  const coords = getStoreCoordinates(input.region, input.latitude, input.longitude);
+
   if (!supabase) {
     const row = {
-      id: genId('biz'), user_id: currentMockUserId(), store_name: input.storeName, owner_name: input.ownerName,
-      phone: input.phone, business_type: input.businessType, region: input.region || '', district: input.district || '',
-      address: input.address || '', latitude: input.latitude ?? null, longitude: input.longitude ?? null,
-      description: input.description || '', logo_url: input.logoUrl || '', status: 'active', created_at: new Date().toISOString(),
+      id: genId('biz'),
+      user_id: currentMockUserId(),
+      store_name: input.storeName,
+      owner_name: input.ownerName,
+      phone: input.phone,
+      business_type: input.businessType,
+      region: input.region || '',
+      district: input.district || '',
+      address: input.address || '',
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      description: input.description || '',
+      logo_url: input.logoUrl || '',
+      status: 'active',
+      created_at: new Date().toISOString(),
     };
     const all = readMock<any[]>(MOCK_KEYS.business, []);
     writeMock(MOCK_KEYS.business, [...all.filter((b) => b.user_id !== row.user_id), row]);
     return mapBusinessProfile(row);
   }
+
   const { data: session } = await supabase.auth.getUser();
   if (!session.user) throw new Error('Sessiya topilmadi');
+
   const { data, error } = await supabase.from('business_profiles').insert({
     user_id: session.user.id,
     store_name: input.storeName,
@@ -410,32 +459,30 @@ export async function registerBusinessBuyer(input: CreateBusinessProfileInput): 
     district: input.district || '',
     description: input.description || '',
     logo_url: input.logoUrl || '',
+    status: 'active',
   }).select().single();
+
   if (error || !data) throw new Error(error?.message || "Biznes profil yaratilmadi");
   const profile = mapBusinessProfile(data);
 
-  // business_profiles jadvalida address/lat/lng ustunlari yo'q — manzil
-  // alohida business_addresses jadvaliga (asosiy manzil sifatida) yoziladi.
-  if (input.address?.trim()) {
-    try {
-      const savedAddress = await addBusinessAddress(profile.id, {
-        storeName: input.storeName,
-        phone: input.phone,
-        region: input.region || '',
-        district: input.district || '',
-        address: input.address,
-        latitude: input.latitude ?? null,
-        longitude: input.longitude ?? null,
-        isDefault: true,
-      });
-      profile.address = savedAddress.address;
-      profile.latitude = savedAddress.latitude ?? profile.latitude;
-      profile.longitude = savedAddress.longitude ?? profile.longitude;
-    } catch {
-      // Biznes profil allaqachon yaratildi — manzil saqlanmasa ham davom etamiz,
-      // foydalanuvchi keyinroq manzilni qo'shishi mumkin.
-    }
+  try {
+    const savedAddress = await addBusinessAddress(profile.id, {
+      storeName: input.storeName,
+      phone: input.phone,
+      region: input.region || '',
+      district: input.district || '',
+      address: input.address?.trim() || `${input.region || ''} ${input.district || ''}`.trim() || "Do'kon manzili",
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      isDefault: true,
+    });
+    profile.address = savedAddress.address;
+    profile.latitude = savedAddress.latitude ?? profile.latitude;
+    profile.longitude = savedAddress.longitude ?? profile.longitude;
+  } catch (addrErr) {
+    console.warn('Address creation error:', addrErr);
   }
+
   return profile;
 }
 
@@ -454,11 +501,20 @@ export async function addBusinessAddress(businessId: string, input: Omit<Busines
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
     delivery_note: input.deliveryNote || '',
+    is_default: input.isDefault ?? true,
   }).select().single();
+
   if (error || !data) throw new Error(error?.message || 'Manzil saqlanmadi');
   return {
-    id: data.id, businessId: data.business_id, label: data.label, storeName: data.store_name, phone: data.phone,
-    region: data.region, district: data.district, address: data.address, deliveryNote: data.delivery_note,
+    id: data.id,
+    businessId: data.business_id,
+    label: data.label,
+    storeName: data.store_name,
+    phone: data.phone,
+    region: data.region,
+    district: data.district,
+    address: data.address,
+    deliveryNote: data.delivery_note,
     latitude: data.latitude !== undefined && data.latitude !== null ? Number(data.latitude) : null,
     longitude: data.longitude !== undefined && data.longitude !== null ? Number(data.longitude) : null,
   };
@@ -1209,50 +1265,105 @@ export async function listStoresForMap(): Promise<B2BStorePublicMarker[]> {
     const all = readMock<any[]>(MOCK_KEYS.business, SEED_STORES);
     return all
       .filter((s) => s.status !== 'suspended')
-      .map((s) => ({
-        id: s.id,
-        storeName: s.store_name ?? s.storeName,
-        businessType: s.business_type ?? s.businessType ?? 'grocery',
-        region: s.region || 'Toshkent',
-        district: s.district || 'Shahar markazi',
-        address: s.address || '',
-        latitude: Number(s.latitude) || 41.2995,
-        longitude: Number(s.longitude) || 69.2401,
-        logoUrl: s.logo_url ?? s.logoUrl,
-        description: s.description || '',
-        createdAt: s.created_at ?? s.createdAt ?? new Date().toISOString(),
-      }));
+      .map((s) => {
+        const coords = getStoreCoordinates(s.region, s.latitude, s.longitude);
+        return {
+          id: s.id,
+          storeName: s.store_name ?? s.storeName,
+          businessType: s.business_type ?? s.businessType ?? 'grocery',
+          region: s.region || 'Toshkent',
+          district: s.district || 'Shahar markazi',
+          address: s.address || '',
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          logoUrl: s.logo_url ?? s.logoUrl,
+          description: s.description || '',
+          createdAt: s.created_at ?? s.createdAt ?? new Date().toISOString(),
+        };
+      });
   }
 
-  // business_profiles jadvalida latitude/longitude ustunlari yo'q — bu
-  // ma'lumot business_addresses jadvalidagi asosiy (is_default) manzilda
-  // saqlanadi, shuning uchun xaritaga faqat GPS koordinatasi bor va biznes
-  // profili faol bo'lgan do'konlar birlashtirilib chiqariladi.
-  const { data, error } = await supabase
-    .from('business_addresses')
-    .select('business_id, address, latitude, longitude, business_profiles!inner(id, store_name, business_type, region, district, logo_url, description, status, created_at)')
-    .eq('is_default', true)
-    .eq('business_profiles.status', 'active')
-    .not('latitude', 'is', null)
-    .not('longitude', 'is', null);
+  // 1. Try RPC get_public_stores_for_map if available
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_stores_for_map');
+    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+      return rpcData.map((s: any) => {
+        const coords = getStoreCoordinates(s.region, s.latitude, s.longitude);
+        return {
+          id: s.id,
+          storeName: s.store_name,
+          businessType: s.business_type || 'grocery',
+          region: s.region || 'Toshkent',
+          district: s.district || '',
+          address: s.address || '',
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          logoUrl: s.logo_url,
+          description: s.description,
+          createdAt: s.created_at,
+        };
+      });
+    }
+  } catch {
+    // Fall through to direct table queries
+  }
 
-  if (error || !data) return [];
-  return data.map((row: any) => {
-    const s = row.business_profiles;
-    return {
-      id: s.id,
-      storeName: s.store_name,
-      businessType: s.business_type,
-      region: s.region || 'Toshkent',
-      district: s.district || '',
-      address: row.address || '',
-      latitude: Number(row.latitude),
-      longitude: Number(row.longitude),
-      logoUrl: s.logo_url,
-      description: s.description,
-      createdAt: s.created_at,
-    };
-  });
+  // 2. Direct table queries fallback (business_profiles + business_addresses)
+  try {
+    const [profilesRes, addressesRes] = await Promise.all([
+      supabase.from('business_profiles').select('*').neq('status', 'suspended'),
+      supabase.from('business_addresses').select('*'),
+    ]);
+
+    const profiles = profilesRes.data || [];
+    const addresses = addressesRes.data || [];
+
+    const addrMap = new Map<string, any>();
+    for (const a of addresses) {
+      if (!addrMap.has(a.business_id) || a.is_default) {
+        addrMap.set(a.business_id, a);
+      }
+    }
+
+    if (profiles.length > 0) {
+      return profiles.map((p: any) => {
+        const addr = addrMap.get(p.id);
+        const rawLat = addr?.latitude ?? p.latitude;
+        const rawLng = addr?.longitude ?? p.longitude;
+        const coords = getStoreCoordinates(p.region || addr?.region, rawLat, rawLng);
+
+        return {
+          id: p.id,
+          storeName: p.store_name,
+          businessType: p.business_type || 'grocery',
+          region: p.region || addr?.region || 'Toshkent',
+          district: p.district || addr?.district || '',
+          address: addr?.address || p.address || '',
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          logoUrl: p.logo_url,
+          description: p.description,
+          createdAt: p.created_at,
+        };
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to load stores for map from supabase:', err);
+  }
+
+  return SEED_STORES.map((s) => ({
+    id: s.id,
+    storeName: s.storeName,
+    businessType: s.businessType,
+    region: s.region,
+    district: s.district,
+    address: s.address,
+    latitude: s.latitude,
+    longitude: s.longitude,
+    logoUrl: s.logoUrl,
+    description: s.description,
+    createdAt: s.createdAt,
+  }));
 }
 
 // ---------- Direct B2B In-App Offers ----------

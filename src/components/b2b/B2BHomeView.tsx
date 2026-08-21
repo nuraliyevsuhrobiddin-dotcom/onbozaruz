@@ -109,12 +109,12 @@ export const B2BHomeView: React.FC = () => {
           <button
             onClick={() => setB2BRoute({ view: 'cart' })}
             title="Savatcha"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#111827] hover:bg-black text-white transition-colors text-xs font-bold relative shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#111827] hover:bg-black text-white transition-colors text-xs font-black relative shadow-xs cursor-pointer"
           >
             <ShoppingCart className="w-4 h-4 text-white" />
-            <span className="hidden sm:inline">Savat</span>
+            <span className="inline font-bold">Savat</span>
             {cartTotalQty > 0 ? (
-              <span className="w-4.5 h-4.5 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+              <span className="min-w-[18px] h-4.5 px-1 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
                 {cartTotalQty}
               </span>
             ) : (
@@ -200,10 +200,10 @@ export const B2BHomeView: React.FC = () => {
       </div>
 
       {/* Quick Navigation Shortcuts */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         <button
           onClick={() => setB2BRoute({ view: 'map' })}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-br from-pink-500/10 to-rose-500/5 border border-[#DB2777]/30 hover:border-[#DB2777] transition-all text-left group"
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-gradient-to-br from-pink-500/10 to-rose-500/5 border border-[#DB2777]/30 hover:border-[#DB2777] transition-all text-left group cursor-pointer"
         >
           <div className="w-8 h-8 rounded-xl bg-[#DB2777] text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
             <MapPin className="w-4 h-4" />
@@ -216,7 +216,7 @@ export const B2BHomeView: React.FC = () => {
 
         <button
           onClick={() => setB2BRoute({ view: 'products' })}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left"
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left cursor-pointer"
         >
           <div className="w-8 h-8 rounded-xl bg-pink-50 text-[#DB2777] flex items-center justify-center shrink-0">
             <ShoppingBag className="w-4 h-4" />
@@ -229,7 +229,7 @@ export const B2BHomeView: React.FC = () => {
 
         <button
           onClick={() => setB2BRoute({ view: 'suppliers' })}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left"
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left cursor-pointer"
         >
           <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
             <Building2 className="w-4 h-4" />
@@ -242,7 +242,7 @@ export const B2BHomeView: React.FC = () => {
 
         <button
           onClick={() => setB2BRoute({ view: 'cart' })}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left"
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left cursor-pointer"
         >
           <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 relative">
             <ShoppingCart className="w-4 h-4" />
@@ -266,7 +266,7 @@ export const B2BHomeView: React.FC = () => {
               setB2BRoute({ view: 'orders' });
             }
           }}
-          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left"
+          className="flex items-center gap-2.5 p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-[#DB2777]/40 transition-colors text-left cursor-pointer"
         >
           <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <Package className="w-4 h-4" />
@@ -277,6 +277,30 @@ export const B2BHomeView: React.FC = () => {
           </div>
         </button>
       </div>
+
+      {/* Floating Bottom Cart Bar when cart has items */}
+      {cartTotalQty > 0 && (
+        <div className="fixed bottom-18 lg:bottom-6 left-3 right-3 max-w-lg mx-auto z-40 animate-in slide-in-from-bottom-4 duration-200">
+          <button
+            onClick={() => setB2BRoute({ view: 'cart' })}
+            className="w-full py-3 px-4.5 rounded-2xl bg-[#111827] hover:bg-black text-white flex items-center justify-between shadow-2xl border border-white/20 cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#DB2777] flex items-center justify-center text-white shrink-0">
+                <ShoppingCart className="w-4 h-4" />
+              </div>
+              <div className="text-left">
+                <span className="block text-xs font-black">Savatchada {cartTotalQty} ta mahsulot</span>
+                <span className="block text-[10px] text-slate-300 font-medium">Buyurtmani rasmiylashtirish</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs font-black text-white bg-[#DB2777] hover:bg-[#BE185D] px-3 py-1.5 rounded-xl shadow-xs">
+              <span>Savatga o'tish</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </button>
+        </div>
+      )}
 
 
 
