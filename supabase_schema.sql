@@ -1454,13 +1454,24 @@ CREATE TRIGGER tr_handle_b2b_order_status_change AFTER UPDATE OF status ON publi
 
 CREATE OR REPLACE FUNCTION public.notify_on_new_b2b_order()
 RETURNS TRIGGER AS $$
-DECLARE v_supplier_user_id UUID;
+DECLARE
+  v_supplier_user_id UUID;
+  v_admin_id UUID;
 BEGIN
   SELECT user_id INTO v_supplier_user_id FROM public.supplier_profiles WHERE id = NEW.supplier_id;
   IF v_supplier_user_id IS NOT NULL THEN
     INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
     VALUES (v_supplier_user_id, 'b2b_new_order', 'Yangi ulgurji buyurtma', NEW.order_number, 'b2b_order', NEW.id::text);
   END IF;
+
+  -- Barcha adminlarga ham bildirishnoma yuborish
+  FOR v_admin_id IN SELECT id FROM public.profiles WHERE is_admin = true LOOP
+    IF v_admin_id IS DISTINCT FROM v_supplier_user_id THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (v_admin_id, 'b2b_new_order', 'Yangi B2B buyurtma: #' || NEW.order_number, 'Buyurtma summasi: ' || COALESCE(NEW.total, 0)::text || ' so''m', 'b2b_order', NEW.id::text);
+    END IF;
+  END LOOP;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
