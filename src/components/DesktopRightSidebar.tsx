@@ -50,11 +50,19 @@ export const DesktopRightSidebar: React.FC = () => {
       <CategoryCard />
 
       {/* Footer info */}
-      <div className="px-2 text-[11px] text-slate-400 space-y-1 pt-1 font-medium">
+      <div className="px-2 text-[11px] text-slate-400 space-y-1.5 pt-1 font-medium">
         <p>© 2026 OnBozar Marketplace Inc.</p>
         <p className="text-[10px] text-slate-400">
           Sotuvchi va xaridorni yagona raqamli bozorda bog'laymiz.
         </p>
+        <div className="pt-1 flex flex-wrap gap-2 text-[10px]">
+          <a
+            href="https://onbozar.uz/privacy-policy"
+            className="text-slate-500 hover:text-[#D84315] hover:underline font-bold transition-colors"
+          >
+            Maxfiylik siyosati (Privacy Policy)
+          </a>
+        </div>
       </div>
     </aside>
   );

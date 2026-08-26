@@ -229,6 +229,13 @@ export const HomeFeedView: React.FC = () => {
             <p className="text-[12px] font-extrabold text-slate-400 mt-1">
               Barcha agro e'lonlar ko'rib chiqildi
             </p>
+            <a
+              href="https://onbozar.uz/privacy-policy"
+              className="text-[11px] text-slate-400 hover:text-[#D84315] font-bold underline transition-colors mt-1"
+            >
+              Maxfiylik siyosati · Privacy Policy
+            </a>
+            <p className="text-[10px] text-slate-300 font-medium">© 2026 OBOX (OnBozar)</p>
           </div>
         </div>
       ) : isFilterEmpty ? (

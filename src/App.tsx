@@ -28,6 +28,7 @@ import { AdminView } from './views/AdminView';
 import { SellerProfileModal } from './components/SellerProfileModal';
 import { subscribeToAuthState } from './api/authClient';
 import { InstallAppPrompt } from './components/InstallAppPrompt';
+import { PrivacyPolicyView } from './views/PrivacyPolicyView';
 
 
 
@@ -67,6 +68,7 @@ export default function App() {
   const showHeader = activeTab !== 'search' && activeTab !== 'admin' && !isMarketMap;
 
   const isAuthCallback = window.location.pathname === '/auth/callback';
+  const isPrivacyPolicy = window.location.pathname === '/privacy-policy' || window.location.hash === '#privacy-policy';
 
   // All hooks MUST run before any early return (Rules of Hooks)
   useEffect(() => {
@@ -79,6 +81,7 @@ export default function App() {
   // fallback blindly resetting to home.
   const applyHashRoute = useCallback(() => {
     const hash = window.location.hash.slice(1); // Remove '#'
+    if (hash === 'privacy-policy') return;
     const [tab, ...rest] = hash.split('/');
     if (tab && (tab === 'home' || tab === 'search' || tab === 'market' || tab === 'profile' || tab === 'admin')) {
       setActiveTab(tab as NavTab);
@@ -94,10 +97,10 @@ export default function App() {
 
   // ─── Parse initial route from URL hash ──────────────────────────────────
   useEffect(() => {
-    if (isAuthCallback) return;
+    if (isAuthCallback || isPrivacyPolicy) return;
     if (!window.location.hash.slice(1)) return;
     applyHashRoute();
-  }, [isAuthCallback, applyHashRoute]);
+  }, [isAuthCallback, isPrivacyPolicy, applyHashRoute]);
 
   // Online/Offline holat kuzatuvchisi
   useEffect(() => {
@@ -186,6 +189,18 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [setActiveSubView, setActiveTab, setB2BRoute, applyHashRoute]);
 
+
+  if (isPrivacyPolicy) {
+    return (
+      <PrivacyPolicyView
+        onBack={() => {
+          window.history.pushState(null, '', '/#home');
+          setActiveTab('home');
+          setActiveSubView(null);
+        }}
+      />
+    );
+  }
 
   if (isAuthCallback) {
     return (
