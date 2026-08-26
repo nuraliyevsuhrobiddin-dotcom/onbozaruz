@@ -5,14 +5,16 @@
 import { supabaseClient } from './authClient';
 import { SupplierProfile, B2BProduct, B2BOrder, CommissionLedgerEntry, SupplierVerificationStatus, B2BProductStatus } from './types';
 import { B2B_CONTRACT_VERSION } from '../data/b2bContractTemplate';
-import { mapSupplierProfile, mapB2BProduct, mapB2BOrder } from './b2bRepository';
+import { mapSupplierProfile, mapB2BProduct, mapB2BOrder, mapB2BOrderItem } from './b2bRepository';
 
 const supabase = supabaseClient;
 
 const MOCK_KEYS = {
+  business: 'onbozor-b2b-business-profiles',
   supplier: 'onbozor-b2b-supplier-profiles',
   products: 'onbozor-b2b-products',
   orders: 'onbozor-b2b-orders',
+  orderItems: 'onbozor-b2b-order-items',
   ledger: 'onbozor-b2b-commission-ledger',
   contracts: 'onbozor-b2b-contracts',
 };
@@ -103,19 +105,43 @@ export async function updateB2BProductModeration(id: string, status: B2BProductS
   if (error) throw new Error(error.message);
 }
 
+export async function deleteB2BProductByAdmin(id: string): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.products, []);
+    writeMock(MOCK_KEYS.products, all.filter((p) => p.id !== id));
+    return;
+  }
+  const { error } = await supabase.from('b2b_products').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 // ---------- B2B orders ----------
 export async function listAllB2BOrders(): Promise<B2BOrder[]> {
   if (!supabase) {
     const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
-    return readMock<any[]>(MOCK_KEYS.orders, []).map((o) => mapB2BOrder({ ...o, supplier_profiles: { company_name: suppliers.find((s) => s.id === o.supplier_id)?.company_name } }));
+    const businesses = readMock<any[]>(MOCK_KEYS.business, []);
+    const allItems = readMock<any[]>(MOCK_KEYS.orderItems, []);
+    return readMock<any[]>(MOCK_KEYS.orders, []).map((o) => {
+      const mapped = mapB2BOrder({
+        ...o,
+        supplier_profiles: { company_name: suppliers.find((s) => s.id === (o.supplier_id || o.supplierId))?.company_name },
+        business_profiles: { store_name: businesses.find((b) => b.id === (o.business_id || o.businessId))?.store_name },
+      });
+      mapped.items = allItems.filter((it) => (it.order_id || it.orderId) === o.id).map(mapB2BOrderItem);
+      return mapped;
+    });
   }
   const { data, error } = await supabase
     .from('b2b_orders')
-    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .select('*, b2b_order_items(*), supplier_profiles(company_name), business_profiles(store_name)')
     .order('created_at', { ascending: false })
     .limit(100);
   if (error || !data) return [];
-  return data.map(mapB2BOrder);
+  return data.map((row) => {
+    const mapped = mapB2BOrder(row);
+    mapped.items = Array.isArray(row.b2b_order_items) ? row.b2b_order_items.map(mapB2BOrderItem) : [];
+    return mapped;
+  });
 }
 
 // ---------- Commission ledger ----------
@@ -132,6 +158,7 @@ export const b2bAdminRepository = {
   updateSupplierCommissionRate,
   listAllB2BProducts,
   updateB2BProductModeration,
+  deleteB2BProductByAdmin,
   listAllB2BOrders,
   listCommissionLedger,
 };

@@ -72,7 +72,7 @@ export interface AdminUserItem {
   email: string;
   handle: string;
   phone: string;
-  role: 'seller' | 'buyer';
+  role: 'seller' | 'buyer' | 'user' | 'business' | 'business_buyer' | 'supplier' | 'admin' | string;
   isAdmin: boolean;
   status: 'active' | 'banned';
   createdAt: string;
@@ -261,7 +261,7 @@ export const adminRepository = {
     }
   },
 
-  async updateUserStatus(userId: string, status: 'active' | 'banned', role?: 'seller' | 'buyer'): Promise<void> {
+  async updateUserStatus(userId: string, status: 'active' | 'banned', role?: string): Promise<void> {
     if (!supabase) {
       const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
       for (const key of Object.keys(users)) {
@@ -278,6 +278,72 @@ export const adminRepository = {
 
     const { error } = await supabase.from('profiles').update(updatePayload).eq('id', userId);
     if (error) throw new Error(`Foydalanuvchi statusi saqlanmadi: ${error.message}`);
+  },
+
+  async updateUserRole(userId: string, role: string, isAdmin = false): Promise<void> {
+    if (!supabase) {
+      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
+      for (const key of Object.keys(users)) {
+        if (users[key].user.id === userId) {
+          users[key].user.role = role;
+          users[key].user.isAdmin = isAdmin;
+        }
+      }
+      writeMock('onbozor-auth-users', users);
+      return;
+    }
+    const { error } = await supabase.from('profiles').update({
+      role,
+      is_admin: isAdmin,
+      updated_at: new Date().toISOString(),
+    }).eq('id', userId);
+    if (error) throw new Error(`Foydalanuvchi roli saqlanmadi: ${error.message}`);
+  },
+
+  async sendBroadcastAnnouncement(title: string, message: string, targetRole: 'all' | 'business' | 'supplier' = 'all'): Promise<number> {
+    const payload = {
+      id: `broadcast-${Date.now()}`,
+      title,
+      message,
+      targetRole,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to mock storage / local broadcasts
+    const history = readMock<any[]>('onbozor-admin-broadcasts', []);
+    writeMock('onbozor-admin-broadcasts', [payload, ...history]);
+
+    if (!supabase) {
+      // In mock mode, insert notification for current user or mock users
+      return 1;
+    }
+
+    try {
+      // Fetch target user IDs
+      let query = supabase.from('profiles').select('id');
+      if (targetRole === 'business') query = query.eq('role', 'business');
+      if (targetRole === 'supplier') query = query.eq('role', 'supplier');
+
+      const { data: users } = await query;
+      if (!users || users.length === 0) return 0;
+
+      const notifications = users.map((u) => ({
+        user_id: u.id,
+        type: 'broadcast',
+        title,
+        body: message,    // trigger-based columns use 'body'
+        message,          // broadcast code uses 'message' (§13.1 patch)
+        target_type: 'announcement',
+        target_id: payload.id,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      }));
+
+      await supabase.from('notifications').insert(notifications);
+      return notifications.length;
+    } catch {
+      return 0;
+    }
   },
 
   async updatePostModeration(postId: string, status: 'approved' | 'rejected' | 'blocked', rejectionReason = ''): Promise<void> {

@@ -1980,5 +1980,111 @@ CREATE INDEX IF NOT EXISTS idx_b2b_direct_offers_business_id ON public.b2b_direc
 GRANT SELECT, INSERT, UPDATE ON public.b2b_direct_offers TO authenticated;
 
 -- =====================================================================
+-- 13. PATCH — Mavjud joylashuv uchun qo'shimcha ALTER / tuzatmalar
+-- =====================================================================
+
+-- 13.1  notifications.message ustuni
+-- AdminRepository broadcast funksiyasi 'body' o'rniga 'message' deb
+-- insert qiladi. Ikkala nom ham qo'llab-quvvatlanishi uchun qo'shimcha
+-- ustun qo'shamiz va eski body ustunini saqlab qolamiz.
+ALTER TABLE public.notifications
+    ADD COLUMN IF NOT EXISTS message TEXT DEFAULT '';
+
+-- message ustuniga ham body bilan bir xil qiymat tushishi uchun
+-- VIEW yoki har bir trigger o'rniga oddiy DEFAULT yetarli —
+-- eski triggerlar body'ga yozadi, yangi kod message'ga yozadi.
+-- Ikkalasi ham TEXT, NULL emas, ikkovi ham foydalaniladi.
+
+-- 13.2  Admin notifications uchun DELETE ruxsati
+-- Admin broadcast bildirishnomalarini bekor qila olishi kerak.
+DROP POLICY IF EXISTS "Admin bildirishnomani o'chiradi" ON public.notifications;
+CREATE POLICY "Admin bildirishnomani o'chiradi"
+    ON public.notifications
+    FOR DELETE
+    USING (public.is_admin());
+
+-- 13.3  broadcast_announcements — Yuborilgan e'lonlar tarixi
+-- Admin yuborgan barcha broadcastlar saqlanadi (audit maqsadida).
+CREATE TABLE IF NOT EXISTS public.broadcast_announcements (
+    id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id    UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+    title       TEXT        NOT NULL,
+    message     TEXT        NOT NULL DEFAULT '',
+    target_role TEXT        NOT NULL DEFAULT 'all',  -- 'all' | 'seller' | 'business' | 'supplier'
+    sent_count  INTEGER     NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.broadcast_announcements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Faqat admin ko'radi (broadcast_announcements)" ON public.broadcast_announcements;
+CREATE POLICY "Faqat admin ko'radi (broadcast_announcements)"
+    ON public.broadcast_announcements
+    FOR SELECT
+    USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Faqat admin yozadi (broadcast_announcements)" ON public.broadcast_announcements;
+CREATE POLICY "Faqat admin yozadi (broadcast_announcements)"
+    ON public.broadcast_announcements
+    FOR INSERT
+    WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Faqat admin o'chiradi (broadcast_announcements)" ON public.broadcast_announcements;
+CREATE POLICY "Faqat admin o'chiradi (broadcast_announcements)"
+    ON public.broadcast_announcements
+    FOR DELETE
+    USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS idx_broadcast_announcements_created
+    ON public.broadcast_announcements(created_at DESC);
+
+GRANT SELECT ON public.broadcast_announcements TO authenticated;
+
+-- 13.4  b2b_products — Admin DELETE ruxsati
+-- Mavjud policy faqat supplier uchun. Admin ham o'chira olishi kerak.
+DROP POLICY IF EXISTS "Admin b2b mahsulotni o'chiradi" ON public.b2b_products;
+CREATE POLICY "Admin b2b mahsulotni o'chiradi"
+    ON public.b2b_products
+    FOR DELETE
+    USING (public.is_admin());
+
+-- 13.5  profiles — Admin barcha profillarni ko'rishi kerak
+-- Eski policy faqat o'z profilini ko'rsatishi mumkin edi.
+DROP POLICY IF EXISTS "Admin barcha profillarni ko'radi" ON public.profiles;
+CREATE POLICY "Admin barcha profillarni ko'radi"
+    ON public.profiles
+    FOR SELECT
+    USING (public.is_admin());
+
+-- 13.6  audit_logs — Admin INSERT qila olishi kerak
+-- adminRepository audit_logs ga yozadi.
+DROP POLICY IF EXISTS "Admin audit log yozadi" ON public.audit_logs;
+CREATE POLICY "Admin audit log yozadi"
+    ON public.audit_logs
+    FOR INSERT
+    WITH CHECK (public.is_admin());
+
+GRANT INSERT ON public.audit_logs TO authenticated;
+
+-- 13.7  posts — Admin barcha postlarni ko'rishi va o'chirishi kerak
+DROP POLICY IF EXISTS "Admin barcha postlarni ko'radi" ON public.posts;
+CREATE POLICY "Admin barcha postlarni ko'radi"
+    ON public.posts
+    FOR SELECT
+    USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admin barcha postlarni o'chiradi" ON public.posts;
+CREATE POLICY "Admin barcha postlarni o'chiradi"
+    ON public.posts
+    FOR DELETE
+    USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admin postni tahrirlaydi" ON public.posts;
+CREATE POLICY "Admin postni tahrirlaydi"
+    ON public.posts
+    FOR UPDATE
+    USING (public.is_admin());
+
+-- =====================================================================
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!
 -- =====================================================================

@@ -109,6 +109,8 @@ interface AgroStoreState {
   productDetail: Product | Post | null;
   toastMessage: string | null;
   selectedCategoryModalId: string | null;
+  pushNotification: Notification | null;
+  clearPushNotification: () => void;
 
   uploadingPostStatus: { isUploading: boolean; title?: string; isSuccess?: boolean; error?: string } | null;
   setUploadingPostStatus: (status: { isUploading: boolean; title?: string; isSuccess?: boolean; error?: string } | null) => void;
@@ -162,6 +164,7 @@ interface AgroStoreState {
   setIsAdminUser: (isAdmin: boolean) => void;
   showToast: (msg: string) => void;
   hideToast: () => void;
+  showPushNotification: (n: Notification) => void;
 
   openVideoViewer: (posts: Post[], startIndex: number) => void;
   closeVideoViewer: () => void;
@@ -281,6 +284,7 @@ export const useAgroStore = create<AgroStoreState>()(
           set((state) => ({
             notifications: [notification, ...state.notifications],
             unreadNotificationsCount: state.unreadNotificationsCount + 1,
+            pushNotification: notification,
           }));
           if (isNotificationSoundEnabled()) playNotificationSound();
         });
@@ -345,6 +349,7 @@ export const useAgroStore = create<AgroStoreState>()(
         productDetail: null,
         toastMessage: null,
         selectedCategoryModalId: null,
+        pushNotification: null,
         uploadingPostStatus: null,
 
         isVideoViewerOpen: false,
@@ -1008,6 +1013,8 @@ export const useAgroStore = create<AgroStoreState>()(
       setIsAdminUser: (isAdmin: boolean) => set({ isAdminUser: isAdmin }),
       showToast: (msg) => set({ toastMessage: msg }),
       hideToast: () => set({ toastMessage: null }),
+      showPushNotification: (n) => set({ pushNotification: n }),
+      clearPushNotification: () => set({ pushNotification: null }),
 
       openVideoViewer: (posts, startIndex) =>
         set({ isVideoViewerOpen: true, videoViewerPosts: posts, videoViewerStartIndex: startIndex }),

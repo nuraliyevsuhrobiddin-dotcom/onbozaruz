@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle, XCircle, Trash2 } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Trash2, CheckSquare, Square, Layers, Sparkles } from 'lucide-react';
 import { Post } from '../../data/mockAgroData';
 import { adminRepository } from '../../api/adminRepository';
 
@@ -30,7 +30,10 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<PostStatus>('all');
   const [actingId, setActingId] = useState<string | null>(null);
-  const [rejectModal, setRejectModal] = useState<{ id: string; title: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
+  const [rejectModal, setRejectModal] = useState<{ ids: string[]; title: string } | null>(null);
   const [rejectReason, setRejectReason] = useState(REJECTION_REASONS[0]);
   const [customReason, setCustomReason] = useState('');
   const [isRejectSubmitting, setIsRejectSubmitting] = useState(false);
@@ -47,6 +50,18 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
 
   const pending = posts.filter((p) => (p as any).status === 'pending').length;
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
+
+  const selectAllFiltered = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map((p) => p.id));
+    }
+  };
+
   const handleApprove = async (post: Post) => {
     setActingId(post.id);
     try {
@@ -61,18 +76,61 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
     }
   };
 
+  const handleBulkApprove = async () => {
+    if (!selectedIds.length) return;
+    if (!window.confirm(`${selectedIds.length} ta tanlangan e'lonni tasdiqlashni xohlaysizmi?`)) return;
+
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        await adminRepository.updatePostModeration(id, 'approved');
+        onApprove(id);
+      }
+      await onLogAction('bulk_approve_posts', 'batch', { count: selectedIds.length }, { status: 'approved' });
+      showToast(`${selectedIds.length} ta e'lon bir vaqtda tasdiqlandi!`);
+      setSelectedIds([]);
+    } catch (e: any) {
+      showToast(e.message || 'Xatolik yuz berdi');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.length) return;
+    if (!window.confirm(`${selectedIds.length} ta tanlangan e'lonni o'chirishni tasdiqlaysizmi?`)) return;
+
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        await adminRepository.deletePostByAdmin(id);
+        onDelete(id);
+      }
+      await onLogAction('bulk_delete_posts', 'batch', { count: selectedIds.length }, null);
+      showToast(`${selectedIds.length} ta e'lon o'chirildi!`);
+      setSelectedIds([]);
+    } catch (e: any) {
+      showToast(e.message || 'Xatolik yuz berdi');
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
   const handleRejectSubmit = async () => {
-    if (!rejectModal) return;
+    if (!rejectModal || !rejectModal.ids.length) return;
     const finalReason = rejectReason === 'Boshqa sabab...' ? customReason.trim() : rejectReason;
     if (!finalReason) { showToast('Rad etish sababini kiriting'); return; }
 
     setIsRejectSubmitting(true);
     try {
-      await adminRepository.updatePostModeration(rejectModal.id, 'rejected', finalReason);
-      await onLogAction('reject_post', rejectModal.id, { status: 'pending' }, { status: 'rejected', reason: finalReason });
-      onReject(rejectModal.id);
-      showToast("E'lon rad etildi: " + finalReason);
+      for (const id of rejectModal.ids) {
+        await adminRepository.updatePostModeration(id, 'rejected', finalReason);
+        await onLogAction('reject_post', id, { status: 'pending' }, { status: 'rejected', reason: finalReason });
+        onReject(id);
+      }
+      showToast(`${rejectModal.ids.length} ta e'lon rad etildi: ${finalReason}`);
       setRejectModal(null);
+      setSelectedIds([]);
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
     } finally {
@@ -102,9 +160,37 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
           <h2 className="font-black text-xl text-[#111827]">E'lonlar moderatsiyasi</h2>
           <p className="text-xs text-slate-400 font-medium">{posts.length} ta e'lon · {pending} ta kutmoqda</p>
         </div>
+
+        {/* Bulk action toolbar if items selected */}
+        {selectedIds.length > 0 && (
+          <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-2xl animate-fade-in">
+            <span className="text-xs font-black text-[#D84315]">{selectedIds.length} ta tanlandi</span>
+            <button
+              onClick={handleBulkApprove}
+              disabled={isBulkProcessing}
+              className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black cursor-pointer"
+            >
+              Tasdiqlash
+            </button>
+            <button
+              onClick={() => setRejectModal({ ids: selectedIds, title: `${selectedIds.length} ta e'lon` })}
+              disabled={isBulkProcessing}
+              className="px-2.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black cursor-pointer"
+            >
+              Rad etish
+            </button>
+            <button
+              onClick={handleBulkDelete}
+              disabled={isBulkProcessing}
+              className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black cursor-pointer"
+            >
+              O'chirish
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Filters */}
+      {/* Filters & Select All */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -115,12 +201,25 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
             className="w-full pl-9 pr-3 py-2 rounded-[14px] border border-slate-200 bg-slate-50 text-xs font-semibold outline-none focus:border-[#D84315] transition-colors"
           />
         </div>
-        <div className="flex items-center gap-1.5">
+
+        <button
+          onClick={selectAllFiltered}
+          className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+        >
+          {selectedIds.length === filtered.length && filtered.length > 0 ? (
+            <CheckSquare className="w-3.5 h-3.5 text-[#D84315]" />
+          ) : (
+            <Square className="w-3.5 h-3.5" />
+          )}
+          <span>Barchasini belgilash</span>
+        </button>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
           {(['all', 'pending', 'approved', 'rejected', 'blocked'] as PostStatus[]).map((s) => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-2.5 py-1.5 rounded-[12px] text-[10px] font-black transition-colors ${
+              className={`px-2.5 py-1.5 rounded-[12px] text-[10px] font-black shrink-0 transition-colors ${
                 filterStatus === s ? 'bg-[#111827] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
@@ -139,6 +238,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
         ) : (
           filtered.map((post) => {
             const postStatus = (post as any).status || 'approved';
+            const isSelected = selectedIds.includes(post.id);
             const statusColors: Record<string, string> = {
               pending: 'bg-amber-50 text-amber-700',
               approved: 'bg-emerald-50 text-emerald-700',
@@ -146,7 +246,25 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
               blocked: 'bg-slate-100 text-slate-600',
             };
             return (
-              <div key={post.id} className="bg-white rounded-[20px] border border-slate-200/80 p-3 shadow-sm flex items-center gap-3">
+              <div
+                key={post.id}
+                className={`bg-white rounded-[20px] border p-3 shadow-xs flex items-center gap-3 transition-all ${
+                  isSelected ? 'border-[#D84315] bg-orange-50/20' : 'border-slate-200/80'
+                }`}
+              >
+                {/* Checkbox */}
+                <button
+                  type="button"
+                  onClick={() => toggleSelect(post.id)}
+                  className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  {isSelected ? (
+                    <CheckSquare className="w-4 h-4 text-[#D84315]" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-300" />
+                  )}
+                </button>
+
                 <img
                   src={post.posterUrl || post.mediaUrl}
                   alt={post.title}
@@ -176,7 +294,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                       </button>
                       <button
                         disabled={actingId === post.id}
-                        onClick={() => setRejectModal({ id: post.id, title: post.title })}
+                        onClick={() => setRejectModal({ ids: [post.id], title: post.title })}
                         className="p-1.5 rounded-[10px] bg-amber-50 hover:bg-amber-100 text-amber-600 transition-colors disabled:opacity-50"
                         title="Rad etish"
                       >
@@ -204,13 +322,13 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-[26px] w-full max-w-md p-5 space-y-4 shadow-2xl">
             <h3 className="font-black text-base text-[#111827]">Rad etish sababi</h3>
-            <p className="text-xs text-slate-500 font-medium">«{rejectModal.title}» e'lonini rad etish uchun sabab tanlang:</p>
+            <p className="text-xs text-slate-500 font-medium">«{rejectModal.title}» rad etish uchun sabab tanlang:</p>
             <div className="space-y-1.5">
               {[...REJECTION_REASONS, 'Boshqa sabab...'].map((r) => (
                 <button
                   key={r}
                   onClick={() => setRejectReason(r)}
-                  className={`w-full text-left px-3.5 py-2.5 rounded-[14px] text-xs font-bold transition-colors ${
+                  className={`w-full text-left px-3.5 py-2.5 rounded-[14px] text-xs font-bold transition-colors cursor-pointer ${
                     rejectReason === r ? 'bg-[#D84315] text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-700'
                   }`}
                 >
@@ -222,22 +340,22 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
               <textarea
                 value={customReason}
                 onChange={(e) => setCustomReason(e.target.value)}
-                placeholder="Sababni kiriting..."
+                placeholder="Sababni batafsil yozing..."
                 rows={3}
                 className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 text-xs font-semibold resize-none outline-none focus:border-[#D84315]"
               />
             )}
-            <div className="flex gap-2">
+            <div className="flex gap-2 pt-1">
               <button
                 onClick={() => setRejectModal(null)}
-                className="flex-1 py-3 rounded-[16px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                className="flex-1 py-3 rounded-[16px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
               >
                 Bekor
               </button>
               <button
                 disabled={isRejectSubmitting}
                 onClick={handleRejectSubmit}
-                className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors disabled:opacity-50"
+                className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs hover:bg-[#BF360C] transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isRejectSubmitting ? 'Saqlanmoqda...' : 'Rad etish'}
               </button>

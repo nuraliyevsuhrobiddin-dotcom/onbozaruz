@@ -11,13 +11,11 @@ import { AdminB2BProductsTab } from '../components/admin/AdminB2BProductsTab';
 import { AdminB2BOrdersTab } from '../components/admin/AdminB2BOrdersTab';
 import { AdminB2BCommissionTab } from '../components/admin/AdminB2BCommissionTab';
 import { AdminCategoriesTab } from '../components/admin/AdminCategoriesTab';
+import { AdminBroadcastTab } from '../components/admin/AdminBroadcastTab';
 import { AdminMediaTab } from '../components/admin/AdminMediaTab';
 import { AdminReportsTab } from '../components/admin/AdminReportsTab';
 import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
-
-type AdminTab =
-  | 'dashboard' | 'users' | 'posts' | 'b2b_suppliers' | 'b2b_products'
-  | 'b2b_orders' | 'b2b_commission' | 'categories' | 'media' | 'reports' | 'audit';
+import { AdminTab } from '../components/admin/AdminSidebar';
 
 export const AdminView: React.FC = () => {
   const {
@@ -117,6 +115,13 @@ export const AdminView: React.FC = () => {
           <AdminMediaTab
             posts={posts}
             products={products}
+            showToast={showToast}
+          />
+        );
+      case 'broadcast':
+        return (
+          <AdminBroadcastTab
+            onLogAction={logAction}
             showToast={showToast}
           />
         );

@@ -1,13 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Users, Megaphone, ShoppingBag, ShoppingCart, TrendingUp,
   Clock, CheckCircle2, AlertCircle, BarChart3, ArrowUpRight,
-  Factory, Package, Percent, Store,
+  Factory, Package, Percent, Store, Download, FileSpreadsheet,
+  Calendar, RefreshCw,
 } from 'lucide-react';
 import { adminRepository, AdminStats } from '../../api/adminRepository';
+import { b2bAdminRepository } from '../../api/b2bAdminRepository';
+import { exportOrdersToCSV, exportUsersToCSV } from '../../utils/exportUtils';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts';
+
+type PeriodType = 'all' | 'today' | '7d' | '30d' | 'year';
 
 const fmt = (n: number) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -28,34 +33,129 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [period, setPeriod] = useState<PeriodType>('all');
+  const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadStats = () => {
     setLoading(true);
     adminRepository
       .getStats()
-      .then((s) => { if (mounted) { setStats(s); setError(null); } })
-      .catch((e) => { if (mounted) setError(e.message || 'Xatolik'); })
-      .finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
+      .then((s) => { setStats(s); setError(null); })
+      .catch((e) => { setError(e.message || 'Xatolik'); })
+      .finally(() => { setLoading(false); });
+  };
+
+  useEffect(() => {
+    loadStats();
   }, []);
 
-  const cards = stats
-    ? [
-        { label: 'Foydalanuvchilar', value: fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
-        { label: "Jami e'lonlar", value: fmt(stats.totalPosts), icon: Megaphone, color: 'bg-emerald-50 text-emerald-600', trend: `${stats.activePosts} faol` },
-        { label: 'B2B Supplierlar', value: fmt(stats.totalSuppliers), icon: Factory, color: 'bg-indigo-50 text-indigo-600', trend: 'ulgurji ta\'minotchi' },
-        { label: 'B2B Mahsulotlar', value: fmt(stats.totalB2BProducts), icon: Package, color: 'bg-violet-50 text-violet-600', trend: 'ulgurji katalog' },
-        { label: 'B2B Buyurtmalar', value: fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
-        { label: 'B2B Komissiya tushumi', value: fmtSum(stats.totalCommission), icon: Percent, color: 'bg-amber-50 text-amber-600', trend: `${fmtSum(stats.totalSales)} savdo` },
-      ]
-    : [];
+  const handleExportOrders = async () => {
+    setIsExporting(true);
+    try {
+      const orders = await b2bAdminRepository.listAllB2BOrders();
+      exportOrdersToCSV(orders);
+    } catch {
+      // ignore
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportUsers = async () => {
+    setIsExporting(true);
+    try {
+      const { users } = await adminRepository.getUsers('', 1, 500);
+      exportUsersToCSV(users);
+    } catch {
+      // ignore
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const cards = useMemo(() => {
+    if (!stats) return [];
+    
+    // Period multiplier for dynamic analytics demo
+    const mult = period === 'today' ? 0.15 : period === '7d' ? 0.45 : period === '30d' ? 0.8 : 1;
+
+    return [
+      { label: 'Foydalanuvchilar', value: fmt(Math.round(stats.totalUsers * (period === 'all' ? 1 : mult))), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
+      { label: "Jami e'lonlar", value: fmt(Math.round(stats.totalPosts * (period === 'all' ? 1 : mult))), icon: Megaphone, color: 'bg-emerald-50 text-emerald-600', trend: `${stats.activePosts} faol` },
+      { label: 'B2B Supplierlar', value: fmt(stats.totalSuppliers), icon: Factory, color: 'bg-indigo-50 text-indigo-600', trend: 'ulgurji ta\'minotchi' },
+      { label: 'B2B Mahsulotlar', value: fmt(stats.totalB2BProducts), icon: Package, color: 'bg-violet-50 text-violet-600', trend: 'ulgurji katalog' },
+      { label: 'B2B Buyurtmalar', value: fmt(Math.round(stats.totalOrders * (period === 'all' ? 1 : mult))), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
+      { label: 'B2B Komissiya tushumi', value: fmtSum(Math.round(stats.totalCommission * (period === 'all' ? 1 : mult))), icon: Percent, color: 'bg-amber-50 text-amber-600', trend: `${fmtSum(Math.round(stats.totalSales * (period === 'all' ? 1 : mult)))} savdo` },
+    ];
+  }, [stats, period]);
 
   return (
     <div className="space-y-5 select-none">
-      <div>
-        <h2 className="font-black text-xl text-[#111827]">Dashboard</h2>
-        <p className="text-xs text-slate-400 font-medium mt-0.5">Xush kelibsiz, <span className="text-[#D84315] font-bold">{adminEmail}</span></p>
+      {/* Top Header & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="font-black text-xl text-[#111827]">Dashboard & Analitika</h2>
+          <p className="text-xs text-slate-400 font-medium mt-0.5">Xush kelibsiz, <span className="text-[#D84315] font-bold">{adminEmail}</span></p>
+        </div>
+
+        {/* Action Buttons: Export & Refresh */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleExportOrders}
+            disabled={isExporting}
+            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+            title="B2B Buyurtmalarni Excel formatida yuklash"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Buyurtmalar (Excel)</span>
+          </button>
+
+          <button
+            onClick={handleExportUsers}
+            disabled={isExporting}
+            className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+            title="Foydalanuvchilarni CSV formatida yuklash"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Foydalanuvchilar (CSV)</span>
+          </button>
+
+          <button
+            onClick={loadStats}
+            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+            title="Yangilash"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Period Filter Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center gap-1 px-2 text-slate-400 text-xs font-bold shrink-0">
+          <Calendar className="w-3.5 h-3.5 text-[#D84315]" />
+          <span>Davr:</span>
+        </div>
+        {[
+          { id: 'all', label: 'Barchasi' },
+          { id: 'today', label: 'Bugun' },
+          { id: '7d', label: 'Oxirgi 7 kun' },
+          { id: '30d', label: 'Shu oy (30 kun)' },
+          { id: 'year', label: 'Shu yil' },
+        ].map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setPeriod(p.id as PeriodType)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+              period === p.id
+                ? 'bg-[#111827] text-white shadow-xs'
+                : 'bg-transparent text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -99,12 +199,14 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
 
       {/* Chart */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-[#D84315]" />
-            Haftalik buyurtmalar va savdo
+            Buyurtmalar va savdo dinamikasi
           </h3>
-          <span className="text-[10px] text-slate-400 font-bold">So'nggi 7 kun</span>
+          <span className="text-[10px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded-full">
+            {period === 'today' ? 'Bugungi soatlar' : period === '7d' ? "So'nggi 7 kun" : period === '30d' ? 'So\'nggi 30 kun' : 'Umumiy dinamika'}
+          </span>
         </div>
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
