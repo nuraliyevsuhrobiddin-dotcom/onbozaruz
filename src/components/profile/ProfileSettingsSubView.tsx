@@ -326,6 +326,17 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         </button>
       )}
 
+      {/* Legal & Privacy Policy */}
+      <div className="pt-1 text-center">
+        <a
+          href="https://onbozar.uz/privacy-policy"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#D84315] font-bold underline transition-colors"
+        >
+          <ShieldCheck className="w-4 h-4 text-[#D84315]" />
+          Maxfiylik siyosati (Privacy Policy)
+        </a>
+      </div>
+
       {/* Delete Account Danger Button */}
       <div className="pt-2">
         <button

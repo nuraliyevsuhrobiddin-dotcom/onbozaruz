@@ -32,7 +32,6 @@ interface ProfileHeaderProps {
     telegram?: string;
   };
   postsCount: number;
-  productsCount: number;
   savedCount: number;
   viewsCount?: number;
   ordersCount: number;
@@ -40,7 +39,7 @@ interface ProfileHeaderProps {
   setProfileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   profileMenuRef: React.RefObject<HTMLDivElement | null>;
   onNavigateSubView: (subView: 'edit-profile' | 'orders' | 'settings') => void;
-  onSelectGridTab?: (tab: 'posts' | 'products' | 'saved') => void;
+  onSelectGridTab?: (tab: 'posts' | 'saved') => void;
   onOpenCreateModal: () => void;
   onShareProfile: () => void;
 }
@@ -49,7 +48,6 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   currentUser,
   profileData,
   postsCount,
-  productsCount,
   savedCount,
   viewsCount = 0,
   ordersCount,
@@ -123,12 +121,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             </button>
           </div>
 
-          {/* Stats Row (E'lonlar, Mahsulotlar, Saqlanganlar, Ko'rishlar) */}
-          <div className="flex-1 flex justify-around items-center pl-3 sm:pl-6 max-w-sm text-center">
+          {/* Stats Row (E'lonlar, Saqlanganlar, Ko'rishlar) */}
+          <div className="flex-1 flex justify-around items-center pl-3 sm:pl-8 max-w-xs text-center">
             <button
               type="button"
               onClick={() => onSelectGridTab?.('posts')}
-              className="rounded-xl px-1.5 py-1 -my-1 transition-colors hover:bg-slate-50 cursor-pointer"
+              className="rounded-xl px-2 py-1 -my-1 transition-colors hover:bg-slate-50 cursor-pointer"
             >
               <span className="font-black text-sm sm:text-base text-[#111827] block leading-tight">
                 {postsCount}
@@ -137,25 +135,15 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => onSelectGridTab?.('products')}
-              className="rounded-xl px-1.5 py-1 -my-1 transition-colors hover:bg-slate-50 cursor-pointer"
-            >
-              <span className="font-black text-sm sm:text-base text-[#111827] block leading-tight">
-                {productsCount}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">Market</span>
-            </button>
-            <button
-              type="button"
               onClick={() => onSelectGridTab?.('saved')}
-              className="rounded-xl px-1.5 py-1 -my-1 transition-colors hover:bg-slate-50 cursor-pointer"
+              className="rounded-xl px-2 py-1 -my-1 transition-colors hover:bg-slate-50 cursor-pointer"
             >
               <span className="font-black text-sm sm:text-base text-[#111827] block leading-tight">
                 {savedCount}
               </span>
               <span className="text-[10px] sm:text-[11px] font-bold text-slate-400">Saqlangan</span>
             </button>
-            <div className="px-1.5 py-1 -my-1">
+            <div className="px-2 py-1 -my-1">
               <span className="font-black text-sm sm:text-base text-[#111827] block leading-tight">
                 {viewsCount}
               </span>
@@ -222,85 +210,86 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:items-center sm:flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pt-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => onNavigateSubView('edit-profile')}
+            className="flex-1 py-2.5 px-3 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-xs transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>Tahrirlash</span>
+          </button>
+
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={onOpenCreateModal}
+            className="flex-1 px-4 py-2.5 rounded-[14px] bg-[#D84315] hover:bg-[#D32F2F] text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>E'lon berish</span>
+          </motion.button>
+
+          <button
+            type="button"
+            onClick={onShareProfile}
+            title="Profilni ulashish"
+            className="w-10 h-10 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+
+          {/* Dropdown Menu Toggle */}
+          <div ref={profileMenuRef} className="relative shrink-0">
             <button
               type="button"
-              onClick={() => onNavigateSubView('edit-profile')}
-              className="flex-1 sm:flex-initial sm:min-w-[120px] py-2.5 px-3 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-xs transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
+              onClick={() => setProfileMenuOpen((prev) => !prev)}
+              className="w-10 h-10 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="Profil menyusi"
             >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Tahrirlash</span>
+              <EllipsisVertical className="w-5 h-5" />
             </button>
 
-            <button
-              type="button"
-              onClick={() => onNavigateSubView('orders')}
-              className="flex-1 sm:flex-initial py-2.5 px-3.5 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-xs transition-colors cursor-pointer text-center flex items-center justify-center gap-1.5"
-            >
-              <Package className="w-3.5 h-3.5 text-blue-600" />
-              <span>Buyurtmalar</span>
-              {ordersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] font-black rounded-full">
-                  {ordersCount}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={onOpenCreateModal}
-              className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-[14px] bg-[#D84315] hover:bg-[#D32F2F] text-white font-extrabold text-xs shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>E'lon berish</span>
-            </motion.button>
-
-            <button
-              type="button"
-              onClick={onShareProfile}
-              title="Profilni ulashish"
-              className="w-10 h-10 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-
-            {/* Dropdown Menu Toggle */}
-            <div ref={profileMenuRef} className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setProfileMenuOpen((prev) => !prev)}
-                className="w-10 h-10 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer"
-                aria-label="Profil menyusi"
-              >
-                <EllipsisVertical className="w-5 h-5" />
-              </button>
-
-              <AnimatePresence>
-                {isProfileMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                    className="absolute right-0 top-12 z-30 w-56 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-2xl p-1.5"
+            <AnimatePresence>
+              {isProfileMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="absolute right-0 top-12 z-30 w-52 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-2xl p-1.5"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      onNavigateSubView('orders');
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        onNavigateSubView('settings');
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
-                    >
-                      <Settings className="w-4 h-4 text-slate-500" />
-                      <span>Sozlamalar</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                    <div className="flex items-center gap-2.5">
+                      <Package className="w-4 h-4 text-blue-600" />
+                      <span>Buyurtmalar</span>
+                    </div>
+                    {ordersCount > 0 && (
+                      <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] font-black rounded-full">
+                        {ordersCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      onNavigateSubView('settings');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
+                  >
+                    <Settings className="w-4 h-4 text-slate-500" />
+                    <span>Sozlamalar</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>

@@ -1,9 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Grid, Tag, Bookmark, Edit3, Trash2, Play, Plus, PackageOpen, Clock } from 'lucide-react';
-import { Post, Product } from '../../data/mockAgroData';
+import { Grid, Bookmark, Edit3, Trash2, Play, Plus, PackageOpen, Clock } from 'lucide-react';
+import { Post } from '../../data/mockAgroData';
 
-export type ProfileTabType = 'posts' | 'products' | 'saved';
+export type ProfileTabType = 'posts' | 'saved';
 
 function formatDaysRemaining(expiresAt: string): string {
   const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
@@ -15,13 +15,11 @@ function formatDaysRemaining(expiresAt: string): string {
 interface ProfileListingsGridProps {
   activeGridTab: ProfileTabType;
   posts: Post[];
-  products: Product[];
   savedPosts: Post[];
   isAdminUser: boolean;
   onTabChange: (tab: ProfileTabType) => void;
   onSelectPost: (post: Post) => void;
-  onSelectProduct: (product: Product) => void;
-  onEditItem: (item: Post | Product) => void;
+  onEditItem: (item: Post) => void;
   onDeleteItem: (id: string) => void;
   onOpenCreateModal: () => void;
 }
@@ -29,19 +27,16 @@ interface ProfileListingsGridProps {
 export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
   activeGridTab,
   posts,
-  products,
   savedPosts,
   isAdminUser: _isAdminUser,
   onTabChange,
   onSelectPost,
-  onSelectProduct,
   onEditItem,
   onDeleteItem,
   onOpenCreateModal,
 }) => {
   const tabs = [
-    { id: 'posts' as ProfileTabType, label: "E'lonlar", icon: Grid, count: posts.length },
-    { id: 'products' as ProfileTabType, label: 'Mahsulotlar', icon: Tag, count: products.length },
+    { id: 'posts' as ProfileTabType, label: "Mening e'lonlarim", icon: Grid, count: posts.length },
     { id: 'saved' as ProfileTabType, label: 'Saqlanganlar', icon: Bookmark, count: savedPosts.length },
   ];
 
@@ -57,14 +52,14 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`flex-1 py-3 px-2 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 font-black text-xs transition-colors relative cursor-pointer ${
+              className={`flex-1 py-3.5 px-3 flex items-center justify-center gap-2 font-black text-xs transition-colors relative cursor-pointer ${
                 isActive ? 'text-[#D84315]' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" />
               <span className="truncate">{tab.label}</span>
               {tab.count > 0 && (
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                   isActive ? 'bg-orange-50 text-[#D84315]' : 'bg-slate-100 text-slate-500'
                 }`}>
                   {tab.count}
@@ -79,11 +74,11 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
       </div>
 
       {/* Grid Content */}
-      <div className="p-1.5">
-        {/* TAB 1: E'LONLAR */}
+      <div className="p-2">
+        {/* TAB 1: MENING E'LONLARIM */}
         {activeGridTab === 'posts' && (
           posts.length > 0 ? (
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {posts.map((item) => {
                 const imageSrc = item.posterUrl || item.mediaUrl || '/logo.png';
                 const isPending = item.status === 'pending';
@@ -138,7 +133,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                             e.stopPropagation();
                             onEditItem(item);
                           }}
-                          className="p-1.5 rounded-full bg-white/20 hover:bg-white/40 backdrop-blur-sm text-white transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 backdrop-blur-md transition-colors"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                         </button>
@@ -147,23 +142,19 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                           title="O'chirish"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm("Rostdan ham ushbu e'lonni o'chirmoqchimisiz?")) {
+                            if (window.confirm("Rostdan ham bu e'lonni o'chirmoqchimisiz?")) {
                               onDeleteItem(item.id);
                             }
                           }}
-                          className="p-1.5 rounded-full bg-red-500/80 hover:bg-red-600 backdrop-blur-sm text-white transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg bg-rose-500/80 hover:bg-rose-600 backdrop-blur-md transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
                       <div>
-                        <span className="text-[11px] font-black text-[#22C55E] block leading-none">
-                          {item.price}
-                        </span>
-                        <span className="line-clamp-1 text-[10px] font-bold text-white/90 drop-shadow-sm mt-0.5">
-                          {item.title}
-                        </span>
+                        <span className="text-[11px] font-black text-emerald-400">{item.price}</span>
+                        <span className="line-clamp-1 text-[10px] font-bold">{item.title}</span>
                       </div>
                     </div>
                   </div>
@@ -193,50 +184,10 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
           )
         )}
 
-        {/* TAB 2: MAHSULOTLAR */}
-        {activeGridTab === 'products' && (
-          products.length > 0 ? (
-            <div className="grid grid-cols-3 gap-1">
-              {products.map((item) => {
-                const imageSrc = item.images?.[0] || item.image || '/logo.png';
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => onSelectProduct(item)}
-                    className="relative aspect-square bg-slate-100 overflow-hidden cursor-pointer group rounded-[14px]"
-                  >
-                    <img
-                      src={imageSrc}
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2 text-white">
-                      <span className="text-[11px] font-black text-emerald-400">{item.price}</span>
-                      <span className="line-clamp-1 text-[10px] font-bold">{item.title}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-12 px-4 text-center space-y-3">
-              <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400">
-                <Tag className="w-7 h-7" />
-              </div>
-              <div>
-                <h4 className="font-black text-sm text-[#111827]">Mahsulotlar yo'q</h4>
-                <p className="text-xs text-slate-400 max-w-xs mx-auto mt-1 font-medium">
-                  Avval joylashtirgan mahsulotlaringiz bo'lsa, shu yerda ko'rinadi.
-                </p>
-              </div>
-            </div>
-          )
-        )}
-
-        {/* TAB 3: SAQLANGANLAR */}
+        {/* TAB 2: SAQLANGANLAR */}
         {activeGridTab === 'saved' && (
           savedPosts.length > 0 ? (
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {savedPosts.map((item) => {
                 const imageSrc = item.posterUrl || item.mediaUrl || '/logo.png';
                 return (

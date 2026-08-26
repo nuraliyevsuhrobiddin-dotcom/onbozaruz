@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
-import { Post, Product } from '../data/mockAgroData';
+import { Post } from '../data/mockAgroData';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { ProfileListingsGrid, ProfileTabType } from '../components/profile/ProfileListingsGrid';
 import { EditProfileSubView } from '../components/profile/EditProfileSubView';
@@ -11,7 +11,6 @@ import { ProfileSettingsSubView } from '../components/profile/ProfileSettingsSub
 export const ProfileView: React.FC = () => {
   const {
     posts,
-    products,
     savedPostIds,
     orders,
     activeSubView,
@@ -47,9 +46,7 @@ export const ProfileView: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auth Guard: while the real session is still being confirmed, show a
-  // neutral loading state instead of either a stale cached profile or a
-  // premature "please log in" prompt — both were wrong things to show here.
+  // Auth Guard: while the real session is still being confirmed, show loading
   if (isAuthLoading) {
     return (
       <div className="w-full max-w-lg mx-auto py-24 flex flex-col items-center justify-center gap-3 select-none">
@@ -85,26 +82,16 @@ export const ProfileView: React.FC = () => {
     );
   }
 
-  // ─── Filter items strictly belonging to current authenticated user ─────────
-  // Ownership must be decided by ID only. A name/handle match was used here
-  // previously as a fallback, but two different sellers can share a display
-  // name — that fallback would leak one user's listings into another's
-  // "mine" tab.
+  // Filter items strictly belonging to current authenticated user
   const ownPosts = posts.filter(
     (post) =>
       (post.userId && post.userId === currentUser.id) ||
       (post.sellerId && post.sellerId === currentUser.id)
   );
 
-  const ownProducts = products.filter(
-    (product) =>
-      (product.sellerId && String(product.sellerId) === currentUser.id) ||
-      (product.submittedBy && product.submittedBy === currentUser.id)
-  );
-
   const savedPosts = posts.filter((post) => savedPostIds.includes(post.id));
 
-  // Handle post/reel/product selection
+  // Handle post/reel selection
   const handleSelectPost = (post: Post) => {
     if (post.type === 'video') {
       const allVideos = posts.filter((p) => p.type === 'video');
@@ -113,10 +100,6 @@ export const ProfileView: React.FC = () => {
     } else {
       setProductDetail(post);
     }
-  };
-
-  const handleSelectProduct = (product: Product) => {
-    setProductDetail(product);
   };
 
   const handleShareProfile = () => {
@@ -180,7 +163,6 @@ export const ProfileView: React.FC = () => {
           telegram: currentUser.telegram || '',
         }}
         postsCount={ownPosts.length}
-        productsCount={ownProducts.length}
         savedCount={savedPosts.length}
         viewsCount={ownPosts.reduce((sum, post) => sum + (post.viewsCount || 0), 0)}
         ordersCount={orders.length}
@@ -196,12 +178,10 @@ export const ProfileView: React.FC = () => {
       <ProfileListingsGrid
         activeGridTab={activeGridTab}
         posts={ownPosts}
-        products={ownProducts}
         savedPosts={savedPosts}
         isAdminUser={isAdminUser}
         onTabChange={(tab) => setActiveGridTab(tab)}
         onSelectPost={handleSelectPost}
-        onSelectProduct={handleSelectProduct}
         onEditItem={(item) => setEditModalItem(item)}
         onDeleteItem={(id) => deletePost(id)}
         onOpenCreateModal={() => setCreateModalOpen(true)}
