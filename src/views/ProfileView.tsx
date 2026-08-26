@@ -128,7 +128,6 @@ export const ProfileView: React.FC = () => {
   if (activeSubView === 'orders') {
     return (
       <ProfileOrdersSubView
-        orders={orders}
         onBack={() => setActiveSubView(null)}
         showToast={showToast}
       />

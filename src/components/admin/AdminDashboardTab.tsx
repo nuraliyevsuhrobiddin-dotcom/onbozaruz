@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Users, Megaphone, ShoppingBag, ShoppingCart, TrendingUp,
   Clock, CheckCircle2, AlertCircle, BarChart3, ArrowUpRight,
+  Factory, Package, Percent, Store,
 } from 'lucide-react';
 import { adminRepository, AdminStats } from '../../api/adminRepository';
 import {
@@ -41,12 +42,12 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
 
   const cards = stats
     ? [
-        { label: 'Foydalanuvchilar', value: fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600' },
+        { label: 'Foydalanuvchilar', value: fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
         { label: "Jami e'lonlar", value: fmt(stats.totalPosts), icon: Megaphone, color: 'bg-emerald-50 text-emerald-600', trend: `${stats.activePosts} faol` },
-        { label: 'Moderatsiya', value: fmt(stats.pendingModeration), icon: Clock, color: 'bg-amber-50 text-amber-600', trend: 'kutilmoqda' },
-        { label: 'Market mahsulotlar', value: fmt(stats.totalProducts), icon: ShoppingBag, color: 'bg-violet-50 text-violet-600', trend: 'tasdiqlangan' },
-        { label: 'Jami buyurtmalar', value: fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
-        { label: 'Umumiy savdo', value: fmtSum(stats.totalSales), icon: TrendingUp, color: 'bg-green-50 text-green-600' },
+        { label: 'B2B Supplierlar', value: fmt(stats.totalSuppliers), icon: Factory, color: 'bg-indigo-50 text-indigo-600', trend: 'ulgurji ta\'minotchi' },
+        { label: 'B2B Mahsulotlar', value: fmt(stats.totalB2BProducts), icon: Package, color: 'bg-violet-50 text-violet-600', trend: 'ulgurji katalog' },
+        { label: 'B2B Buyurtmalar', value: fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
+        { label: 'B2B Komissiya tushumi', value: fmtSum(stats.totalCommission), icon: Percent, color: 'bg-amber-50 text-amber-600', trend: `${fmtSum(stats.totalSales)} savdo` },
       ]
     : [];
 

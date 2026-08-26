@@ -13,8 +13,14 @@ import {
   Share2,
   Edit3,
   Package,
+  Store,
+  Wallet,
+  FileCheck,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 import { AuthUser } from '../../api/authClient';
+import { useAgroStore } from '../../store/useAgroStore';
 
 interface ProfileHeaderProps {
   currentUser: AuthUser;
@@ -59,15 +65,31 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   onOpenCreateModal,
   onShareProfile,
 }) => {
+  const {
+    supplierProfile,
+    businessProfile,
+    b2bOrders,
+    supplierB2BOrders,
+    setActiveTab,
+    setB2BRoute,
+  } = useAgroStore();
+
   const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [coverLoadError, setCoverLoadError] = useState(false);
 
-  const isBusiness = profileData.role === 'business' || Boolean(profileData.businessName);
+  const isSupplier = Boolean(supplierProfile);
+  const isBusiness = Boolean(businessProfile) || profileData.role === 'business' || Boolean(profileData.businessName);
+  const totalB2BOrdersCount = b2bOrders.length + (isSupplier ? supplierB2BOrders.length : 0);
+
+  const handleOpenB2BSection = (view: 'dashboard' | 'business' | 'home' | 'contracts' | 'finance') => {
+    setActiveTab('market');
+    setB2BRoute({ view });
+  };
 
   return (
-    <div className="bg-white rounded-[26px] border border-slate-200/80 shadow-sm transition-all">
+    <div className="bg-white rounded-[26px] border border-slate-200/80 shadow-sm transition-all overflow-hidden">
       {/* Cover Image */}
-      <div className="h-28 sm:h-36 rounded-t-[26px] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+      <div className="h-28 sm:h-36 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
         {!coverLoadError && profileData.cover ? (
           <img
             src={profileData.cover}
@@ -92,9 +114,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
       </div>
 
       {/* Main Profile Info Container */}
-      <div className="px-4 pb-4 pt-0 relative">
+      <div className="px-4 pb-4 pt-0 relative space-y-3">
         {/* Row with Avatar & Stats */}
-        <div className="flex items-end justify-between -mt-10 sm:-mt-12 mb-3">
+        <div className="flex items-end justify-between -mt-10 sm:-mt-12">
           {/* Avatar */}
           <div className="relative shrink-0">
             <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white overflow-hidden shadow-xl bg-slate-100 flex items-center justify-center">
@@ -153,7 +175,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </div>
 
         {/* User Info Details */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-black text-lg sm:text-xl text-[#111827] truncate max-w-[240px] sm:max-w-none">
@@ -162,17 +184,23 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               {profileData.verified && (
                 <CheckCircle2 className="w-4 h-4 text-blue-500 fill-blue-50 shrink-0" />
               )}
-              {isBusiness && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-black">
-                  <Building2 className="w-3 h-3 text-amber-600" />
-                  Biznes
+              {isSupplier && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-black">
+                  <Building2 className="w-3 h-3 text-emerald-600" />
+                  B2B Ta'minotchi
+                </span>
+              )}
+              {!isSupplier && isBusiness && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-[10px] font-black">
+                  <Store className="w-3 h-3 text-blue-600" />
+                  B2B Do'kon
                 </span>
               )}
             </div>
             <p className="text-xs font-bold text-slate-400">@{profileData.handle || 'user'}</p>
           </div>
 
-          {/* Location & Tags */}
+          {/* Location & Business info */}
           <div className="flex flex-wrap items-center gap-2 pt-0.5">
             {profileData.location && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
@@ -180,10 +208,10 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                 {profileData.location}
               </span>
             )}
-            {profileData.businessName && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold">
-                <ShoppingBag className="w-3 h-3 text-blue-500" />
-                {profileData.businessName}
+            {(supplierProfile?.companyName || businessProfile?.storeName || profileData.businessName) && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
+                <ShoppingBag className="w-3 h-3 text-slate-500" />
+                {supplierProfile?.companyName || businessProfile?.storeName || profileData.businessName}
               </span>
             )}
           </div>
@@ -209,8 +237,73 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           )}
         </div>
 
+        {/* ── B2B Wholesale Status & Cabinet Quick Access Card ── */}
+        <div className="pt-1">
+          {isSupplier ? (
+            <div
+              onClick={() => handleOpenB2BSection('dashboard')}
+              className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-200/80 flex items-center justify-between gap-3 cursor-pointer hover:border-emerald-300 transition-all group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Building2 className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-xs text-slate-900">B2B Ta'minotchi Kabineti</span>
+                    <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-md">Faol</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-semibold truncate">
+                    Ulgurji mahsulotlar, tushgan buyurtmalar va moliya
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-emerald-600 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          ) : isBusiness ? (
+            <div
+              onClick={() => handleOpenB2BSection('business')}
+              className="p-3 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-violet-500/10 border border-blue-200/80 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 transition-all group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Store className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-xs text-slate-900">B2B Do'kon Kabineti</span>
+                    <span className="px-1.5 py-0.2 bg-blue-100 text-blue-800 text-[9px] font-black rounded-md">Ulgurji xaridor</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-semibold truncate">
+                    To'g'ridan-to'g'ri ishlab chiqaruvchilardan arzon narxda xaridlar
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-blue-600 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          ) : (
+            <div
+              onClick={() => handleOpenB2BSection('business')}
+              className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 cursor-pointer hover:bg-orange-50/50 hover:border-orange-200 transition-all group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D84315] to-[#BF360C] text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <span className="font-black text-xs text-slate-900 block">B2B Ulgurji Savdoga qo'shiling</span>
+                  <p className="text-[11px] text-slate-500 font-semibold truncate">
+                    Do'kon yoki Ta'minotchi sifatida ro'yxatdan o'ting
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-[#D84315] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          )}
+        </div>
+
         {/* Action Buttons */}
-        <div className="flex items-center gap-2 pt-3 flex-wrap">
+        <div className="flex items-center gap-2 pt-1 flex-wrap">
           <button
             type="button"
             onClick={() => onNavigateSubView('edit-profile')}
@@ -228,6 +321,21 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             <Plus className="w-4 h-4 stroke-[3]" />
             <span>E'lon berish</span>
           </motion.button>
+
+          <button
+            type="button"
+            onClick={() => onNavigateSubView('orders')}
+            className="px-3.5 py-2.5 rounded-[14px] bg-slate-100 hover:bg-slate-200 text-slate-900 font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+            title="B2B Buyurtmalar"
+          >
+            <Package className="w-3.5 h-3.5 text-blue-600" />
+            <span className="hidden sm:inline">Buyurtmalar</span>
+            {totalB2BOrdersCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] font-black rounded-full">
+                {totalB2BOrdersCount}
+              </span>
+            )}
+          </button>
 
           <button
             type="button"
@@ -255,7 +363,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute right-0 top-12 z-30 w-52 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-2xl p-1.5"
+                  className="absolute right-0 top-12 z-30 w-56 overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-2xl p-1.5 space-y-0.5"
                 >
                   <button
                     type="button"
@@ -267,14 +375,40 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
                   >
                     <div className="flex items-center gap-2.5">
                       <Package className="w-4 h-4 text-blue-600" />
-                      <span>Buyurtmalar</span>
+                      <span>B2B Buyurtmalar</span>
                     </div>
-                    {ordersCount > 0 && (
+                    {totalB2BOrdersCount > 0 && (
                       <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] font-black rounded-full">
-                        {ordersCount}
+                        {totalB2BOrdersCount}
                       </span>
                     )}
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      handleOpenB2BSection('contracts');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
+                  >
+                    <FileCheck className="w-4 h-4 text-emerald-600" />
+                    <span>B2B Shartnomalar</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileMenuOpen(false);
+                      handleOpenB2BSection('finance');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
+                  >
+                    <Wallet className="w-4 h-4 text-amber-500" />
+                    <span>Moliya & Keshbek</span>
+                  </button>
+
+                  <div className="h-px bg-slate-100 my-1" />
 
                   <button
                     type="button"

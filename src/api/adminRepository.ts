@@ -44,10 +44,13 @@ export interface AdminStats {
   totalPosts: number;
   activePosts: number;
   pendingModeration: number;
-  totalProducts: number;
+  totalSuppliers: number;
+  totalBusinesses: number;
+  totalB2BProducts: number;
   totalOrders: number;
   todayOrders: number;
   totalSales: number;
+  totalCommission: number;
   activeSellers: number;
   /** Real orders/sales for each of the last 7 calendar days (oldest first). */
   weeklyChart: { day: string; orders: number; sales: number }[];
@@ -65,8 +68,8 @@ function emptyWeeklyChart(): AdminStats['weeklyChart'] {
 
 export interface AdminUserItem {
   id: string;
-  email: string;
   name: string;
+  email: string;
   handle: string;
   phone: string;
   role: 'seller' | 'buyer';
@@ -118,10 +121,13 @@ export const adminRepository = {
       totalPosts: 48,
       activePosts: 42,
       pendingModeration: 6,
-      totalProducts: 24,
+      totalSuppliers: 12,
+      totalBusinesses: 34,
+      totalB2BProducts: 56,
       totalOrders: 35,
       todayOrders: 5,
       totalSales: 48500000,
+      totalCommission: 1455000,
       activeSellers: 18,
       weeklyChart: emptyWeeklyChart(),
     };
@@ -129,12 +135,24 @@ export const adminRepository = {
     if (!supabase) return offlineFallback;
 
     try {
-      const [usersRes, sellersRes, postsRes, productsRes, ordersRes] = await Promise.all([
+      const [
+        usersRes,
+        sellersRes,
+        postsRes,
+        suppliersRes,
+        businessesRes,
+        b2bProductsRes,
+        b2bOrdersRes,
+        ledgerRes,
+      ] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'seller'),
         supabase.from('posts').select('id, status', { count: 'exact' }),
-        supabase.from('products').select('id, approval_status', { count: 'exact' }),
-        supabase.from('orders').select('id, created_at, total_price', { count: 'exact' }),
+        supabase.from('supplier_profiles').select('id, verification_status', { count: 'exact' }),
+        supabase.from('business_profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('b2b_products').select('id, status', { count: 'exact' }),
+        supabase.from('b2b_orders').select('id, created_at, total', { count: 'exact' }),
+        supabase.from('commission_ledger').select('commission_amount', { count: 'exact' }),
       ]);
 
       const totalUsers = usersRes.count || 0;
@@ -144,17 +162,25 @@ export const adminRepository = {
       const activePosts = postsData.filter((p) => (p.status || 'approved') === 'approved').length;
       const pendingPosts = postsData.filter((p) => p.status === 'pending').length;
 
-      const productsData = productsRes.data || [];
-      const pendingProducts = productsData.filter((p) => p.approval_status === 'pending').length;
-      const totalProducts = productsRes.count || 0;
+      const suppliersData = suppliersRes.data || [];
+      const totalSuppliers = suppliersRes.count || 0;
+      const pendingSuppliers = suppliersData.filter((s) => s.verification_status === 'pending').length;
 
-      const ordersData = ordersRes.data || [];
-      const totalOrders = ordersRes.count || 0;
+      const totalBusinesses = businessesRes.count || 0;
+
+      const b2bProductsData = b2bProductsRes.data || [];
+      const totalB2BProducts = b2bProductsRes.count || 0;
+      const pendingB2BProducts = b2bProductsData.filter((p) => p.status === 'pending').length;
+
+      const ordersData = b2bOrdersRes.data || [];
+      const totalOrders = b2bOrdersRes.count || 0;
 
       const todayStr = new Date().toISOString().split('T')[0];
       const todayOrders = ordersData.filter((o) => o.created_at && o.created_at.startsWith(todayStr)).length;
+      const totalSales = ordersData.reduce((acc, o) => acc + (Number(o.total) || 0), 0);
 
-      const totalSales = ordersData.reduce((acc, o) => acc + (Number(o.total_price) || 0), 0);
+      const ledgerData = ledgerRes.data || [];
+      const totalCommission = ledgerData.reduce((acc, l) => acc + (Number(l.commission_amount) || 0), 0);
 
       const weeklyChart = WEEKDAY_ABBR.map((_, i) => {
         const d = new Date();
@@ -164,7 +190,7 @@ export const adminRepository = {
         return {
           day: WEEKDAY_ABBR[d.getDay()],
           orders: dayOrders.length,
-          sales: dayOrders.reduce((s, o) => s + (Number(o.total_price) || 0), 0),
+          sales: dayOrders.reduce((s, o) => s + (Number(o.total) || 0), 0),
         };
       });
 
@@ -172,11 +198,14 @@ export const adminRepository = {
         totalUsers,
         totalPosts,
         activePosts,
-        pendingModeration: pendingPosts + pendingProducts,
-        totalProducts,
+        pendingModeration: pendingPosts + pendingSuppliers + pendingB2BProducts,
+        totalSuppliers,
+        totalBusinesses,
+        totalB2BProducts,
         totalOrders,
         todayOrders,
         totalSales,
+        totalCommission,
         activeSellers,
         weeklyChart,
       };
