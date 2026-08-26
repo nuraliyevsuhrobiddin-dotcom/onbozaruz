@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  Users, Megaphone, ShoppingBag, ShoppingCart, TrendingUp,
+  Users, Megaphone, ShoppingCart,
   Clock, CheckCircle2, AlertCircle, BarChart3, ArrowUpRight,
-  Factory, Package, Percent, Store, Download, FileSpreadsheet,
+  Factory, Package, Percent, Download, FileSpreadsheet,
   Calendar, RefreshCw,
 } from 'lucide-react';
 import { adminRepository, AdminStats } from '../../api/adminRepository';

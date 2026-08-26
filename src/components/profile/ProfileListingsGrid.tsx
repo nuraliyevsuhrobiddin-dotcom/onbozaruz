@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Grid,
   Bookmark,
@@ -11,9 +11,6 @@ import {
   Clock,
   LayoutGrid,
   ListFilter,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
 } from 'lucide-react';
 import { Post } from '../../data/mockAgroData';
 

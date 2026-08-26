@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   CheckCircle2,
   MapPin,
   Camera,
   Plus,
-  EllipsisVertical,
   Settings,
   Building2,
   ExternalLink,
   ShoppingBag,
-  Share2,
   Edit3,
   Package,
   Store,
-  Wallet,
-  FileCheck,
   ChevronRight,
   Sparkles,
 } from 'lucide-react';
@@ -41,13 +37,9 @@ interface ProfileHeaderProps {
   savedCount: number;
   viewsCount?: number;
   ordersCount: number;
-  isProfileMenuOpen: boolean;
-  setProfileMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  profileMenuRef: React.RefObject<HTMLDivElement | null>;
   onNavigateSubView: (subView: 'edit-profile' | 'orders' | 'settings') => void;
   onSelectGridTab?: (tab: 'posts' | 'saved') => void;
   onOpenCreateModal: () => void;
-  onShareProfile: () => void;
 }
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
@@ -56,14 +48,10 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   postsCount,
   savedCount,
   viewsCount = 0,
-  ordersCount,
-  isProfileMenuOpen,
-  setProfileMenuOpen,
-  profileMenuRef,
+  ordersCount: _ordersCount,
   onNavigateSubView,
   onSelectGridTab,
   onOpenCreateModal,
-  onShareProfile,
 }) => {
   const {
     supplierProfile,
@@ -87,9 +75,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-[26px] border border-slate-200/80 shadow-sm transition-all relative">
+    <div className="bg-white rounded-[26px] border border-slate-200/80 shadow-sm transition-all relative overflow-hidden">
       {/* Cover Image */}
-      <div className="h-28 sm:h-36 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden rounded-t-[25px]">
+      <div className="h-28 sm:h-36 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
         {!coverLoadError && profileData.cover ? (
           <img
             src={profileData.cover}
@@ -111,22 +99,13 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             title="Muqovani almashtirish"
           >
             <Camera className="w-3.5 h-3.5 text-white/80" />
-            <span className="hidden sm:inline">Muqova</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onNavigateSubView('settings')}
-            className="w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white backdrop-blur-md border border-white/20 shadow-md transition-all flex items-center justify-center cursor-pointer"
-            title="Sozlamalar"
-            aria-label="Sozlamalar"
-          >
-            <Settings className="w-3.5 h-3.5 text-white/90" />
+            <span className="text-[11px]">Muqova</span>
           </button>
         </div>
       </div>
 
       {/* Main Profile Info Container */}
-      <div className="px-4 pb-4 pt-0 relative space-y-3">
+      <div className="px-3.5 sm:px-4 pb-4 pt-0 relative space-y-3">
         {/* Row with Avatar & Stats */}
         <div className="flex items-end justify-between -mt-10 sm:-mt-12">
           {/* Avatar */}
@@ -156,7 +135,7 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           </div>
 
           {/* Stats Row (E'lonlar, Saqlanganlar, Ko'rishlar) */}
-          <div className="flex-1 flex justify-around items-center pl-3 sm:pl-8 max-w-xs text-center">
+          <div className="flex-1 flex justify-around items-center pl-2 sm:pl-8 text-center">
             <button
               type="button"
               onClick={() => onSelectGridTab?.('posts')}
@@ -314,9 +293,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           )}
         </div>
 
-        {/* Action Buttons: Ergonomic 2-level Layout */}
+        {/* Action Buttons: Clean Symmetrical 2x2 Grid Layout */}
         <div className="pt-2 space-y-2">
-          {/* Main Primary Row: Tahrirlash & E'lon Berish */}
+          {/* Main Row: Tahrirlash & E'lon Berish */}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -337,12 +316,12 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             </motion.button>
           </div>
 
-          {/* Secondary Quick Action Row: Buyurtmalar, Sozlamalar, Ulashish & 3 Dots Menu */}
-          <div className="flex items-center gap-1.5">
+          {/* Secondary Row: Buyurtmalar & Sozlamalar */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => onNavigateSubView('orders')}
-              className="flex-1 py-2 px-2.5 rounded-[14px] bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-800 font-extrabold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              className="py-2.5 px-3 rounded-[16px] bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-800 font-extrabold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               title="B2B Buyurtmalar"
             >
               <Package className="w-3.5 h-3.5 text-blue-600 shrink-0" />
@@ -357,112 +336,16 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
             <button
               type="button"
               onClick={() => onNavigateSubView('settings')}
-              className="flex-1 py-2 px-2.5 rounded-[14px] bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-800 font-extrabold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              className="py-2.5 px-3 rounded-[16px] bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-800 font-extrabold text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               title="Sozlamalar"
             >
               <Settings className="w-3.5 h-3.5 text-slate-600 shrink-0" />
               <span className="truncate">Sozlamalar</span>
             </button>
-
-            <button
-              type="button"
-              onClick={onShareProfile}
-              title="Profilni ulashish"
-              className="w-10 h-8.5 rounded-[14px] bg-slate-50 hover:bg-slate-100 border border-slate-200/80 text-slate-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-
-            {/* Dropdown Menu Toggle */}
-            <div ref={profileMenuRef} className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setProfileMenuOpen((prev) => !prev)}
-                className={`w-10 h-8.5 rounded-[14px] border transition-colors cursor-pointer flex items-center justify-center ${
-                  isProfileMenuOpen
-                    ? 'bg-orange-50 border-orange-200 text-[#D84315]'
-                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200/80 text-slate-700'
-                }`}
-                aria-label="Profil menyusi"
-              >
-                <EllipsisVertical className="w-4 h-4" />
-              </button>
-
-              <AnimatePresence>
-                {isProfileMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 6 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-10 z-50 w-60 rounded-[20px] border border-slate-200 bg-white shadow-2xl p-1.5 space-y-0.5"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        onNavigateSubView('orders');
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Package className="w-4 h-4 text-blue-600 shrink-0" />
-                        <span>B2B Buyurtmalar</span>
-                      </div>
-                      {totalB2BOrdersCount > 0 && (
-                        <span className="px-1.5 py-0.2 bg-blue-100 text-blue-700 text-[10px] font-black rounded-full">
-                          {totalB2BOrdersCount}
-                        </span>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        handleOpenB2BSection('contracts');
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
-                    >
-                      <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>B2B Shartnomalar</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        handleOpenB2BSection('finance');
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-slate-50 transition-colors text-slate-800 text-xs font-extrabold cursor-pointer"
-                    >
-                      <Wallet className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span>Moliya & Keshbek</span>
-                    </button>
-
-                    <div className="h-px bg-slate-100 my-1" />
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        onNavigateSubView('settings');
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[12px] text-left hover:bg-orange-50 text-slate-800 text-xs font-extrabold transition-colors cursor-pointer"
-                    >
-                      <Settings className="w-4 h-4 text-[#D84315] shrink-0" />
-                      <div>
-                        <span className="block font-black text-slate-900">Sozlamalar</span>
-                        <span className="text-[10px] text-slate-400 font-medium block">Xavfsizlik, til va boshqaruv</span>
-                      </div>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
+

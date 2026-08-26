@@ -1,4 +1,4 @@
-import { B2BOrder, B2BOrderStatus, B2BProduct, BusinessType, SupplierType } from '../api/types';
+import { B2BOrderStatus, B2BProduct, BusinessType, SupplierType } from '../api/types';
 
 /**
  * Pul summasini o'zbek so'mida formatlash (masalan: "150 000 so'm")

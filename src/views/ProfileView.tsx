@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LogIn, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { Post } from '../data/mockAgroData';
@@ -32,19 +32,6 @@ export const ProfileView: React.FC = () => {
   } = useAgroStore();
 
   const [activeGridTab, setActiveGridTab] = useState<ProfileTabType>('posts');
-  const [isProfileMenuOpen, setProfileMenuOpen] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
-        setProfileMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Auth Guard: while the real session is still being confirmed, show loading
   if (isAuthLoading) {
@@ -102,17 +89,6 @@ export const ProfileView: React.FC = () => {
     }
   };
 
-  const handleShareProfile = () => {
-    const handle = currentUser.handle || currentUser.name;
-    const url = `${window.location.origin}/#profile/${handle}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
-      showToast("Profil havolasi nusxalandi! 📋");
-    } else {
-      showToast(url);
-    }
-  };
-
   // Render active SubView
   if (activeSubView === 'edit-profile') {
     return (
@@ -145,7 +121,7 @@ export const ProfileView: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-xl mx-auto py-3 px-3.5 space-y-3.5 select-none pb-28">
+    <div className="w-full max-w-xl mx-auto py-3 px-3 sm:px-4 space-y-3.5 select-none pb-28">
       <ProfileHeader
         currentUser={currentUser}
         profileData={{
@@ -165,13 +141,9 @@ export const ProfileView: React.FC = () => {
         savedCount={savedPosts.length}
         viewsCount={ownPosts.reduce((sum, post) => sum + (post.viewsCount || 0), 0)}
         ordersCount={orders.length}
-        isProfileMenuOpen={isProfileMenuOpen}
-        setProfileMenuOpen={setProfileMenuOpen}
-        profileMenuRef={profileMenuRef}
         onNavigateSubView={(subView) => setActiveSubView(subView)}
         onSelectGridTab={(tab) => setActiveGridTab(tab)}
         onOpenCreateModal={() => setCreateModalOpen(true)}
-        onShareProfile={handleShareProfile}
       />
 
       <ProfileListingsGrid
@@ -188,3 +160,4 @@ export const ProfileView: React.FC = () => {
     </div>
   );
 };
+

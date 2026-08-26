@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ShieldOff, Home, Menu } from 'lucide-react';
+import { ShieldOff, Home, Menu, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { adminRepository } from '../api/adminRepository';
 import { AdminSidebar } from '../components/admin/AdminSidebar';
@@ -21,6 +21,7 @@ export const AdminView: React.FC = () => {
   const {
     isAdminUser,
     currentUser,
+    isAuthLoading,
     posts,
     products,
     setActiveTab,
@@ -40,6 +41,16 @@ export const AdminView: React.FC = () => {
     },
     [currentUser],
   );
+
+  // ─── Loading State during Auth initialization (prevents flash of unauthorized guard) ───
+  if (isAuthLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 text-center space-y-3 select-none">
+        <Loader2 className="w-8 h-8 text-[#D84315] animate-spin" />
+        <p className="text-xs text-slate-400 font-semibold">Admin huquqlari tekshirilmoqda...</p>
+      </div>
+    );
+  }
 
   // ─── Security Guard: UI layer ───────────────────────────────────────────
   // Real protection is enforced at DB level via Supabase RLS policies.

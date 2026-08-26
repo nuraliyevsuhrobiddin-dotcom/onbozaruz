@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Search, ShieldCheck, Ban, UserCheck, RefreshCw, AlertCircle,
   ChevronLeft, ChevronRight, Download, UserCog, Store, Building2,
-  Shield, Check, X, Phone, MapPin,
+  Check, X,
 } from 'lucide-react';
 import { adminRepository, AdminUserItem } from '../../api/adminRepository';
 import { exportUsersToCSV } from '../../utils/exportUtils';

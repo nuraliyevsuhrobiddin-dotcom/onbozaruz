@@ -9,8 +9,6 @@ import {
   Building2,
   Phone,
   Info,
-  Check,
-  Copy,
 } from 'lucide-react';
 import { b2bAdminRepository } from '../../api/b2bAdminRepository';
 import { b2bRepository } from '../../api/b2bRepository';
@@ -49,7 +47,6 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
   // Requisites form state
   const [reqForm, setReqForm] = useState<B2BPlatformRequisites>(platformRequisites);
   const [isSavingReq, setIsSavingReq] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Bonus grant modal / state
   const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
@@ -112,14 +109,6 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
     } finally {
       setIsSavingReq(false);
     }
-  };
-
-  const handleCopy = (text: string, field: string) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    showToast(`Nusxa olindi: ${text}`);
-    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleUpdateWithdrawal = async (txId: string, status: 'completed' | 'rejected') => {

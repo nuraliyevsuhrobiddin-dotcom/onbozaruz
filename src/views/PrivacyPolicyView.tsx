@@ -12,7 +12,6 @@ import {
   Globe,
   ExternalLink,
   CheckCircle2,
-  HelpCircle,
   Clock,
   Printer,
 } from 'lucide-react';

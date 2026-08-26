@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Megaphone, Send, Bell, Users, Store, Building2,
-  CheckCircle2, Clock, Sparkles, AlertCircle, History,
+  Megaphone, Send, Bell, Users, Store, Building2, History,
 } from 'lucide-react';
 import { adminRepository } from '../../api/adminRepository';
 
@@ -25,7 +24,6 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [targetRole, setTargetRole] = useState<'all' | 'business' | 'supplier'>('all');
-  const [announcementType, setAnnouncementType] = useState<'news' | 'alert' | 'promo'>('news');
   const [isSending, setIsSending] = useState(false);
   const [history, setHistory] = useState<BroadcastItem[]>([]);
 
@@ -64,7 +62,7 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
 
     setIsSending(true);
     try {
-      const deliveredCount = await adminRepository.sendBroadcastAnnouncement(
+      await adminRepository.sendBroadcastAnnouncement(
         title.trim(),
         message.trim(),
         targetRole

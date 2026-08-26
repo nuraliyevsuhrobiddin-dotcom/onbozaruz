@@ -1,19 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
-  Package,
   Clock,
-  CheckCircle2,
   Truck,
   Building2,
   Store,
-  FileText,
   ChevronRight,
   RefreshCw,
   Loader2,
   ShoppingBag,
-  Phone,
-  CreditCard,
 } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { B2BOrder } from '../../api/types';
@@ -36,7 +31,6 @@ export const ProfileOrdersSubView: React.FC<ProfileOrdersSubViewProps> = ({
     b2bOrders,
     supplierB2BOrders,
     supplierProfile,
-    businessProfile,
     fetchB2BOrders,
     fetchSupplierB2BOrders,
     setB2BRoute,

@@ -4,24 +4,17 @@ import {
   Store,
   Building2,
   Package,
-  Clock,
-  CheckCircle2,
-  Truck,
-  XCircle,
   Phone,
   MapPin,
-  FileText,
   ChevronDown,
   ChevronUp,
-  CreditCard,
   RefreshCw,
   Eye,
-  Percent,
   Calendar,
   X,
 } from 'lucide-react';
 import { b2bAdminRepository } from '../../api/b2bAdminRepository';
-import { B2BOrder, B2BOrderStatus } from '../../api/types';
+import { B2BOrder } from '../../api/types';
 import {
   formatMoney,
   B2B_ORDER_STATUS_LABEL as STATUS_LABEL,

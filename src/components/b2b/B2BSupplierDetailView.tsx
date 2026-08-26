@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, MapPin, Phone, Loader2, Building2, Package } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, MapPin, Phone, Loader2, Package } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { b2bRepository } from '../../api/b2bRepository';
 import { B2BProduct, SupplierProfile } from '../../api/types';
