@@ -1,5 +1,5 @@
 /**
- * OnBozor Auth Client
+ * OnBozar Auth Client
  *
  * Supabase URL va ANON KEY bo'lsa — Supabase Auth ishlatiladi.
  * Bo'lmasa — localStorage asosidagi mock auth ishlatiladi.
@@ -73,15 +73,28 @@ export function translateAuthError(message: string): string {
   ) {
     return "Tasdiqlash havolasi muddati tugagan yoki yaroqsiz. Qayta xat yuborish tugmasini bosing.";
   }
-  if (lower.includes('password should be at least')) {
+  if (lower.includes('password should be at least') || lower.includes('password is too short')) {
     return "Parol kamida 6 ta belgidan iborat bo'lishi kerak.";
   }
   if (lower.includes('signups not allowed') || lower.includes('signup_disabled')) {
     return "Hozircha yangi ro'yxatdan o'tish vaqtincha yopiq. Birozdan so'ng qayta urinib ko'ring.";
   }
+  if (lower.includes('email') && lower.includes('invalid')) {
+    return "Email manzil noto'g'ri formatda kiritilgan.";
+  }
+  if (lower.includes('weak password') || lower.includes('password_too_weak')) {
+    return "Parol juda zaif. Harf, raqam va belgilardan foydalaning.";
+  }
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
+    return "Internet aloqasi yo'q yoki server bilan bog'lanib bo'lmadi.";
+  }
+  if (lower.includes('database error') || lower.includes('db error') || lower.includes('duplicate key')) {
+    return "Server xatoligi. Bu handle yoki email allaqachon band bo'lishi mumkin. Boshqa ma'lumot kiriting.";
+  }
 
   return message;
 }
+
 
 export function subscribeToAuthState(
   callback: (event: AuthChangeEvent, session: Session | null) => void

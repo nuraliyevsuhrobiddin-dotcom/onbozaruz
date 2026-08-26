@@ -70,6 +70,7 @@ export const AdminB2BSuppliersTab: React.FC<AdminB2BSuppliersTabProps> = ({ onLo
   const handleSaveRate = async (id: string) => {
     const rate = Number(rateInput);
     if (!rate || rate < 0 || rate > 100) { showToast("Noto'g'ri stavka"); return; }
+    if (!window.confirm(`Komissiya stavkasini ${rate}% qilib o'zgartirasizmi?`)) return;
     try {
       await b2bAdminRepository.updateSupplierCommissionRate(id, rate);
       await onLogAction('update_commission_rate', id, {}, { rate });

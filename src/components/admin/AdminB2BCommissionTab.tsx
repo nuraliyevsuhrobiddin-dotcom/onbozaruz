@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Sparkles,
   Save,
@@ -16,8 +16,8 @@ import { b2bAdminRepository } from '../../api/b2bAdminRepository';
 import { b2bRepository } from '../../api/b2bRepository';
 import { CommissionLedgerEntry, B2BCashbackTransaction, B2BStorePublicMarker, B2BPlatformRequisites } from '../../api/types';
 import { useAgroStore } from '../../store/useAgroStore';
+import { formatMoney } from '../../utils/b2bUtils';
 
-const formatMoney = (value: number) => `${value.toLocaleString('uz-UZ')} so'm`;
 const STATUS_TONE: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700',
   settled: 'bg-emerald-50 text-emerald-700',
@@ -29,7 +29,11 @@ const STATUS_LABEL: Record<string, string> = {
   voided: 'Bekor qilingan',
 };
 
-export const AdminB2BCommissionTab: React.FC = () => {
+interface AdminB2BCommissionTabProps {
+  onLogAction: (action: string, targetId: string, oldVal: any, newVal: any) => void;
+}
+
+export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ onLogAction }) => {
   const { showToast, setB2BCashbackRate, platformRequisites, setPlatformRequisites, fetchPlatformRequisites } = useAgroStore();
   const [activeTab, setActiveTab] = useState<'commission' | 'cashback' | 'requisites'>('commission');
 
@@ -39,6 +43,7 @@ export const AdminB2BCommissionTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [cashbackRate, setCashbackRate] = useState<number>(1.5);
+  const loadedCashbackRateRef = useRef<number>(1.5);
   const [isSavingCashback, setIsSavingCashback] = useState(false);
 
   // Requisites form state
@@ -50,7 +55,7 @@ export const AdminB2BCommissionTab: React.FC = () => {
   const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [bonusAmount, setBonusAmount] = useState<string>('50000');
-  const [bonusNote, setBonusNote] = useState<string>('Yangi do\'kon uchun OnBozor maxsus rag\'batlantirish bonusi');
+  const [bonusNote, setBonusNote] = useState<string>('Yangi do\'kon uchun OnBozar maxsus rag\'batlantirish bonusi');
   const [isGrantingBonus, setIsGrantingBonus] = useState(false);
 
   const load = useCallback(async () => {
@@ -66,6 +71,7 @@ export const AdminB2BCommissionTab: React.FC = () => {
     setCashbackTxs(txs);
     setStores(st);
     setCashbackRate(rate);
+    loadedCashbackRateRef.current = rate;
     if (st[0]) setSelectedStoreId(st[0].id);
     setLoading(false);
   }, [fetchPlatformRequisites]);
@@ -79,9 +85,12 @@ export const AdminB2BCommissionTab: React.FC = () => {
   }, [load]);
 
   const handleSaveCashbackRate = async () => {
+    if (!window.confirm(`B2B keshbek foizini ${cashbackRate}% qilib o'zgartirasizmi? Bu barcha yangi buyurtmalarga darhol ta'sir qiladi.`)) return;
     setIsSavingCashback(true);
     try {
       await setB2BCashbackRate(cashbackRate);
+      onLogAction('update_b2b_cashback_rate', 'platform', loadedCashbackRateRef.current, cashbackRate);
+      loadedCashbackRateRef.current = cashbackRate;
       showToast(`✅ B2B Keshbek foizi ${cashbackRate}% qilib belgilandi!`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Xatolik yuz berdi");
@@ -92,9 +101,11 @@ export const AdminB2BCommissionTab: React.FC = () => {
 
   const handleSaveRequisites = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!window.confirm("To'lov rekvizitlarini saqlaysizmi? Bu barcha yetkazib beruvchi va do'konlarga darhol ko'rinadi.")) return;
     setIsSavingReq(true);
     try {
       await setPlatformRequisites(reqForm);
+      onLogAction('update_b2b_platform_requisites', 'platform', platformRequisites, reqForm);
       showToast("✅ To'lov rekvizitlari muvaffaqiyatli saqlandi!");
     } catch (err) {
       showToast(err instanceof Error ? err.message : "Xatolik yuz berdi");
@@ -112,8 +123,14 @@ export const AdminB2BCommissionTab: React.FC = () => {
   };
 
   const handleUpdateWithdrawal = async (txId: string, status: 'completed' | 'rejected') => {
+    const confirmMsg = status === 'completed'
+      ? "Keshbek to'lovini tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi."
+      : "Keshbek so'rovini bekor qilasizmi? Mablag' do'konga qaytariladi.";
+    if (!window.confirm(confirmMsg)) return;
     try {
+      const previous = cashbackTxs.find((t) => t.id === txId);
       await b2bRepository.adminUpdateWithdrawalStatus(txId, status);
+      onLogAction('update_b2b_cashback_withdrawal', txId, previous ? { status: previous.status } : null, { status });
       showToast(status === 'completed' ? "✅ Keshbek to'lovi tasdiqlandi" : "Keshbek so'rovi bekor qilindi (mablag' qaytarildi)");
       const updated = await b2bRepository.listCashbackTransactions();
       setCashbackTxs(updated);
@@ -134,10 +151,12 @@ export const AdminB2BCommissionTab: React.FC = () => {
       showToast("Bonus summasini to'g'ri kiriting");
       return;
     }
+    if (!window.confirm(`"${st.storeName}" do'koniga +${formatMoney(amt)} bonus keshbek berasizmi? Bu amalni qaytarib bo'lmaydi.`)) return;
 
     setIsGrantingBonus(true);
     try {
       await b2bRepository.adminGrantBonusCashback(st.id, st.storeName, amt, bonusNote);
+      onLogAction('grant_b2b_bonus_cashback', st.id, null, { storeName: st.storeName, amount: amt, note: bonusNote });
       showToast(`🎉 "${st.storeName}" do'koniga +${formatMoney(amt)} bonus keshbek berildi!`);
       setIsBonusModalOpen(false);
       const updated = await b2bRepository.listCashbackTransactions();

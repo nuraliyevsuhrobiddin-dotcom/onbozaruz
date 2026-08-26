@@ -1,5 +1,5 @@
 /**
- * OnBozor - Email HTML and Text Templates (Resend)
+ * OnBozar - Email HTML and Text Templates (Resend)
  * Domain: onbozar.uz | Sender: noreply@onbozar.uz
  */
 
@@ -15,7 +15,7 @@ function baseEmailLayout({ previewText = '', bodyContent }: BaseEmailProps): str
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <title>OnBozor</title>
+  <title>OnBozar</title>
   <style>
     body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
     table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
@@ -45,16 +45,16 @@ function baseEmailLayout({ previewText = '', bodyContent }: BaseEmailProps): str
       <td align="center">
         <div class="email-container">
           <div class="header">
-            <h1>OnBozor</h1>
+            <h1>OnBozar</h1>
             <p>Qishloq xo‘jaligi va savdo platformasi</p>
           </div>
           <div class="content">
             ${bodyContent}
           </div>
           <div class="footer">
-            <p style="margin:0 0 8px 0;"><strong>OnBozor O‘zbekiston</strong> &bull; <a href="https://onbozar.uz" style="color:#5b35f5;text-decoration:none;">onbozar.uz</a></p>
+            <p style="margin:0 0 8px 0;"><strong>OnBozar O‘zbekiston</strong> &bull; <a href="https://onbozar.uz" style="color:#5b35f5;text-decoration:none;">onbozar.uz</a></p>
             <p style="margin:0 0 8px 0;">Ushbu xat avtomatik tarzda <strong>noreply@onbozar.uz</strong> manzilidan yuborildi. Unga javob yozmang.</p>
-            <p style="margin:0;color:#94a3b8;">&copy; ${new Date().getFullYear()} OnBozor. Barcha huquqlar himoyalangan.</p>
+            <p style="margin:0;color:#94a3b8;">&copy; ${new Date().getFullYear()} OnBozar. Barcha huquqlar himoyalangan.</p>
           </div>
         </div>
       </td>
@@ -89,7 +89,7 @@ export function getVerificationEmailTemplate({ name, verificationUrl, token }: V
       ${greeting}
     </h2>
     <p style="font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 20px 0; text-align: center;">
-      OnBozor platformasida ro‘yxatdan o‘tganingiz uchun rahmat. Akkauntingizni faollashtirish va xavfsizligini ta’minlash uchun emailingizni tasdiqlang.
+      OnBozar platformasida ro‘yxatdan o‘tganingiz uchun rahmat. Akkauntingizni faollashtirish va xavfsizligini ta’minlash uchun emailingizni tasdiqlang.
     </p>
 
     ${token ? `
@@ -113,20 +113,20 @@ export function getVerificationEmailTemplate({ name, verificationUrl, token }: V
 
     <div class="info-card" style="margin-top: 32px;">
       <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;">
-        🔒 <strong>Xavfsizlik eslatmasi:</strong> Agar siz OnBozor'da ro‘yxatdan o‘tmagan bo‘lsangiz, ushbu xatni e’tiborsiz qoldiring. Akkaunt faollashtirilmaydi.
+        🔒 <strong>Xavfsizlik eslatmasi:</strong> Agar siz OnBozar'da ro‘yxatdan o‘tmagan bo‘lsangiz, ushbu xatni e’tiborsiz qoldiring. Akkaunt faollashtirilmaydi.
       </p>
     </div>
   `;
 
   const html = baseEmailLayout({
-    previewText: 'OnBozor hisobingizni faollashtirish uchun emailni tasdiqlang',
+    previewText: 'OnBozar hisobingizni faollashtirish uchun emailni tasdiqlang',
     bodyContent,
   });
 
-  const text = `${greeting}\n\nOnBozor platformasida ro'yxatdan o'tganingiz uchun rahmat.\n\nHisobingizni tasdiqlash uchun havola:\n${link}\n\n${token ? `Tasdiqlash kodi: ${token}\n\n` : ''}Agar siz ushbu hisobni ochmagan bo'lsangiz, ushbu xabarni e'tiborsiz qoldiring.\n\nOnBozor jamoasi\nonbozar.uz`;
+  const text = `${greeting}\n\nOnBozar platformasida ro'yxatdan o'tganingiz uchun rahmat.\n\nHisobingizni tasdiqlash uchun havola:\n${link}\n\n${token ? `Tasdiqlash kodi: ${token}\n\n` : ''}Agar siz ushbu hisobni ochmagan bo'lsangiz, ushbu xabarni e'tiborsiz qoldiring.\n\nOnBozar jamoasi\nonbozar.uz`;
 
   return {
-    subject: 'OnBozor — Email manzilingizni tasdiqlang',
+    subject: 'OnBozar — Email manzilingizni tasdiqlang',
     html,
     text,
   };
@@ -153,7 +153,7 @@ export function getWelcomeEmailTemplate({ name, role = 'seller' }: WelcomeEmailP
       <span class="badge">Xush kelibsiz</span>
     </div>
     <h2 style="font-size: 22px; font-weight: 800; color: #0f172a; margin: 0 0 16px 0; text-align: center;">
-      ${greeting} OnBozor oilasiga xush kelibsiz! 🛍️
+      ${greeting} OnBozar oilasiga xush kelibsiz! 🛍️
     </h2>
     <p style="font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 24px 0;">
       Sizning <strong>${roleText}</strong> sifatidagi profilingiz muvaffaqiyatli faollashtirildi. Endi siz O‘zbekiston bo‘ylab eng yaxshi mahsulotlar savdosida bevosita ishtirok etishingiz mumkin.
@@ -171,20 +171,20 @@ export function getWelcomeEmailTemplate({ name, role = 'seller' }: WelcomeEmailP
 
     <div style="text-align: center; margin: 28px 0 16px 0;">
       <a href="https://onbozar.uz/#home" class="btn" target="_blank" rel="noopener noreferrer">
-        OnBozorga o‘tish
+        OnBozarga o‘tish
       </a>
     </div>
   `;
 
   const html = baseEmailLayout({
-    previewText: `OnBozorga xush kelibsiz! ${roleText} profilingiz muvaffaqiyatli yaratildi.`,
+    previewText: `OnBozarga xush kelibsiz! ${roleText} profilingiz muvaffaqiyatli yaratildi.`,
     bodyContent,
   });
 
-  const text = `${greeting}\n\nOnBozor platformasiga xush kelibsiz! Sizning ${roleText} profilingiz faollashtirildi.\n\nPlatformaga kirish: https://onbozar.uz\n\nOnBozor jamoasi`;
+  const text = `${greeting}\n\nOnBozar platformasiga xush kelibsiz! Sizning ${roleText} profilingiz faollashtirildi.\n\nPlatformaga kirish: https://onbozar.uz\n\nOnBozar jamoasi`;
 
   return {
-    subject: 'OnBozor platformasiga xush kelibsiz! 🌱',
+    subject: 'OnBozar platformasiga xush kelibsiz! 🌱',
     html,
     text,
   };
@@ -213,7 +213,7 @@ export function getPasswordResetEmailTemplate({ name, resetUrl }: PasswordResetE
       ${greeting}
     </h2>
     <p style="font-size: 15px; color: #475569; line-height: 1.6; margin: 0 0 24px 0; text-align: center;">
-      Sizning OnBozor profilingiz uchun parolni qayta tiklash so‘rovi qabul qilindi. Yangi parol o‘rnatish uchun quyidagi tugmani bosing:
+      Sizning OnBozar profilingiz uchun parolni qayta tiklash so‘rovi qabul qilindi. Yangi parol o‘rnatish uchun quyidagi tugmani bosing:
     </p>
 
     <div style="text-align: center; margin: 28px 0;">
@@ -235,14 +235,14 @@ export function getPasswordResetEmailTemplate({ name, resetUrl }: PasswordResetE
   `;
 
   const html = baseEmailLayout({
-    previewText: 'OnBozor hisobingiz parolini tiklash so‘rovi',
+    previewText: 'OnBozar hisobingiz parolini tiklash so‘rovi',
     bodyContent,
   });
 
-  const text = `${greeting}\n\nOnBozor profilingiz uchun parolni qayta tiklash so'rovi qabul qilindi.\n\nParolni tiklash havolasi:\n${resetUrl}\n\nAgar bu so'rovni siz yubormagan bo'lsangiz, xatni e'tiborsiz qoldiring.\n\nOnBozor jamoasi`;
+  const text = `${greeting}\n\nOnBozar profilingiz uchun parolni qayta tiklash so'rovi qabul qilindi.\n\nParolni tiklash havolasi:\n${resetUrl}\n\nAgar bu so'rovni siz yubormagan bo'lsangiz, xatni e'tiborsiz qoldiring.\n\nOnBozar jamoasi`;
 
   return {
-    subject: 'OnBozor — Parolni tiklash so‘rovi',
+    subject: 'OnBozar — Parolni tiklash so‘rovi',
     html,
     text,
   };
@@ -318,10 +318,10 @@ export function getOrderNotificationEmailTemplate({
     bodyContent,
   });
 
-  const text = `${greeting}\n\nBuyurtma #${orderId} holati yangilandi: ${status}\nMahsulot: ${title}\n\nBatafsil: https://onbozar.uz/#profile\n\nOnBozor jamoasi`;
+  const text = `${greeting}\n\nBuyurtma #${orderId} holati yangilandi: ${status}\nMahsulot: ${title}\n\nBatafsil: https://onbozar.uz/#profile\n\nOnBozar jamoasi`;
 
   return {
-    subject: `OnBozor — Buyurtma holati yangilandi (#${orderId})`,
+    subject: `OnBozar — Buyurtma holati yangilandi (#${orderId})`,
     html,
     text,
   };

@@ -41,9 +41,9 @@ export function InstallAppPrompt() {
   return (
     <div className="mobile-install-prompt fixed left-3 right-3 z-[60] sm:left-auto sm:right-4 sm:w-[340px]">
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10">
-        <img src="/logo.png" alt="OnBozor" className="h-10 w-10 shrink-0 rounded-xl" />
+        <img src="/logo.png" alt="OnBozar" className="h-10 w-10 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-black text-slate-900">OnBozor ilovasini o‘rnating</p>
+          <p className="truncate text-xs font-black text-slate-900">OnBozar ilovasini o‘rnating</p>
           <p className="mt-0.5 text-[11px] text-slate-500">Tezroq kirish va qulay foydalanish</p>
         </div>
         <button

@@ -1,5 +1,5 @@
 /**
- * OnBozor Admin Repository
+ * OnBozar Admin Repository
  * Supabase DB va Realtime RLS orqali admin ma'lumotlarini boshqaruvchi repository
  */
 
@@ -49,6 +49,18 @@ export interface AdminStats {
   todayOrders: number;
   totalSales: number;
   activeSellers: number;
+  /** Real orders/sales for each of the last 7 calendar days (oldest first). */
+  weeklyChart: { day: string; orders: number; sales: number }[];
+}
+
+const WEEKDAY_ABBR = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh']; // Date.getDay(): 0=Yakshanba..6=Shanba
+
+function emptyWeeklyChart(): AdminStats['weeklyChart'] {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return { day: WEEKDAY_ABBR[d.getDay()], orders: 0, sales: 0 };
+  });
 }
 
 export interface AdminUserItem {
@@ -101,29 +113,32 @@ export interface AdminAuditLog {
 
 export const adminRepository = {
   async getStats(): Promise<AdminStats> {
-    if (!supabase) {
-      return {
-        totalUsers: 142,
-        totalPosts: 48,
-        activePosts: 42,
-        pendingModeration: 6,
-        totalProducts: 24,
-        totalOrders: 35,
-        todayOrders: 5,
-        totalSales: 48500000,
-        activeSellers: 18,
-      };
-    }
+    const offlineFallback: AdminStats = {
+      totalUsers: 142,
+      totalPosts: 48,
+      activePosts: 42,
+      pendingModeration: 6,
+      totalProducts: 24,
+      totalOrders: 35,
+      todayOrders: 5,
+      totalSales: 48500000,
+      activeSellers: 18,
+      weeklyChart: emptyWeeklyChart(),
+    };
+
+    if (!supabase) return offlineFallback;
 
     try {
-      const [usersRes, postsRes, productsRes, ordersRes] = await Promise.all([
+      const [usersRes, sellersRes, postsRes, productsRes, ordersRes] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'seller'),
         supabase.from('posts').select('id, status', { count: 'exact' }),
-        supabase.from('products').select('id, approval_status, numeric_price', { count: 'exact' }),
+        supabase.from('products').select('id, approval_status', { count: 'exact' }),
         supabase.from('orders').select('id, created_at, total_price', { count: 'exact' }),
       ]);
 
       const totalUsers = usersRes.count || 0;
+      const activeSellers = sellersRes.count || 0;
       const totalPosts = postsRes.count || 0;
       const postsData = postsRes.data || [];
       const activePosts = postsData.filter((p) => (p.status || 'approved') === 'approved').length;
@@ -139,7 +154,19 @@ export const adminRepository = {
       const todayStr = new Date().toISOString().split('T')[0];
       const todayOrders = ordersData.filter((o) => o.created_at && o.created_at.startsWith(todayStr)).length;
 
-      const totalSales = productsData.reduce((acc, curr) => acc + (Number(curr.numeric_price) || 0), 0);
+      const totalSales = ordersData.reduce((acc, o) => acc + (Number(o.total_price) || 0), 0);
+
+      const weeklyChart = WEEKDAY_ABBR.map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        const dayStr = d.toISOString().split('T')[0];
+        const dayOrders = ordersData.filter((o) => o.created_at && o.created_at.startsWith(dayStr));
+        return {
+          day: WEEKDAY_ABBR[d.getDay()],
+          orders: dayOrders.length,
+          sales: dayOrders.reduce((s, o) => s + (Number(o.total_price) || 0), 0),
+        };
+      });
 
       return {
         totalUsers,
@@ -149,21 +176,12 @@ export const adminRepository = {
         totalProducts,
         totalOrders,
         todayOrders,
-        totalSales: totalSales || 48500000,
-        activeSellers: Math.max(12, Math.round(totalUsers * 0.4)),
+        totalSales,
+        activeSellers,
+        weeklyChart,
       };
     } catch {
-      return {
-        totalUsers: 142,
-        totalPosts: 48,
-        activePosts: 42,
-        pendingModeration: 6,
-        totalProducts: 24,
-        totalOrders: 35,
-        todayOrders: 5,
-        totalSales: 48500000,
-        activeSellers: 18,
-      };
+      return offlineFallback;
     }
   },
 
@@ -399,6 +417,7 @@ export const adminRepository = {
         target_type: targetType,
         target_id: targetId,
         old_value: oldValue ? JSON.stringify(oldValue) : null,
+        new_value: newValue ? JSON.stringify(newValue) : null,
       });
     } catch {
       // Ignore logging failure

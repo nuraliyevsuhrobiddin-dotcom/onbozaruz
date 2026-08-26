@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Minus, Plus, Truck, Loader2, ShoppingCart, ArrowRight } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Minus, Plus, Truck, Loader2, ShoppingCart, ArrowRight, Package, Star } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { b2bRepository } from '../../api/b2bRepository';
 import { B2BProduct } from '../../api/types';
-
-const formatMoney = (value: number) => `${value.toLocaleString('uz-UZ')} so'm`;
+import { formatMoney } from '../../utils/b2bUtils';
 
 interface Props {
   productId: string;
@@ -28,13 +27,18 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
   }, [productId]);
 
   if (isLoading) {
-    return <div className="w-full max-w-170 mx-auto py-16 flex justify-center"><Loader2 className="w-6 h-6 text-slate-400 animate-spin" /></div>;
+    return (
+      <div className="w-full max-w-170 mx-auto py-16 flex flex-col items-center gap-3">
+        <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+        <span className="text-xs text-slate-500 font-medium">Yuklanmoqda...</span>
+      </div>
+    );
   }
   if (!product) {
     return (
       <div className="w-full max-w-170 mx-auto py-16 text-center space-y-3">
         <p className="text-sm font-bold text-slate-500">Mahsulot topilmadi</p>
-        <button onClick={() => setB2BRoute({ view: 'products' })} className="text-xs font-bold text-[#DB2777]">Orqaga</button>
+        <button onClick={() => setB2BRoute({ view: 'products' })} className="text-xs font-bold text-blue-400 hover:text-blue-300">Orqaga</button>
       </div>
     );
   }
@@ -47,116 +51,172 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
 
   return (
     <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-4 select-none pb-28">
-      {/* Top Header Bar */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={() => setB2BRoute({ view: 'products' })} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
+        <button
+          onClick={() => setB2BRoute({ view: 'products' })}
+          className="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors border border-slate-200"
+        >
+          <ArrowLeft className="w-4.5 h-4.5" />
         </button>
 
         <button
           onClick={() => setB2BRoute({ view: 'cart' })}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#111827] hover:bg-black text-white text-xs font-bold relative shadow-xs"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold relative shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-colors"
         >
-          <ShoppingCart className="w-4 h-4 text-white" />
+          <ShoppingCart className="w-4 h-4" />
           <span>Savat</span>
           {cartTotalQty > 0 && (
-            <span className="w-4.5 h-4.5 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center">
+            <span className="w-4.5 h-4.5 rounded-full bg-amber-400 text-slate-900 text-[9px] font-black flex items-center justify-center">
               {cartTotalQty}
             </span>
           )}
         </button>
       </div>
 
-      <div className="aspect-square rounded-[22px] bg-slate-100 overflow-hidden">
-        {product.images[activeImage] ? (
-          <img src={product.images[activeImage]} alt={product.name} className="w-full h-full object-cover" />
-        ) : <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs font-bold">Rasm yo'q</div>}
+      {/* Main Image */}
+      <div className="aspect-square rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 relative">
+        {product.images[activeImage]
+          ? <img src={product.images[activeImage]} alt={product.name} className="w-full h-full object-cover" />
+          : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-2">
+              <Package className="w-10 h-10" />
+              <span className="text-xs font-bold">Rasm yo'q</span>
+            </div>
+          )
+        }
+        {product.availableQty === 0 && (
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center">
+            <span className="text-white text-sm font-black bg-red-500/80 px-4 py-2 rounded-full">Zaxira tugagan</span>
+          </div>
+        )}
       </div>
+
+      {/* Thumbnail strip */}
       {product.images.length > 1 && (
         <div className="flex gap-2 overflow-x-auto no-scrollbar">
           {product.images.map((img, i) => (
-            <button key={i} onClick={() => setActiveImage(i)} className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 ${i === activeImage ? 'border-[#DB2777]' : 'border-transparent'}`}>
+            <button
+              key={i}
+              onClick={() => setActiveImage(i)}
+              className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
+                i === activeImage
+                  ? 'border-blue-500 shadow-lg shadow-blue-500/25'
+                  : 'border-slate-200 hover:border-blue-300'
+              }`}
+            >
               <img src={img} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
         </div>
       )}
+
       {product.videoUrl && (
-        <video src={product.videoUrl} controls className="w-full rounded-[18px] bg-black" />
+        <video src={product.videoUrl} controls className="w-full rounded-2xl bg-black border border-slate-200" />
       )}
 
-      <div className="space-y-1.5">
-        {product.brand && <span className="text-[11px] font-bold text-slate-400 uppercase">{product.brand}</span>}
-        <h1 className="font-black text-lg text-[#111827] leading-snug">{product.name}</h1>
+      {/* Title + Supplier */}
+      <div className="space-y-2">
+        {product.brand && (
+          <span className="inline-block text-[10px] font-black text-blue-700 uppercase tracking-widest bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+            {product.brand}
+          </span>
+        )}
+        <h1 className="font-black text-xl text-slate-900 leading-snug">{product.name}</h1>
         <button
           onClick={() => setB2BRoute({ view: 'supplier', id: product.supplierId })}
-          className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-[#DB2777] transition-colors"
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
         >
           {product.supplierVerified && <CheckCircle2 className="w-3.5 h-3.5 text-blue-500" />}
           {product.supplierName}
+          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
         </button>
       </div>
 
-      <div className="bg-white rounded-[20px] border border-slate-200/80 p-4 space-y-2.5 shadow-sm">
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-black text-2xl text-[#DB2777]">{formatMoney(product.wholesalePrice)}</span>
-          <span className="text-xs text-slate-400 font-bold">/ {product.unit}</span>
+      {/* Price + Stats card */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+        <div className="flex items-baseline gap-2">
+          <span className="font-black text-3xl text-blue-600">{formatMoney(product.wholesalePrice)}</span>
+          <span className="text-sm text-slate-500 font-bold">/ {product.unit}</span>
         </div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="bg-slate-50 rounded-xl p-2.5">
-            <span className="block text-slate-400 font-bold text-[10px] uppercase">Minimal buyurtma</span>
-            <span className="font-black text-[#111827]">{product.moq} {product.unit}</span>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+            <span className="block text-[9px] text-slate-500 font-black uppercase tracking-wider mb-1">Minimal buyurtma</span>
+            <span className="font-black text-sm text-amber-600">{product.moq} {product.unit}</span>
           </div>
-          <div className="bg-slate-50 rounded-xl p-2.5">
-            <span className="block text-slate-400 font-bold text-[10px] uppercase">Mavjud</span>
-            <span className="font-black text-[#111827]">{product.availableQty} {product.unit}</span>
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+            <span className="block text-[9px] text-slate-500 font-black uppercase tracking-wider mb-1">Mavjud zaxira</span>
+            <span className={`font-black text-sm ${product.availableQty > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+              {product.availableQty} {product.unit}
+            </span>
           </div>
         </div>
-        {product.packaging && <p className="text-xs text-slate-500"><strong className="text-slate-700">Qadoqlash:</strong> {product.packaging}</p>}
-        {product.deliveryAvailable && (
-          <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-            <Truck className="w-4 h-4" /> Yetkazib berish mavjud{product.deliveryRegions.length > 0 ? `: ${product.deliveryRegions.join(', ')}` : ''}
+
+        {product.packaging && (
+          <p className="text-xs text-slate-500">
+            <span className="font-black text-slate-700">Qadoqlash: </span>{product.packaging}
           </p>
+        )}
+
+        {product.deliveryAvailable && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+            <Truck className="w-4 h-4 text-emerald-700 shrink-0" />
+            <p className="text-xs font-bold text-emerald-700">
+              Yetkazib berish mavjud
+              {product.deliveryRegions.length > 0 ? `: ${product.deliveryRegions.join(', ')}` : ''}
+            </p>
+          </div>
         )}
       </div>
 
+      {/* Description */}
       {product.description && (
-        <div className="space-y-1.5">
-          <h2 className="font-black text-sm text-[#111827]">Tavsif</h2>
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-2">
+          <h2 className="font-black text-sm text-slate-900">Tavsif</h2>
           <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{product.description}</p>
         </div>
       )}
 
-      {/* Fixed bottom action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 p-3 lg:pl-24">
+      {/* Fixed bottom CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 lg:pl-24">
         <div className="max-w-170 mx-auto flex items-center gap-3">
           {product.availableQty === 0 ? (
-            <button disabled className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-400 font-black text-sm">Zaxira tugagan</button>
+            <button disabled className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-400 font-black text-sm border border-slate-200">
+              Zaxira tugagan
+            </button>
           ) : inCart > 0 ? (
             <div className="flex-1 flex items-center gap-2">
-              <div className="flex items-center justify-between bg-slate-100 rounded-2xl p-1.5 min-w-[140px]">
+              <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-2xl p-1.5 min-w-[140px]">
                 <button
                   onClick={() => updateB2BCartQuantity(product.id, inCart - 1)}
-                  className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-700 shadow-sm"
-                ><Minus className="w-4 h-4" /></button>
-                <span className="font-black text-xs text-[#111827] px-2">{inCart} {product.unit}</span>
+                  className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="font-black text-xs text-slate-900 px-2">{inCart} {product.unit}</span>
                 <button
                   onClick={() => updateB2BCartQuantity(product.id, inCart + 1)}
                   disabled={inCart >= product.availableQty}
-                  className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-slate-700 shadow-sm disabled:opacity-40"
-                ><Plus className="w-4 h-4" /></button>
+                  className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 disabled:opacity-30 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
               </div>
 
               <button
                 onClick={() => setB2BRoute({ view: 'cart' })}
-                className="flex-1 py-3.5 px-4 rounded-2xl bg-[#DB2777] hover:bg-[#BE185D] text-white font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-1.5 transition-colors"
+                className="flex-1 py-3.5 px-4 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-xs sm:text-sm shadow-lg shadow-blue-500/25 flex items-center justify-center gap-1.5 transition-colors border border-blue-400/30"
               >
                 <span>Savatga o'tish</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           ) : (
-            <button onClick={handleAddToCart} className="flex-1 py-3.5 rounded-2xl bg-[#DB2777] hover:bg-[#BE185D] text-white font-black text-sm shadow-lg transition-colors">
+            <button
+              onClick={handleAddToCart}
+              className="flex-1 py-3.5 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-colors border border-blue-400/30"
+            >
               Savatga qo'shish ({product.moq} {product.unit} dan)
             </button>
           )}

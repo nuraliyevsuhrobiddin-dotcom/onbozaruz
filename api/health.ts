@@ -1,4 +1,4 @@
-﻿import type { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { isResendConfigured, DEFAULT_FROM_EMAIL } from './lib/resendClient';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
@@ -17,7 +17,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   res.statusCode = 200;
   res.end(JSON.stringify({
     status: 'ok',
-    service: 'OnBozor Resend Email Service',
+    service: 'OnBozar Resend Email Service',
     domain: 'onbozar.uz',
     sender: DEFAULT_FROM_EMAIL,
     resendConfigured: configured,

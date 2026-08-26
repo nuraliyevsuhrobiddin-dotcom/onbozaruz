@@ -23,6 +23,7 @@ import {
   CreateB2BProductInput,
   B2BOrderStatus,
   B2BPaymentMethod,
+  BusinessType,
   B2BStorePublicMarker,
   B2BDirectOffer,
   B2BCashbackTransaction,
@@ -243,7 +244,7 @@ function currentMockUserId(): string {
 }
 
 // ---------- Mappers (snake_case DB row -> camelCase domain type) ----------
-function mapBusinessProfile(r: any): BusinessProfile {
+export function mapBusinessProfile(r: any): BusinessProfile {
   return {
     id: r.id,
     userId: r.user_id ?? r.userId,
@@ -264,7 +265,7 @@ function mapBusinessProfile(r: any): BusinessProfile {
   };
 }
 
-function mapSupplierProfile(r: any): SupplierProfile {
+export function mapSupplierProfile(r: any): SupplierProfile {
   return {
     id: r.id,
     userId: r.user_id ?? r.userId,
@@ -287,7 +288,7 @@ function mapSupplierProfile(r: any): SupplierProfile {
   };
 }
 
-function mapContract(r: any): Contract {
+export function mapContract(r: any): Contract {
   return {
     id: r.id,
     supplierId: r.supplier_id ?? r.supplierId,
@@ -301,7 +302,7 @@ function mapContract(r: any): Contract {
   };
 }
 
-function mapB2BProduct(r: any): B2BProduct {
+export function mapB2BProduct(r: any): B2BProduct {
   return {
     id: r.id,
     supplierId: r.supplier_id ?? r.supplierId,
@@ -327,7 +328,7 @@ function mapB2BProduct(r: any): B2BProduct {
   };
 }
 
-function mapB2BOrder(r: any): B2BOrder {
+export function mapB2BOrder(r: any): B2BOrder {
   return {
     id: r.id,
     orderNumber: r.order_number ?? r.orderNumber,
@@ -358,7 +359,7 @@ function mapB2BOrder(r: any): B2BOrder {
   };
 }
 
-function mapB2BOrderItem(r: any): B2BOrderItem {
+export function mapB2BOrderItem(r: any): B2BOrderItem {
   return {
     id: r.id,
     orderId: r.order_id ?? r.orderId,
@@ -421,6 +422,18 @@ function getStoreCoordinates(region?: string, lat?: number | null, lng?: number 
 }
 
 export async function registerBusinessBuyer(input: CreateBusinessProfileInput): Promise<BusinessProfile> {
+  const requiredFields: Array<[string | undefined, string]> = [
+    [input.storeName, "Do'kon nomi"],
+    [input.phone, 'Telefon raqami'],
+    [input.region, 'Viloyat'],
+    [input.district, 'Tuman/shahar'],
+    [input.address, "To'liq manzil"],
+  ];
+  const missingField = requiredFields.find(([value]) => !value?.trim());
+  if (missingField) {
+    throw new Error(`${missingField[1]} majburiy`);
+  }
+
   const coords = getStoreCoordinates(input.region, input.latitude, input.longitude);
 
   if (!supabase) {
@@ -856,6 +869,18 @@ export async function checkoutB2BCart(
   delivery: B2BDeliveryInfo,
   cashbackUsed: number = 0
 ): Promise<CheckoutResult> {
+  const requiredDeliveryFields: Array<[string, string]> = [
+    [delivery.storeName, "Do'kon nomi"],
+    [delivery.phone, 'Telefon raqami'],
+    [delivery.region, 'Viloyat'],
+    [delivery.district, 'Tuman'],
+    [delivery.address, 'To\'liq manzil'],
+  ];
+  const missingField = requiredDeliveryFields.find(([value]) => !value?.trim());
+  if (missingField) {
+    throw new Error(`${missingField[1]} majburiy`);
+  }
+
   const groups = new Map<string, B2BCartLine[]>();
   for (const line of cartLines) {
     const key = line.product.supplierId;
@@ -1353,16 +1378,16 @@ export async function listStoresForMap(): Promise<B2BStorePublicMarker[]> {
 
   return SEED_STORES.map((s) => ({
     id: s.id,
-    storeName: s.storeName,
-    businessType: s.businessType,
+    storeName: s.store_name,
+    businessType: s.business_type as BusinessType,
     region: s.region,
     district: s.district,
     address: s.address,
     latitude: s.latitude,
     longitude: s.longitude,
-    logoUrl: s.logoUrl,
+    logoUrl: undefined,
     description: s.description,
-    createdAt: s.createdAt,
+    createdAt: s.created_at,
   }));
 }
 
@@ -1521,4 +1546,3 @@ export const b2bRepository = {
   fetchPlatformRequisites,
   setPlatformRequisites,
 };
-

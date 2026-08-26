@@ -36,9 +36,8 @@ type PreloadMode = 'active' | 'next' | 'none';
 
 function getPreloadMode(idx: number, currentIndex: number): PreloadMode {
   if (idx === currentIndex) return 'active';
-  // Only preload the next video (forward direction), not the previous one.
-  // This conserves RAM and avoids downloading content the user scrolled past.
-  if (idx === currentIndex + 1) return 'next';
+  // Preload BOTH directions: next (forward) + prev (backward swipe instant start)
+  if (idx === currentIndex + 1 || idx === currentIndex - 1) return 'next';
   return 'none';
 }
 
@@ -80,6 +79,8 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     followedSellerIds,
     currentUser,
     setSelectedSellerModal,
+    showToast,
+    setAuthPromptOpen,
   } = useAgroStore();
 
   const isLiked = likedPostIds.includes(post.id);
@@ -107,6 +108,8 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     if (isActive) {
       video.muted = globalMuted;
       video.volume = globalMuted ? 0 : 1;
+      // Har safar active bo'lganda boshidan boshlaydi — Instagram xatti-harakati
+      video.currentTime = 0;
 
       const playPromise = video.play();
       if (playPromise !== undefined) {
@@ -239,11 +242,17 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   return (
     <div
       className="relative w-full h-full flex items-center justify-center bg-black overflow-hidden select-none"
-      style={{ height: '100dvh' }}
+      style={{
+        height: '100dvh',
+        // GPU compositing layer — iOS Safari'da jelly scroll yo'q
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+      }}
     >
       {/* Container: full on mobile, centered 9:16 card on desktop */}
       <div
         className="relative bg-slate-950 overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
+        style={{ transform: 'translateZ(0)' }}
       >
         {/* Blurred background backdrop — vibrant and instant */}
         {posterSrc ? (
@@ -532,23 +541,37 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
           {/* Row 4: Contact Action Buttons */}
           <div className="flex items-center gap-2 pt-1">
             <motion.a
-              href={telLink}
+              href={currentUser ? telLink : undefined}
               whileTap={{ scale: 0.95 }}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#D84315] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!currentUser) {
+                  e.preventDefault();
+                  showToast("Bog'lanish uchun avval tizimga kiring");
+                  setAuthPromptOpen(true);
+                }
+              }}
+              className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#D84315] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors cursor-pointer"
             >
               <PhoneCall className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">Bog'lanish</span>
             </motion.a>
             {telegramLink && (
               <motion.a
-                href={telegramLink}
-                target="_blank"
+                href={currentUser ? telegramLink : undefined}
+                target={currentUser ? "_blank" : undefined}
                 rel="noopener noreferrer"
                 whileTap={{ scale: 0.95 }}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!currentUser) {
+                    e.preventDefault();
+                    showToast("Bog'lanish uchun avval tizimga kiring");
+                    setAuthPromptOpen(true);
+                  }
+                }}
                 title="Telegram orqali bog'lanish"
-                className="w-9 h-9 rounded-xl bg-[#0088cc] hover:bg-[#0077bb] text-white flex items-center justify-center shadow-lg shrink-0 transition-colors"
+                className="w-9 h-9 rounded-xl bg-[#0088cc] hover:bg-[#0077bb] text-white flex items-center justify-center shadow-lg shrink-0 transition-colors cursor-pointer"
               >
                 <TelegramSVG />
               </motion.a>
@@ -573,8 +596,13 @@ export const VideoReelsViewer: React.FC = () => {
   } = useAgroStore();
 
   // Feeddagi like/save o'zgarishlari viewer ichidagi post snapshotini ham darhol yangilaydi
-  const liveVideoPosts = videoViewerPosts.map((viewerPost) =>
-    posts.find((post) => post.id === viewerPost.id) || viewerPost
+  // useMemo: faqat posts yoki videoViewerPosts o'zgarganda qayta hisoblanadi
+  const liveVideoPosts = React.useMemo(
+    () => videoViewerPosts.map((viewerPost) =>
+      posts.find((post) => post.id === viewerPost.id) || viewerPost
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [videoViewerPosts, posts]
   );
 
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -708,7 +736,9 @@ export const VideoReelsViewer: React.FC = () => {
       },
       {
         root: container,
-        threshold: [0.5, 0.6, 0.7], // Multiple thresholds for more reliable detection
+        // 0.4 threshold: video o'rtaga kelmay turib ham early trigger
+        // Instagram ham 40-50% ko'ringanda o'tadi, 60% emas
+        threshold: [0.4, 0.5, 0.6],
       }
     );
 
@@ -769,7 +799,8 @@ export const VideoReelsViewer: React.FC = () => {
         currentIndexRef.current = settledIdx;
         setCurrentIndex(settledIdx);
       }
-    }, 120);
+    // 60ms: scroll tugaganidan keyin tezroq commit — 120ms edi, sekin edi
+    }, 60);
   }, [liveVideoPosts.length, revealControls]);
 
   // Keyboard navigation
@@ -792,7 +823,7 @@ export const VideoReelsViewer: React.FC = () => {
   }, [closeVideoViewer, isVideoViewerOpen, scrollToIndex]);
 
   // Mouse wheel navigation (Desktop)
-  const handleWheelNav = (e: React.WheelEvent) => {
+  const handleWheelNav = useCallback((e: React.WheelEvent) => {
     revealControls();
 
     if (isScrolling.current) return;
@@ -804,7 +835,7 @@ export const VideoReelsViewer: React.FC = () => {
     } else if (e.deltaY < -40) {
       scrollToIndex(currentIndexRef.current - 1);
     }
-  };
+  }, [revealControls, scrollToIndex]);
 
   if (!isVideoViewerOpen || liveVideoPosts.length === 0) return null;
 
@@ -814,7 +845,8 @@ export const VideoReelsViewer: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+        // 100ms: tezroq ochilish — Instagram deyarli instant ochiladi
+        transition={{ duration: 0.1 }}
         className="fixed inset-0 z-[100] bg-black"
         onMouseMove={revealControls}
         onTouchStart={revealControls}
@@ -875,6 +907,12 @@ export const VideoReelsViewer: React.FC = () => {
             overscrollBehaviorY: 'contain',
             scrollbarWidth: 'none',
             msOverflowStyle: 'none',
+            // GPU layer — butun scroll container bitta compositor layerida bo'ladi
+            willChange: 'scroll-position',
+            transform: 'translateZ(0)',
+            // Mobil: touch event'larni JS kutmasdan CSS darajasida qayta ishlaydi
+            // Bu scroll boshlanishidagi 300ms lagni yo'q qiladi
+            touchAction: 'pan-y',
           } as React.CSSProperties}
         >
           {liveVideoPosts.map((post, idx) => {
@@ -900,6 +938,10 @@ export const VideoReelsViewer: React.FC = () => {
                   scrollSnapStop: 'always' as const,
                   height: '100dvh',
                   flexShrink: 0,
+                  // contain:layout paint — size yo'q (100dvh bilan muammo yo'q)
+                  // strict ishlatilmaydi: dvh height'ni bloklashi mumkin
+                  contain: 'layout paint',
+                  willChange: isNearby ? 'transform' : 'auto',
                 }}
               >
                 {isNearby ? (
@@ -916,6 +958,9 @@ export const VideoReelsViewer: React.FC = () => {
                       <img
                         src={post.posterUrl}
                         alt={post.title}
+                        // loading=lazy: distant slidlar uchun poster yuklanishini kechiktiradi
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover opacity-60 filter blur-sm"
                       />
                     ) : (

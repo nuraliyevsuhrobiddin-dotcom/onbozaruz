@@ -21,43 +21,12 @@ import { useAgroStore } from '../../store/useAgroStore';
 import { REGIONS } from '../../data/mockAgroData';
 import { categoriesForScope } from '../../utils/categoryScope';
 import { BusinessType, SupplierType } from '../../api/types';
-
-/* ─── Constants ─────────────────────────────────────────── */
-const BUSINESS_TYPES: { id: BusinessType; label: string; icon: string }[] = [
-  { id: 'supermarket', label: 'Supermarket', icon: '🏪' },
-  { id: 'minimarket', label: 'Mini-market', icon: '🛒' },
-  { id: 'grocery', label: "Oziq-ovqat do'koni", icon: '🥦' },
-  { id: 'pharmacy', label: 'Dorixona', icon: '💊' },
-  { id: 'cafe_restaurant', label: 'Kafe/Restoran', icon: '🍽️' },
-  { id: 'clothing', label: 'Kiyim-kechak', icon: '👗' },
-  { id: 'construction', label: 'Qurilish materiallari', icon: '🔨' },
-  { id: 'household', label: 'Maishiy tovarlar', icon: '🏠' },
-  { id: 'other', label: 'Boshqa', icon: '📦' },
-];
-
-const SUPPLIER_TYPES: { id: SupplierType; label: string; icon: string; desc: string }[] = [
-  { id: 'manufacturer', label: 'Ishlab chiqaruvchi', icon: '🏭', desc: 'O\'z mahsulotini ishlab chiqaradi' },
-  { id: 'importer', label: 'Importyor', icon: '🚢', desc: 'Xorijdan mahsulot olib keladi' },
-  { id: 'distributor', label: 'Distributor', icon: '🚚', desc: 'Ulgurji tarqatuvchi' },
-  { id: 'supplier', label: 'Yetkazib beruvchi', icon: '📦', desc: 'Mahsulot yetkazib beruvchi' },
-];
-
-const DISTRICTS: Record<string, string[]> = {
-  'Toshkent sh.': ['Chilonzor', 'Yunusabad', 'Mirzo Ulug\'bek', 'Shayxontohur', 'Uchtepa', 'Olmazor', 'Bektemir', 'Yakkasaroy', 'Sergeli', 'Yashnobod', 'Mirobod', 'Hamza'],
-  'Toshkent v.': ['Chirchiq', 'Angren', 'Ohangaron', 'Bekabad', 'Zangiota', 'Qibray', 'Yuqorichirchiq', 'O\'rta chirchiq'],
-  'Farg\'ona': ['Farg\'ona sh.', 'Marg\'ilon', 'Qo\'qon', 'Quva', 'Rishton', 'Beshariq', 'Bag\'dod', 'Dang\'ara'],
-  'Andijon': ['Andijon sh.', 'Asaka', 'Xo\'jaobod', 'Qo\'rg\'ontepa', 'Shahrixon', 'Paxtaobod', 'Jalolquduq', 'Oltinko\'l'],
-  'Namangan': ['Namangan sh.', 'Chust', 'Pop', 'To\'raqo\'rg\'on', 'Kosonsoy', 'Mingbuloq', 'Uychi'],
-  'Samarqand': ['Samarqand sh.', 'Kattaqo\'rg\'on', 'Urgut', 'Ishtixon', 'Narpay', 'Oqdaryo', 'Tayloq'],
-  'Buxoro': ['Buxoro sh.', 'G\'ijduvon', 'Kogon', 'Romitan', 'Shofirkon', 'Peshku', 'Olot'],
-  'Xorazm': ['Urganch sh.', 'Xiva', 'Gurlan', 'Hazorasp', 'Qo\'shko\'pir', 'Shovot', 'Tuproqqal\'a'],
-  'Surxondaryo': ['Termiz sh.', 'Denov', 'Boysun', 'Shahrisabz', 'Sharg\'un', 'Qumqo\'rg\'on'],
-  'Qashqadaryo': ['Qarshi sh.', 'Shahrisabz', 'G\'uzor', 'Kitob', 'Muborak', 'Koson', 'Chiroqchi'],
-  'Jizzax': ['Jizzax sh.', 'G\'allaorol', 'Zomin', 'Yangiobod', 'Sharof Rashidov', 'Do\'stlik'],
-  'Sirdaryo': ['Guliston sh.', 'Shirin', 'Boyovut', 'Sardoba', 'Hovos', 'Mirzaobod'],
-  'Navoiy': ['Navoiy sh.', 'Zarafshon', 'Karmana', 'Tomdi', 'Nurota', 'Uchquduq'],
-  'Qoraqalpog\'iston R.': ['Nukus sh.', 'Beruniy', 'Xo\'jayli', 'Qo\'ng\'irot', 'Chimboy', 'Turtkul'],
-};
+import {
+  B2B_BUSINESS_TYPES as BUSINESS_TYPES,
+  B2B_SUPPLIER_TYPES as SUPPLIER_TYPES,
+  UZ_DISTRICTS as DISTRICTS,
+  formatPhone,
+} from '../../utils/b2bUtils';
 
 /* ─── Field wrapper ─────────────────────────────────────── */
 const Field: React.FC<{
@@ -70,11 +39,11 @@ const Field: React.FC<{
   <div className="space-y-1.5">
     <div className="flex items-center justify-between">
       <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-        <span className="text-slate-400">{icon}</span>
+        <span className="text-blue-500">{icon}</span>
         {label}
       </label>
       {badge && (
-        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[9px] font-black">
+        <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[9px] font-black">
           {badge}
         </span>
       )}
@@ -85,14 +54,14 @@ const Field: React.FC<{
 );
 
 const inputCls =
-  'w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:border-[#DB2777] focus:bg-white focus:ring-2 focus:ring-[#DB2777]/10 transition-all placeholder:text-slate-400';
+  'w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 transition-all placeholder:text-slate-400';
 const selectCls =
-  'w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:border-[#DB2777] focus:bg-white focus:ring-2 focus:ring-[#DB2777]/10 transition-all appearance-none cursor-pointer';
+  'w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 transition-all appearance-none cursor-pointer';
 
 /* ─── Main component ────────────────────────────────────── */
 export const B2BBusinessRegisterForm: React.FC = () => {
   const {
-    currentUser, businessProfile, supplierProfile,
+    currentUser, businessProfile, supplierProfile, isAuthenticated, setAuthPromptOpen,
     setB2BRoute, registerBusinessBuyer, registerSupplier, showToast,
   } = useAgroStore();
   const { categories: allCategories } = useAgroStore();
@@ -165,21 +134,18 @@ export const B2BBusinessRegisterForm: React.FC = () => {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
 
-        // Update coords immediately
         if (forMode === 'buyer') {
           setBuyerForm((prev) => ({ ...prev, latitude, longitude }));
         }
 
-        // Reverse geocode with Nominatim (free, no API key needed)
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=uz`,
-            { headers: { 'User-Agent': 'OnBozoruz/1.0' } }
+            { headers: { 'User-Agent': 'OnBozar/1.0' } }
           );
           const data = await res.json();
           const addr = data?.address || {};
 
-          // Try to match to known region
           const cityRaw: string = (addr.city || addr.county || addr.state || '').toLowerCase();
           const matchedRegion = REGIONS.filter((r) => r !== 'Barchasi').find((r) => {
             const rLower = r.toLowerCase().replace(' sh.', '').replace(' v.', '').replace(' r.', '');
@@ -221,30 +187,16 @@ export const B2BBusinessRegisterForm: React.FC = () => {
     );
   }, [showToast]);
 
-  /* ── Phone formatter ─────────────────────────────────── */
-  const formatPhone = (raw: string): string => {
-    // Format: +998 (XX) XXX-XX-XX
-    const digits = raw.replace(/\D/g, '');
-    if (!digits) return '';
-    if (!digits.startsWith('998')) {
-      const d = digits.startsWith('0') ? `998${digits.slice(1)}` : `998${digits}`;
-      return formatPhone(d);
-    }
-    const d = digits.slice(0, 12);
-    let out = '+998';
-    if (d.length > 3) out += ` (${d.slice(3, 5)}`;
-    if (d.length >= 5) out += `) ${d.slice(5, 8)}`;
-    if (d.length >= 8) out += `-${d.slice(8, 10)}`;
-    if (d.length >= 10) out += `-${d.slice(10, 12)}`;
-    return out;
-  };
-
   /* ── Submit handlers ─────────────────────────────────── */
   const handleBuyerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!buyerForm.storeName.trim()) { setError("Do'kon nomini kiriting"); return; }
     if (!buyerForm.phone.trim()) { setError('Telefon raqamini kiriting'); return; }
+    if (!buyerForm.region || !buyerForm.district.trim() || !buyerForm.address.trim()) {
+      setError("Viloyat, tuman/shahar va to'liq manzil majburiy");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await registerBusinessBuyer(buyerForm);
@@ -280,23 +232,48 @@ export const B2BBusinessRegisterForm: React.FC = () => {
     }));
   };
 
+  /* ── Guest guard ──────────────────────────────────────── */
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="w-full max-w-lg py-16 px-4 text-center space-y-5 bg-white rounded-3xl border border-slate-200">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center mx-auto text-blue-600">
+            <Building2 className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="font-black text-base text-slate-900">Biznes sifatida ro'yxatdan o'tish uchun tizimga kiring.</p>
+            <p className="text-xs text-slate-500">Xaridor yoki yetkazib beruvchi sifatida qo'shilishdan oldin hisobingizga kiring.</p>
+          </div>
+          <button
+            onClick={() => setAuthPromptOpen(true)}
+            className="px-6 py-3.5 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-all border border-blue-400/30"
+          >
+            Tizimga kirish
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   /* ── Already registered guards ───────────────────────── */
   if (businessProfile) {
     return (
-      <div className="w-full max-w-lg mx-auto py-20 px-4 text-center space-y-5">
-        <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto">
-          <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="w-full max-w-lg py-16 px-4 text-center space-y-5 bg-white rounded-3xl border border-slate-200">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto text-emerald-600">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="font-black text-base text-slate-900">Siz allaqachon biznes xaridor sifatida ro'yxatdan o'tgansiz.</p>
+            <p className="text-xs text-slate-500">Ulgurji sotib olishni boshlashingiz mumkin.</p>
+          </div>
+          <button
+            onClick={() => setB2BRoute({ view: 'home' })}
+            className="px-6 py-3.5 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-all border border-blue-400/30"
+          >
+            B2B bosh sahifaga →
+          </button>
         </div>
-        <div>
-          <p className="font-black text-base text-[#111827]">Siz allaqachon biznes xaridor sifatida ro'yxatdan o'tgansiz.</p>
-          <p className="text-sm text-slate-500 mt-1">Ulgurji sotib olishni boshlashingiz mumkin.</p>
-        </div>
-        <button
-          onClick={() => setB2BRoute({ view: 'home' })}
-          className="px-6 py-3 rounded-2xl bg-[#DB2777] text-white font-black text-sm"
-        >
-          B2B bosh sahifaga →
-        </button>
       </div>
     );
   }
@@ -304,30 +281,36 @@ export const B2BBusinessRegisterForm: React.FC = () => {
     const isPending = supplierProfile.verificationStatus === 'pending';
     const isRejected = supplierProfile.verificationStatus === 'rejected' || supplierProfile.verificationStatus === 'suspended';
     return (
-      <div className="w-full max-w-lg mx-auto py-20 px-4 text-center space-y-5">
-        <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isRejected ? 'bg-rose-50' : isPending ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-          {isPending
-            ? <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-            : <CheckCircle2 className={`w-8 h-8 ${isRejected ? 'text-rose-500' : 'text-emerald-600'}`} />}
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="w-full max-w-lg py-16 px-4 text-center space-y-5 bg-white rounded-3xl border border-slate-200">
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto border ${
+            isRejected ? 'bg-red-50 border-red-200 text-red-600' :
+            isPending ? 'bg-amber-50 border-amber-200 text-amber-600' :
+            'bg-emerald-50 border-emerald-200 text-emerald-600'
+          }`}>
+            {isPending
+              ? <Loader2 className="w-8 h-8 animate-spin" />
+              : <CheckCircle2 className="w-8 h-8" />}
+          </div>
+          <div className="space-y-1.5">
+            <p className="font-black text-base text-slate-900">
+              {isRejected
+                ? (supplierProfile.verificationStatus === 'suspended' ? 'Akkaunt to\'xtatilgan.' : 'Arizangiz rad etildi.')
+                : isPending ? 'Arizangiz tasdiqlanish kutilmoqda.' : 'Siz allaqachon supplier sifatida ro\'yxatdan o\'tgansiz.'}
+            </p>
+            <p className="text-xs text-slate-500">
+              {isRejected
+                ? (supplierProfile.rejectionReason || 'Batafsil ma\'lumot uchun panelga o\'ting.')
+                : isPending ? "Admin tekshirgandan so'ng sizga xabar beriladi." : 'Buyurtmalaringizni panelda boshqarishingiz mumkin.'}
+            </p>
+          </div>
+          <button
+            onClick={() => setB2BRoute({ view: 'dashboard' })}
+            className="px-6 py-3.5 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-all border border-blue-400/30"
+          >
+            Paneliga o'tish →
+          </button>
         </div>
-        <div>
-          <p className="font-black text-base text-[#111827]">
-            {isRejected
-              ? (supplierProfile.verificationStatus === 'suspended' ? 'Akkaunt to\'xtatilgan.' : 'Arizangiz rad etildi.')
-              : isPending ? 'Arizangiz tasdiqlanish kutilmoqda.' : 'Siz allaqachon supplier sifatida ro\'yxatdan o\'tgansiz.'}
-          </p>
-          <p className="text-sm text-slate-500 mt-1">
-            {isRejected
-              ? (supplierProfile.rejectionReason || 'Batafsil ma\'lumot uchun panelga o\'ting.')
-              : isPending ? "Admin tekshirgandan so'ng sizga xabar beriladi." : 'Buyurtmalaringizni panelda boshqarishingiz mumkin.'}
-          </p>
-        </div>
-        <button
-          onClick={() => setB2BRoute({ view: 'dashboard' })}
-          className="px-6 py-3 rounded-2xl bg-[#111827] text-white font-black text-sm"
-        >
-          Paneliga o'tish →
-        </button>
       </div>
     );
   }
@@ -339,18 +322,18 @@ export const B2BBusinessRegisterForm: React.FC = () => {
   return (
     <div className="w-full max-w-lg mx-auto pb-12 select-none">
       {/* ── Header ─────────────────────────────────────── */}
-      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-100 px-4 py-3 flex items-center gap-3">
+      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => setB2BRoute({ view: 'home' })}
-          className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+          className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors border border-slate-200"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="font-black text-base text-[#111827] leading-tight">Biznes sifatida qo'shilish</h1>
+          <h1 className="font-black text-base text-slate-900 leading-tight">Biznes sifatida qo'shilish</h1>
           <div className="mt-1 h-1 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-[#DB2777] to-rose-400 rounded-full transition-all duration-500"
+              className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-500"
               style={{ width: `${Math.max(10, progress)}%` }}
             />
           </div>
@@ -361,25 +344,25 @@ export const B2BBusinessRegisterForm: React.FC = () => {
         {/* ── Mode Selector ──────────────────────────────── */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { key: 'buyer', Icon: Store, title: 'Biznes xaridor', desc: "Do'kon — ulgurji sotib olish", badge: '🛒' },
-            { key: 'supplier', Icon: Factory, title: 'Supplier', desc: 'Ishlab chiqaruvchi / Distributor', badge: '🏭' },
+            { key: 'buyer', Icon: Store, title: 'Biznes xaridor', desc: "Do'kon — ulgurji xarid", badge: '🛒' },
+            { key: 'supplier', Icon: Factory, title: 'Supplier', desc: 'Ishlab chiqaruvchi / Diler', badge: '🏭' },
           ].map(({ key, Icon, title, desc, badge }) => (
             <button
               key={key}
               onClick={() => setMode(key as 'buyer' | 'supplier')}
-              className={`p-4 rounded-[20px] border-2 text-left space-y-2 transition-all ${
+              className={`p-4 rounded-2xl border text-left space-y-2 transition-all ${
                 mode === key
-                  ? 'border-[#DB2777] bg-gradient-to-br from-pink-50 to-rose-50 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  ? 'border-blue-500 bg-blue-50 shadow-sm'
+                  : 'border-slate-200 bg-white hover:border-blue-300'
               }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-xl">{badge}</span>
-                <Icon className={`w-4 h-4 ${mode === key ? 'text-[#DB2777]' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${mode === key ? 'text-blue-600' : 'text-slate-400'}`} />
               </div>
               <div>
-                <span className={`block font-black text-sm ${mode === key ? 'text-[#DB2777]' : 'text-[#111827]'}`}>{title}</span>
-                <span className="block text-[10px] text-slate-500 mt-0.5">{desc}</span>
+                <span className={`block font-black text-sm ${mode === key ? 'text-blue-600' : 'text-slate-800'}`}>{title}</span>
+                <span className="block text-[10px] text-slate-400 mt-0.5">{desc}</span>
               </div>
             </button>
           ))}
@@ -387,10 +370,10 @@ export const B2BBusinessRegisterForm: React.FC = () => {
 
         {/* ── Auto-fill notice ───────────────────────────── */}
         {currentUser && (
-          <div className="flex items-center gap-2.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/60 rounded-2xl px-3.5 py-2.5">
+          <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl px-3.5 py-2.5">
             <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
-            <p className="text-[11px] text-emerald-800 font-bold">
-              Profil ma'lumotlaringiz (ism, telefon, email) avtomatik to'ldirildi. Tekshirib o'zgartiring.
+            <p className="text-[11px] text-emerald-700 font-bold">
+              Profil ma'lumotlaringiz (ism, telefon, email) avtomatik to'ldirildi.
             </p>
           </div>
         )}
@@ -401,9 +384,9 @@ export const B2BBusinessRegisterForm: React.FC = () => {
         {mode === 'buyer' && (
           <form onSubmit={handleBuyerSubmit} className="space-y-4">
             {/* Section: Asosiy ma'lumotlar */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3.5 shadow-xs">
-              <h3 className="font-black text-xs text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <Store className="w-3.5 h-3.5" /> Asosiy ma'lumotlar
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-sm">
+              <h3 className="font-black text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Store className="w-3.5 h-3.5 text-blue-500" /> Asosiy ma'lumotlar
               </h3>
 
               <Field label="Do'kon nomi" icon={<Store className="w-3.5 h-3.5" />} badge="Majburiy">
@@ -435,7 +418,7 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                     inputMode="tel"
                   />
                   {buyerForm.phone && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500 text-sm">✓</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 text-sm">✓</span>
                   )}
                 </div>
               </Field>
@@ -448,10 +431,10 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                       key={t.id}
                       type="button"
                       onClick={() => setBuyerForm({ ...buyerForm, businessType: t.id })}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
                         buyerForm.businessType === t.id
-                          ? 'bg-[#DB2777] text-white shadow-sm'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30'
+                          : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300'
                       }`}
                     >
                       <span>{t.icon}</span> {t.label}
@@ -462,27 +445,27 @@ export const B2BBusinessRegisterForm: React.FC = () => {
             </div>
 
             {/* Section: Manzil */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3.5 shadow-xs">
-              <h3 className="font-black text-xs text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5" /> Manzil va joylashuv
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-sm">
+              <h3 className="font-black text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-500" /> Manzil va joylashuv
               </h3>
 
               {/* GPS Locate Button */}
-              <div className={`rounded-xl border-2 p-3.5 space-y-2.5 transition-colors ${
-                buyerForm.latitude ? 'border-emerald-200 bg-emerald-50/60' : 'border-dashed border-slate-300 bg-slate-50/50'
+              <div className={`rounded-xl border p-3.5 space-y-2.5 transition-colors ${
+                buyerForm.latitude ? 'border-emerald-200 bg-emerald-50' : 'border-dashed border-slate-200 bg-slate-50'
               }`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-700">GPS orqali joylashuvni aniqlash</p>
+                    <p className="text-xs font-black text-slate-800">GPS orqali joylashuvni aniqlash</p>
                     <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                      Xaritada ko'rinishi + viloyat/tuman/manzil avtomatik to'ldiriladi
+                      Xaritada ko'rinishi + manzil avtomatik to'ldiriladi
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleLocate('buyer')}
                     disabled={isLocating}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#DB2777] hover:bg-[#BE185D] text-white text-[11px] font-black transition-colors disabled:opacity-60"
+                    className="shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-[11px] font-black transition-colors disabled:opacity-60 shadow-md shadow-blue-500/20 border border-blue-400/30"
                   >
                     {isLocating ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -493,7 +476,7 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                   </button>
                 </div>
                 {buyerForm.latitude && buyerForm.longitude && (
-                  <div className="flex items-center gap-2 bg-emerald-100 rounded-lg px-2.5 py-1.5">
+                  <div className="flex items-center gap-2 bg-emerald-100 border border-emerald-200 rounded-lg px-2.5 py-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <p className="text-[10px] text-emerald-700 font-bold">
                       ✓ {buyerForm.latitude.toFixed(5)}°, {buyerForm.longitude.toFixed(5)}° — joylashuv saqlandi
@@ -504,12 +487,13 @@ export const B2BBusinessRegisterForm: React.FC = () => {
 
               {/* Region + District */}
               <div className="grid grid-cols-2 gap-2.5">
-                <Field label="Viloyat" icon={<Building2 className="w-3.5 h-3.5" />}>
+                <Field label="Viloyat" icon={<Building2 className="w-3.5 h-3.5" />} badge="Majburiy">
                   <div className="relative">
                     <select
                       value={buyerForm.region}
                       onChange={(e) => setBuyerForm({ ...buyerForm, region: e.target.value, district: '' })}
                       className={selectCls}
+                      required
                     >
                       <option value="">Tanlang...</option>
                       {REGIONS.filter((r) => r !== 'Barchasi').map((r) => (
@@ -520,7 +504,7 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                   </div>
                 </Field>
 
-                <Field label="Tuman/Shahar" icon={<MapPin className="w-3.5 h-3.5" />}>
+                <Field label="Tuman/Shahar" icon={<MapPin className="w-3.5 h-3.5" />} badge="Majburiy">
                   <div className="relative">
                     {buyerForm.region && DISTRICTS[buyerForm.region] ? (
                       <>
@@ -528,6 +512,7 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                           value={buyerForm.district}
                           onChange={(e) => setBuyerForm({ ...buyerForm, district: e.target.value })}
                           className={selectCls}
+                          required
                         >
                           <option value="">Tanlang...</option>
                           {DISTRICTS[buyerForm.region].map((d) => (
@@ -542,26 +527,28 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                         onChange={(e) => setBuyerForm({ ...buyerForm, district: e.target.value })}
                         placeholder="Tuman yoki shahar"
                         className={inputCls}
+                        required
                       />
                     )}
                   </div>
                 </Field>
               </div>
 
-              <Field label="Ko'cha va mo'ljal" icon={<MapPin className="w-3.5 h-3.5" />} hint="GPS orqali aniqlansa avtomatik to'ldiriladi">
+              <Field label="Ko'cha va mo'ljal" icon={<MapPin className="w-3.5 h-3.5" />} badge="Majburiy" hint="GPS orqali aniqlansa avtomatik to'ldiriladi">
                 <input
                   value={buyerForm.address}
                   onChange={(e) => setBuyerForm({ ...buyerForm, address: e.target.value })}
                   placeholder="Masalan: Navoiy ko'chasi 45-uy"
                   className={inputCls}
+                  required
                 />
               </Field>
             </div>
 
             {/* Section: Qo'shimcha */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3.5 shadow-xs">
-              <h3 className="font-black text-xs text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5" /> Qo'shimcha ma'lumot
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-sm">
+              <h3 className="font-black text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-blue-500" /> Qo'shimcha ma'lumot
               </h3>
               <Field label="Tavsif (ixtiyoriy)" icon={<FileText className="w-3.5 h-3.5" />}>
                 <textarea
@@ -575,16 +562,16 @@ export const B2BBusinessRegisterForm: React.FC = () => {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2.5 p-3.5 bg-rose-50 border border-rose-200/60 rounded-2xl">
-                <span className="text-rose-500 text-sm shrink-0">⚠️</span>
-                <p className="text-xs font-bold text-rose-700">{error}</p>
+              <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-2xl">
+                <span className="text-red-500 text-sm shrink-0">⚠️</span>
+                <p className="text-xs font-bold text-red-600">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#DB2777] to-rose-500 hover:from-[#BE185D] hover:to-rose-600 text-white font-black text-sm shadow-lg shadow-pink-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+              className="w-full py-4 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60 border border-blue-400/30"
             >
               {isSubmitting ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Saqlanmoqda...</>
@@ -601,9 +588,9 @@ export const B2BBusinessRegisterForm: React.FC = () => {
         {mode === 'supplier' && (
           <form onSubmit={handleSupplierSubmit} className="space-y-4">
             {/* Section: Kompaniya */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3.5 shadow-xs">
-              <h3 className="font-black text-xs text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <Factory className="w-3.5 h-3.5" /> Kompaniya ma'lumotlari
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-sm">
+              <h3 className="font-black text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Factory className="w-3.5 h-3.5 text-blue-500" /> Kompaniya ma'lumotlari
               </h3>
 
               <Field label="Kompaniya nomi" icon={<Building2 className="w-3.5 h-3.5" />} badge="Majburiy">
@@ -624,14 +611,14 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                       key={t.id}
                       type="button"
                       onClick={() => setSupplierForm({ ...supplierForm, supplierType: t.id })}
-                      className={`p-2.5 rounded-xl text-left transition-all border ${
+                      className={`p-3 rounded-xl text-left transition-all border ${
                         supplierForm.supplierType === t.id
-                          ? 'border-[#DB2777] bg-pink-50'
-                          : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                          ? 'border-blue-500 bg-blue-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-blue-300'
                       }`}
                     >
                       <span className="text-base block">{t.icon}</span>
-                      <span className={`block text-[11px] font-black mt-1 ${supplierForm.supplierType === t.id ? 'text-[#DB2777]' : 'text-slate-700'}`}>
+                      <span className={`block text-[11px] font-black mt-1 ${supplierForm.supplierType === t.id ? 'text-blue-600' : 'text-slate-800'}`}>
                         {t.label}
                       </span>
                       <span className="block text-[9px] text-slate-400 mt-0.5">{t.desc}</span>
@@ -682,9 +669,9 @@ export const B2BBusinessRegisterForm: React.FC = () => {
             </div>
 
             {/* Section: Manzil */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3.5 shadow-xs">
-              <h3 className="font-black text-xs text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5" /> Kompaniya manzili
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3.5 shadow-sm">
+              <h3 className="font-black text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-500" /> Kompaniya manzili
               </h3>
 
               <div className="grid grid-cols-2 gap-2.5">
@@ -743,13 +730,13 @@ export const B2BBusinessRegisterForm: React.FC = () => {
             </div>
 
             {/* Section: Kategoriyalar */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 space-y-3 shadow-xs">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-xs text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5" /> Mahsulot kategoriyalari
+                <h3 className="font-black text-xs text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-blue-500" /> Mahsulot kategoriyalari
                 </h3>
                 {supplierForm.categories.length > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-[#DB2777] text-white text-[10px] font-black">
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[10px] font-black">
                     {supplierForm.categories.length} tanlandi
                   </span>
                 )}
@@ -760,10 +747,10 @@ export const B2BBusinessRegisterForm: React.FC = () => {
                     key={c.id}
                     type="button"
                     onClick={() => toggleSupplierCategory(c.id)}
-                    className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
                       supplierForm.categories.includes(c.id)
-                        ? 'bg-[#111827] text-white shadow-sm'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30'
+                        : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300'
                     }`}
                   >
                     {c.name}
@@ -773,7 +760,7 @@ export const B2BBusinessRegisterForm: React.FC = () => {
             </div>
 
             {/* Section: Tavsif */}
-            <div className="bg-white rounded-[22px] border border-slate-200/80 p-4 shadow-xs">
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
               <Field label="Kompaniya haqida" icon={<FileText className="w-3.5 h-3.5" />} hint="Sotadigan mahsulotlar, hududlar, yetkazib berish shartlari">
                 <textarea
                   value={supplierForm.description}
@@ -786,16 +773,16 @@ export const B2BBusinessRegisterForm: React.FC = () => {
             </div>
 
             {error && (
-              <div className="flex items-start gap-2.5 p-3.5 bg-rose-50 border border-rose-200/60 rounded-2xl">
-                <span className="text-rose-500 text-sm shrink-0">⚠️</span>
-                <p className="text-xs font-bold text-rose-700">{error}</p>
+              <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-2xl">
+                <span className="text-red-500 text-sm shrink-0">⚠️</span>
+                <p className="text-xs font-bold text-red-600">{error}</p>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#111827] to-slate-700 hover:from-slate-800 hover:to-slate-600 text-white font-black text-sm shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+              className="w-full py-4 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-sm shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60 border border-blue-400/30"
             >
               {isSubmitting ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Yuborilmoqda...</>

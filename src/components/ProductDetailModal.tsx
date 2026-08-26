@@ -25,6 +25,7 @@ export const ProductDetailModal: React.FC = () => {
     isAdminUser,
     currentUser,
     setAuthPromptOpen,
+    showToast,
     setSelectedSellerModal,
     productReviews,
     fetchProductReviews,
@@ -366,18 +367,34 @@ export const ProductDetailModal: React.FC = () => {
               </button>
             )}
             <a
-              href={`tel:${phone.replace(/\s+/g, '')}`}
-              className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#BF360C] transition-colors"
+              href={currentUser ? `tel:${phone.replace(/\s+/g, '')}` : undefined}
+              onClick={(e) => {
+                if (!currentUser) {
+                  e.preventDefault();
+                  showToast("Bog'lanish uchun avval tizimga kiring");
+                  setProductDetail(null);
+                  setAuthPromptOpen(true);
+                }
+              }}
+              className="flex-1 py-3 rounded-[16px] bg-[#D84315] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#BF360C] transition-colors cursor-pointer"
             >
               <PhoneCall className="w-4 h-4" />
               <span>Qo'ng'iroq qilish</span>
             </a>
             {telegram && (
               <a
-                href={`https://t.me/${telegram}`}
-                target="_blank"
+                href={currentUser ? `https://t.me/${telegram}` : undefined}
+                target={currentUser ? "_blank" : undefined}
                 rel="noopener noreferrer"
-                className="flex-1 py-3 rounded-[16px] bg-[#0088cc] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#0077bb] transition-colors"
+                onClick={(e) => {
+                  if (!currentUser) {
+                    e.preventDefault();
+                    showToast("Bog'lanish uchun avval tizimga kiring");
+                    setProductDetail(null);
+                    setAuthPromptOpen(true);
+                  }
+                }}
+                className="flex-1 py-3 rounded-[16px] bg-[#0088cc] text-white font-black text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-[#0077bb] transition-colors cursor-pointer"
               >
                 <span>Telegram</span>
               </a>

@@ -38,6 +38,7 @@ import { cacheManager } from '../utils/cacheManager';
 import { adminRepository } from '../api/adminRepository';
 import { b2bRepository, DEFAULT_PLATFORM_REQUISITES, type B2BDeliveryInfo, type CheckoutResult } from '../api/b2bRepository';
 import { type B2BRoute } from '../utils/b2bRoute';
+import { mapCategoryItemsToCategories } from '../utils/categoryScope';
 
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
@@ -352,7 +353,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
         setActiveTab: (tab) =>
           set((state) => {
-            if ((tab === 'market' || tab === 'profile') && !state.isAuthenticated) {
+            if (tab === 'profile' && !state.isAuthenticated) {
               return { isAuthPromptOpen: true };
             }
             return { activeTab: tab, activeSubView: null };
@@ -862,36 +863,7 @@ export const useAgroStore = create<AgroStoreState>()(
           // CATEGORIES list is only used to backfill cover images and as a
           // fallback before any DB row exists for a given id.
           if (dbCategories && dbCategories.length > 0) {
-            const rawCats: import('../api/types').Category[] = dbCategories
-              .filter((c) => c.isActive)
-              .map((c) => ({
-                id: c.id,
-                name: c.name,
-                icon: c.icon || 'tag',
-                image: CATEGORIES.find((cat) => cat.id === c.id || cat.name.toLowerCase() === c.name.toLowerCase())?.image || '',
-                count: '0',
-                scope: c.scope || 'both',
-              }));
-
-            const seenIds = new Set<string>();
-            const seenNames = new Set<string>();
-            const uniqueCats: import('../api/types').Category[] = [];
-
-            if (!rawCats.some((c) => c.id === 'all')) {
-              rawCats.unshift({ id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0', scope: 'both' });
-            }
-
-            for (const cat of rawCats) {
-              const normName = cat.name.trim().toLowerCase();
-              if (seenIds.has(cat.id) || (cat.id !== 'all' && seenNames.has(normName))) {
-                continue;
-              }
-              seenIds.add(cat.id);
-              if (cat.id !== 'all') seenNames.add(normName);
-              uniqueCats.push(cat);
-            }
-
-            set({ categories: uniqueCats });
+            set({ categories: mapCategoryItemsToCategories(dbCategories) });
           }
 
           const state = get();
@@ -1055,7 +1027,14 @@ export const useAgroStore = create<AgroStoreState>()(
             b2bRepository.fetchOwnBusinessProfile(),
             b2bRepository.fetchOwnSupplierProfile(),
           ]);
-          set({ businessProfile, supplierProfile });
+          set({
+            businessProfile,
+            supplierProfile,
+            b2bCashbackBalance: businessProfile?.cashbackBalance ?? 0,
+          });
+          if (businessProfile) {
+            void get().fetchB2BCashbackBalance();
+          }
         } catch {
           // Tarmoq xatosi bo'lsa — lokal holat oldingidek qoladi.
         }

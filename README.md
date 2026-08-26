@@ -1,4 +1,4 @@
-# OnBozor — Marketplace Platform
+# OnBozar — Marketplace Platform
 
 > O'zbekistondagi birinchi Instagram/TikTok UX formatidagi Marketplace platformasi. Sotuvchilar va xaridorlarni yagona raqamli bozorda bog'laydi.
 
@@ -178,7 +178,7 @@ VITE_USE_MOCK_API=false
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_PUBLIC_ANON_KEY
 RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=OnBozor <noreply@onbozar.uz>
+RESEND_FROM_EMAIL=OnBozar <noreply@onbozar.uz>
 ```
 
 > Boshqa statik-hosting platformalarida (Netlify va h.k.) frontend ishlaydi, lekin `api/` papkasidagi email endpointlari Vercel Serverless Functions formatida yozilgan va ularni ishlatish uchun moslashtirish talab qilinadi.
@@ -187,4 +187,4 @@ RESEND_FROM_EMAIL=OnBozor <noreply@onbozar.uz>
 
 ## Mualliflar
 
-**OnBozor Development Team** — 2026
+**OnBozar Development Team** — 2026

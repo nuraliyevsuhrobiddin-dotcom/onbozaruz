@@ -69,8 +69,10 @@ export const AdminView: React.FC = () => {
     );
   }
 
-  const pendingCount = posts.filter((p) => (p as any).status === 'pending').length
-    + products.filter((p) => p.approvalStatus === 'pending').length;
+  // Legacy Market/product moderation UI was removed (see supabase_schema.sql
+  // "Eski Market ... UI olib tashlanadi") — only e'lon (post) approvals are
+  // actionable from this panel now, so the badge only reflects those.
+  const pendingCount = posts.filter((p) => (p as any).status === 'pending').length;
 
   // ─── Tab Renderer ──────────────────────────────────────────────────────
   const renderTab = () => {
@@ -102,7 +104,7 @@ export const AdminView: React.FC = () => {
       case 'b2b_orders':
         return <AdminB2BOrdersTab showToast={showToast} />;
       case 'b2b_commission':
-        return <AdminB2BCommissionTab />;
+        return <AdminB2BCommissionTab onLogAction={logAction} />;
       case 'categories':
         return (
           <AdminCategoriesTab

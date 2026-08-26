@@ -1,9 +1,9 @@
-﻿import { Resend } from 'resend';
+import { Resend } from 'resend';
 
 const apiKey = process.env.RESEND_API_KEY;
 
 export const DEFAULT_FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL || 'OnBozor <noreply@onbozar.uz>';
+  process.env.RESEND_FROM_EMAIL || 'OnBozar <noreply@onbozar.uz>';
 
 export const APP_URL =
   process.env.VITE_APP_URL ||

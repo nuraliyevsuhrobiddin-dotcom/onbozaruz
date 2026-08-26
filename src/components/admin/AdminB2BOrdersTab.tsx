@@ -2,17 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import { b2bAdminRepository } from '../../api/b2bAdminRepository';
 import { B2BOrder } from '../../api/types';
-
-const formatMoney = (value: number) => `${value.toLocaleString('uz-UZ')} so'm`;
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Kutilmoqda', supplier_confirmed: 'Tasdiqlandi', preparing: 'Tayyorlanmoqda',
-  ready: 'Tayyor', delivering: "Yo'lda", delivered: 'Yetkazildi', cancelled: 'Bekor qilindi', rejected: 'Rad etildi',
-};
-const STATUS_TONE: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700', supplier_confirmed: 'bg-blue-50 text-blue-700', preparing: 'bg-blue-50 text-blue-700',
-  ready: 'bg-blue-50 text-blue-700', delivering: 'bg-blue-50 text-blue-700', delivered: 'bg-emerald-50 text-emerald-700',
-  cancelled: 'bg-slate-100 text-slate-500', rejected: 'bg-rose-50 text-rose-700',
-};
+import { formatMoney, B2B_ORDER_STATUS_LABEL as STATUS_LABEL, B2B_ORDER_STATUS_TONE as STATUS_TONE } from '../../utils/b2bUtils';
 
 /** Buyurtma holatini bu yerdan o'zgartirib bo'lmaydi — bu supplierning o'z
  *  panelida boshqariladi (B2BSupplierDashboardView). Bu yer faqat kuzatuv. */

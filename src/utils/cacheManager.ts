@@ -1,5 +1,5 @@
 /**
- * OnBozor Cache Manager (Offline-First Architecture)
+ * OnBozar Cache Manager (Offline-First Architecture)
  *
  * Persists posts and products metadata in localStorage.
  * Prevents base64 bloat by cleaning inline media before caching.

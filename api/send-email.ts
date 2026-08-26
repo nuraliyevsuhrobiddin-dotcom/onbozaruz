@@ -1,4 +1,4 @@
-﻿import type { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { getResendClient, DEFAULT_FROM_EMAIL } from './lib/resendClient';
 import {
   getVerificationEmailTemplate,
@@ -93,7 +93,7 @@ export default async function handler(req: IncomingMessage & { body?: any; query
     }
 
     const cleanEmail = to.trim().toLowerCase();
-    let subject = customSubject || 'OnBozor Bildirishnomasi';
+    let subject = customSubject || 'OnBozar Bildirishnomasi';
     let html = customHtml || '';
     let text = customText || '';
 

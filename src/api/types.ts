@@ -1,5 +1,5 @@
 /**
- * OnBozor domain types.
+ * OnBozar domain types.
  *
  * Single source of truth for all API-level types.
  * UI components should import domain types from here.

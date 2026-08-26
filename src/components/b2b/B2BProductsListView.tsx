@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Search, X, SlidersHorizontal, ShoppingCart, Package } from 'lucide-react';
+import { ArrowLeft, Search, X, SlidersHorizontal, ShoppingCart, Package, ChevronDown } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { categoriesForScope } from '../../utils/categoryScope';
 import { REGIONS } from '../../data/mockAgroData';
@@ -48,26 +48,30 @@ export const B2BProductsListView: React.FC = () => {
   }, [filters]);
 
   const cartCount = Object.values(b2bCart).reduce((s, i) => s + i.quantity, 0);
+  const hasActiveFilters = category !== 'all' || region !== 'all' || verifiedOnly || deliveryOnly;
 
   return (
     <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3 select-none pb-24">
+      {/* Header */}
       <div className="flex items-center gap-2.5">
-        <button onClick={() => setB2BRoute({ view: 'home' })} className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors">
-          <ArrowLeft className="w-5 h-5" />
+        <button
+          onClick={() => setB2BRoute({ view: 'home' })}
+          className="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors border border-slate-200"
+        >
+          <ArrowLeft className="w-4.5 h-4.5" />
         </button>
-        <h1 className="font-black text-base sm:text-lg text-[#111827] truncate">Ulgurji mahsulotlar</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="font-black text-base text-slate-900 truncate">Ulgurji mahsulotlar</h1>
+          <p className="text-[10px] text-slate-500 font-medium">
+            <span className="text-blue-600 font-bold">{products.length}</span> ta mahsulot
+          </p>
+        </div>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={() => {
-              if (!isAuthenticated) {
-                setAuthPromptOpen(true);
-              } else {
-                setB2BRoute({ view: 'orders' });
-              }
-            }}
+            onClick={() => { if (!isAuthenticated) { setAuthPromptOpen(true); } else { setB2BRoute({ view: 'orders' }); } }}
             title="Buyurtmalarim"
-            className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+            className="p-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors border border-slate-200"
           >
             <Package className="w-4 h-4" />
           </button>
@@ -75,11 +79,11 @@ export const B2BProductsListView: React.FC = () => {
           <button
             onClick={() => setB2BRoute({ view: 'cart' })}
             title="Savat"
-            className="relative p-2 rounded-full bg-[#111827] text-white hover:bg-black transition-colors"
+            className="relative p-2 rounded-xl bg-blue-500 hover:bg-blue-600 text-white transition-colors shadow-lg shadow-blue-500/25 border border-blue-400/30"
           >
             <ShoppingCart className="w-4 h-4" />
             {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-[#DB2777] text-white text-[9px] font-black flex items-center justify-center animate-pulse">
+              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 rounded-full bg-amber-400 text-slate-900 text-[9px] font-black flex items-center justify-center">
                 {cartCount}
               </span>
             )}
@@ -87,64 +91,110 @@ export const B2BProductsListView: React.FC = () => {
         </div>
       </div>
 
+      {/* Search + Filter */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Mahsulot yoki brend qidirish"
-            className="w-full bg-slate-100 rounded-2xl pl-10 pr-9 py-3 text-[13px] font-medium outline-none focus:ring-2 focus:ring-[#DB2777]/30"
+            placeholder="Mahsulot yoki brend qidirish..."
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-9 py-3 text-[13px] font-medium text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
           />
           {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
         <button
           onClick={() => setShowFilters((v) => !v)}
-          className={`p-3 rounded-2xl border shrink-0 ${showFilters ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-slate-700 border-slate-200'}`}
+          className={`p-3 rounded-xl border shrink-0 transition-all ${
+            showFilters || hasActiveFilters
+              ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/25'
+              : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-slate-700'
+          }`}
         >
           <SlidersHorizontal className="w-[18px] h-[18px]" />
         </button>
       </div>
 
+      {/* Filter Panel */}
       {showFilters && (
-        <div className="bg-white rounded-[20px] border border-slate-200/80 p-4 space-y-3 shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
           <div>
-            <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5">Hudud</label>
-            <select value={region} onChange={(e) => setRegion(e.target.value)} className="w-full bg-slate-100 rounded-xl px-3 py-2 text-xs font-semibold">
-              <option value="all">Barchasi</option>
-              {REGIONS.filter((r) => r !== 'Barchasi').map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
+            <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-2">Hudud</label>
+            <div className="relative">
+              <select
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-800 outline-none appearance-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value="all">Barchasi</option>
+                {REGIONS.filter((r) => r !== 'Barchasi').map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
           </div>
           <div className="flex items-center gap-4">
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-              <input type="checkbox" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} /> Faqat tasdiqlangan
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+              <div
+                onClick={() => setVerifiedOnly((v) => !v)}
+                className={`w-4.5 h-4.5 rounded-md border flex items-center justify-center transition-all cursor-pointer ${verifiedOnly ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}
+              >
+                {verifiedOnly && <span className="text-white text-[9px] font-black">✓</span>}
+              </div>
+              Faqat tasdiqlangan
             </label>
-            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-              <input type="checkbox" checked={deliveryOnly} onChange={(e) => setDeliveryOnly(e.target.checked)} /> Yetkazib berish bor
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+              <div
+                onClick={() => setDeliveryOnly((v) => !v)}
+                className={`w-4.5 h-4.5 rounded-md border flex items-center justify-center transition-all cursor-pointer ${deliveryOnly ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300'}`}
+              >
+                {deliveryOnly && <span className="text-white text-[9px] font-black">✓</span>}
+              </div>
+              Yetkazib berish bor
             </label>
           </div>
         </div>
       )}
 
+      {/* Category chips */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-        <button onClick={() => setCategory('all')} className={`px-3.5 py-1.5 rounded-full text-[12px] font-bold shrink-0 border ${category === 'all' ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-slate-700 border-slate-200'}`}>Barchasi</button>
+        <button
+          onClick={() => setCategory('all')}
+          className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold shrink-0 border transition-all ${
+            category === 'all'
+              ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/25'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-slate-800'
+          }`}
+        >
+          Barchasi
+        </button>
         {categories.map((c) => (
-          <button key={c.id} onClick={() => setCategory(c.id)} className={`px-3.5 py-1.5 rounded-full text-[12px] font-bold shrink-0 border ${category === c.id ? 'bg-[#111827] text-white border-[#111827]' : 'bg-white text-slate-700 border-slate-200'}`}>{c.name}</button>
+          <button
+            key={c.id}
+            onClick={() => setCategory(c.id)}
+            className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold shrink-0 border transition-all ${
+              category === c.id
+                ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/25'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-slate-800'
+            }`}
+          >
+            {c.name}
+          </button>
         ))}
       </div>
 
-      <p className="text-[12px] text-slate-500 font-medium px-1"><span className="font-extrabold text-[#111827]">{products.length}</span> ta mahsulot</p>
-
+      {/* Products grid */}
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="aspect-[3/4.2] rounded-[20px] bg-slate-100 animate-pulse" />)}
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="aspect-[3/4.2] rounded-2xl bg-white animate-pulse border border-slate-200" />
+          ))}
         </div>
       ) : products.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-[22px] border border-slate-200/80">
+        <div className="text-center py-16 bg-white rounded-2xl border border-slate-200">
           <p className="text-xs font-bold text-slate-500">Hozircha mahsulotlar mavjud emas.</p>
         </div>
       ) : (

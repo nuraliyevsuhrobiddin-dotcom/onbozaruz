@@ -8,16 +8,6 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid,
 } from 'recharts';
 
-const MOCK_CHART = [
-  { day: 'Du', orders: 8, sales: 3200000 },
-  { day: 'Se', orders: 12, sales: 5800000 },
-  { day: 'Ch', orders: 7, sales: 2900000 },
-  { day: 'Pa', orders: 15, sales: 7400000 },
-  { day: 'Ju', orders: 20, sales: 9800000 },
-  { day: 'Sh', orders: 18, sales: 8500000 },
-  { day: 'Ya', orders: 5, sales: 1900000 },
-];
-
 const fmt = (n: number) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
@@ -51,12 +41,12 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
 
   const cards = stats
     ? [
-        { label: 'Foydalanuvchilar', value: fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: '+12%' },
+        { label: 'Foydalanuvchilar', value: fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600' },
         { label: "Jami e'lonlar", value: fmt(stats.totalPosts), icon: Megaphone, color: 'bg-emerald-50 text-emerald-600', trend: `${stats.activePosts} faol` },
         { label: 'Moderatsiya', value: fmt(stats.pendingModeration), icon: Clock, color: 'bg-amber-50 text-amber-600', trend: 'kutilmoqda' },
         { label: 'Market mahsulotlar', value: fmt(stats.totalProducts), icon: ShoppingBag, color: 'bg-violet-50 text-violet-600', trend: 'tasdiqlangan' },
         { label: 'Jami buyurtmalar', value: fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
-        { label: 'Umumiy savdo', value: fmtSum(stats.totalSales), icon: TrendingUp, color: 'bg-green-50 text-green-600', trend: '+8.4%' },
+        { label: 'Umumiy savdo', value: fmtSum(stats.totalSales), icon: TrendingUp, color: 'bg-green-50 text-green-600' },
       ]
     : [];
 
@@ -94,10 +84,12 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
                   </span>
                 </div>
                 <p className="font-black text-lg text-[#111827] leading-tight">{c.value}</p>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-                  <ArrowUpRight className="w-3 h-3" />
-                  {c.trend}
-                </span>
+                {c.trend && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                    <ArrowUpRight className="w-3 h-3" />
+                    {c.trend}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -115,7 +107,7 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
         </div>
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={MOCK_CHART} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+            <AreaChart data={stats?.weeklyChart || []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="gOrders" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#D84315" stopOpacity={0.25} />

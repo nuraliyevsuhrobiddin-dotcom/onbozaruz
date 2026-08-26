@@ -17,46 +17,61 @@ import { B2BStoresMapView } from '../components/b2b/B2BStoresMapView';
 import { B2BOffersView } from '../components/b2b/B2BOffersView';
 
 /**
- * B2B (ulgurji savdo) bo'limining ichki router qatlami. Ilova React
- * Router ishlatmagani uchun bu yerda AdminView'ning renderTab() naqshi
- * takrorlanadi, faqat mahalliy holat o'rniga global `b2bRoute`dan
- * (useAgroStore) foydalaniladi — shu orqali #market/product/abc123 kabi
- * ichki sahifalar orqaga tugmasi bilan ham to'g'ri ishlaydi.
+ * B2B (ulgurji savdo) bo'limining ichki router qatlami.
+ * Pro Dark temada ishlaydi: Deep Navy fon (#0A0F1E) va ultra-zamonaviy B2B boshqaruvi.
  */
 export const B2BView: React.FC = () => {
   const { b2bRoute } = useAgroStore();
 
-  switch (b2bRoute.view) {
-    case 'product':
-      return <B2BProductDetailView productId={b2bRoute.id} />;
-    case 'supplier':
-      return <B2BSupplierDetailView supplierId={b2bRoute.id} />;
-    case 'order':
-      return <B2BOrderDetailView orderId={b2bRoute.id} />;
-    case 'products':
-      return <B2BProductsListView />;
-    case 'suppliers':
-      return <B2BSuppliersListView />;
-    case 'cart':
-      return <B2BCartView />;
-    case 'checkout':
-      return <B2BCheckoutView />;
-    case 'orders':
-      return <B2BOrdersListView />;
-    case 'dashboard':
-      return <B2BSupplierDashboardView />;
-    case 'business':
-      return <B2BBusinessRegisterForm />;
-    case 'contracts':
-      return <B2BContractView />;
-    case 'finance':
-      return <B2BFinanceView />;
-    case 'map':
-      return <B2BStoresMapView />;
-    case 'offers':
-      return <B2BOffersView />;
-    case 'home':
-    default:
-      return <B2BHomeView />;
-  }
+  const renderContent = () => {
+    switch (b2bRoute.view) {
+      case 'product':
+        return <B2BProductDetailView productId={b2bRoute.id} />;
+      case 'supplier':
+        return <B2BSupplierDetailView supplierId={b2bRoute.id} />;
+      case 'order':
+        return <B2BOrderDetailView orderId={b2bRoute.id} />;
+      case 'products':
+        return <B2BProductsListView />;
+      case 'suppliers':
+        return <B2BSuppliersListView />;
+      case 'cart':
+        return <B2BCartView />;
+      case 'checkout':
+        return <B2BCheckoutView />;
+      case 'orders':
+        return <B2BOrdersListView />;
+      case 'dashboard':
+        return <B2BSupplierDashboardView />;
+      case 'business':
+        return <B2BBusinessRegisterForm />;
+      case 'contracts':
+        return <B2BContractView />;
+      case 'finance':
+        return <B2BFinanceView />;
+      case 'map':
+        return <B2BStoresMapView />;
+      case 'offers':
+        return <B2BOffersView />;
+      case 'home':
+      default:
+        return <B2BHomeView />;
+    }
+  };
+
+  const isMap = b2bRoute.view === 'map';
+
+  return (
+    <div
+      className={`relative w-full min-h-[calc(100vh-5rem)] text-slate-900 antialiased ${isMap ? 'p-0' : 'p-0 sm:px-2'}`}
+      style={{
+        background:
+          'radial-gradient(ellipse 900px 500px at 50% -10%, rgba(219,39,119,0.05), transparent 60%),' +
+          'radial-gradient(ellipse 700px 500px at 100% 30%, rgba(59,130,246,0.04), transparent 55%),' +
+          '#F8FAFC',
+      }}
+    >
+      {renderContent()}
+    </div>
+  );
 };

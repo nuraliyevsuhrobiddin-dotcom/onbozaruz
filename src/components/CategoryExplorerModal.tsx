@@ -24,7 +24,7 @@ interface Props {
 }
 
 export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) => {
-  const { posts, setProductDetail, categories } = useAgroStore();
+  const { posts, setProductDetail, categories, currentUser, showToast, setAuthPromptOpen } = useAgroStore();
   const [selectedSort, setSelectedSort] = useState<'newest' | 'price_low' | 'price_high'>('newest');
 
   if (!categoryId) return null;
@@ -118,7 +118,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
           <div className="p-4 overflow-y-auto space-y-3 flex-1">
             {categoryPosts.length === 0 ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
-                <img src="/logo.png" alt="OnBozor" className="w-12 h-12 rounded-[14px] mx-auto opacity-70" />
+                <img src="/logo.png" alt="OnBozar" className="w-12 h-12 rounded-[14px] mx-auto opacity-70" />
                 <p className="text-sm font-bold text-[#111111]">Ushbu kategoriyada e'lon topilmadi</p>
               </div>
             ) : (
@@ -158,8 +158,16 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
                       </div>
 
                       <a
-                        href={`tel:${post.phone.replace(/\s+/g, '').replace(/[()]/g, '')}`}
-                        className="px-3 py-1.5 rounded-xl bg-[#D84315] text-white text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-[#d32f2f]"
+                        href={currentUser ? `tel:${post.phone.replace(/\s+/g, '').replace(/[()]/g, '')}` : undefined}
+                        onClick={(e) => {
+                          if (!currentUser) {
+                            e.preventDefault();
+                            showToast("Bog'lanish uchun avval tizimga kiring");
+                            onClose();
+                            setAuthPromptOpen(true);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-[#D84315] text-white text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-[#d32f2f] cursor-pointer"
                       >
                         <PhoneCall className="w-3.5 h-3.5" />
                         <span>Bog'lanish</span>

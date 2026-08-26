@@ -1,5 +1,5 @@
-﻿/**
- * OnBozor - Frontend Email Service Client
+/**
+ * OnBozar - Frontend Email Service Client
  * Xavfsiz server-side Resend API'ga murojaat qiladi.
  * Hech qanday Resend secret key frontendda saqlanmaydi.
  */

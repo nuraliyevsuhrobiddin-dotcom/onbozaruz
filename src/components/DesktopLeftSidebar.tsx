@@ -25,7 +25,7 @@ export const DesktopLeftSidebar: React.FC = () => {
     <aside className="hidden lg:flex flex-col fixed top-0 left-0 h-screen w-[80px] bg-white border-r border-slate-200/80 z-30 py-6 select-none">
       <div className="flex flex-col items-center gap-4">
         <div onClick={() => handleNavClick('home')} className="cursor-pointer p-1">
-          <img src="/logo.png" alt="OnBozor" className="w-10 h-10 rounded-[12px] object-cover shadow-md hover:scale-105 transition-transform" />
+          <img src="/logo.png" alt="OnBozar" className="w-10 h-10 rounded-[12px] object-cover shadow-md hover:scale-105 transition-transform" />
         </div>
 
         <nav className="flex flex-col items-center justify-start gap-3 mt-4">

@@ -123,16 +123,30 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
           } satisfies SignUpFields)
         : await authClient.signIn(normalizedIdentifier, password);
 
-      if (result.ok && result.user) onSuccess(result.user);
-      else if (result.requiresConfirmation) {
+      if (result.ok && result.user) {
+        // Muvaffaqiyatli kirdi yoki ro'yxatdan o'tdi va sessiya ochildi
+        onSuccess(result.user);
+      } else if (result.requiresConfirmation) {
+        // Supabase email tasdiqlash talab qilmoqda
         setMode('confirmation_pending');
-        setSuccess(result.successMessage || 'Tasdiqlash havolasi yuborildi.');
-      } else setError(result.error || 'Xatolik yuz berdi. Qayta urinib ko\'ring.');
+        setSuccess(result.successMessage || "Emailingizga tasdiqlash havolasi yuborildi. Iltimos tekshiring.");
+      } else {
+        const errMsg = result.error || "Xatolik yuz berdi. Qayta urinib ko'ring.";
+        // Agar "email tasdiqlanmagan" xatosi bo'lsa — confirmation_pending ga o'tkazamiz
+        if (errMsg.toLowerCase().includes('tasdiqlanmagan') || errMsg.toLowerCase().includes('not confirmed')) {
+          setMode('confirmation_pending');
+          setSuccess("Emailingizga avval yuborilgan tasdiqlash havolasini bosing yoki qayta yuborish tugmasini bosing.");
+        } else {
+          setError(errMsg);
+        }
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Tarmoq xatosi yuz berdi.');
+      const msg = err instanceof Error ? err.message : 'Tarmoq xatosi yuz berdi.';
+      setError(msg.includes('Failed to fetch') || msg.includes('NetworkError')
+        ? "Internet aloqasi yo'q. Iltimos ulanishingizni tekshiring."
+        : msg);
     } finally { setLoading(false); }
   };
-
 
   const resend = async () => {
     if (!identifier || contactMode !== 'email') return;
@@ -151,9 +165,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
       <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[450px] flex-col justify-center">
         <div className="mb-7 flex items-center justify-between px-1">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="OboX" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
+            <img src="/logo.png" alt="OnBozar" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
             <div>
-              <div className="text-xl font-black tracking-[-.04em] text-[#26231f]">OboX</div>
+              <div className="text-xl font-black tracking-[-.04em] text-[#26231f]">OnBozar</div>
               <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.18em] text-[#887c70]">B2B ulgurji bozor</div>
             </div>
           </div>
@@ -173,7 +187,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
           ) : <>
             <div className="mb-6">
               <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#5b35f5]">Xush kelibsiz</p>
-              <h1 className="text-[29px] font-black tracking-[-.045em] text-[#26231f]">{mode === 'login' ? 'OboXga kiring' : 'Akkaunt yarating'}</h1>
+              <h1 className="text-[29px] font-black tracking-[-.045em] text-[#26231f]">{mode === 'login' ? 'OnBozarga kiring' : 'Akkaunt yarating'}</h1>
               <p className="mt-2 max-w-sm text-sm leading-6 text-[#766b61]">{mode === 'login' ? "Ulgurji bozorga kirish uchun ma'lumotlaringizni kiriting." : "Ma'lumotlaringizni kiriting."}</p>
             </div>
 
@@ -214,7 +228,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </form>
           </>}
         </motion.section>
-        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OboX — ishlab chiqaruvchi va do'kon egalarini bog'lash</p>
+        <p className="mt-5 text-center text-[11px] font-semibold text-[#8e8276]">OnBozar — ishlab chiqaruvchi va do'kon egalarini bog'lash</p>
       </div>
     </main>
   );

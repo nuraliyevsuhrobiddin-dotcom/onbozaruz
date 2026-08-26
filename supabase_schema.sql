@@ -1,5 +1,5 @@
 -- =====================================================================
--- OnBozor Agro Marketplace — Complete Supabase SQL Schema & Initial Seed
+-- OnBozar Agro Marketplace — Complete Supabase SQL Schema & Initial Seed
 -- =====================================================================
 -- Ushbu skriptni Supabase Dashboard -> SQL Editor sahifasiga joylang
 -- va "Run" tugmasini bosing.
@@ -277,9 +277,9 @@ BEGIN
   INSERT INTO public.profiles (id, email, name, handle, phone, avatar_url, location, business_name, role, is_admin)
   VALUES (
     NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', SPLIT_PART(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'handle', SPLIT_PART(NEW.email, '@', 1)),
+    COALESCE(NEW.email, NEW.id::text || '@user.onbozar.uz'),
+    COALESCE(NEW.raw_user_meta_data->>'name', SPLIT_PART(COALESCE(NEW.email, 'User'), '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'handle', SPLIT_PART(COALESCE(NEW.email, 'user_' || SUBSTRING(NEW.id::text, 1, 6)), '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', ''),
     COALESCE(NEW.raw_user_meta_data->>'location', ''),

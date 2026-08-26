@@ -3,6 +3,7 @@ import { Plus, Edit3, Trash2, AlertCircle } from 'lucide-react';
 import { adminRepository, CategoryItem } from '../../api/adminRepository';
 import { CATEGORIES } from '../../data/mockAgroData';
 import { useAgroStore } from '../../store/useAgroStore';
+import { mapCategoryItemsToCategories } from '../../utils/categoryScope';
 
 
 interface AdminCategoriesTabProps {
@@ -55,15 +56,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
   useEffect(() => { load(); }, [load]);
 
   const syncStoreCategories = (items: CategoryItem[]) => {
-    const activeCats = items
-      .filter((c) => c.isActive)
-      .map((c) => ({ id: c.id, name: c.name, icon: c.icon || 'tag', image: '', count: '0', scope: c.scope || 'both' }));
-    useAgroStore.setState({
-      categories: [
-        { id: 'all', name: 'Barchasi', icon: 'grid', image: '', count: '0', scope: 'both' },
-        ...activeCats.filter((c) => c.id !== 'all'),
-      ],
-    });
+    useAgroStore.setState({ categories: mapCategoryItemsToCategories(items) });
   };
 
   const handleSave = async () => {
