@@ -43,12 +43,12 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
       !search ||
       p.title.toLowerCase().includes(search.toLowerCase()) ||
       p.sellerName.toLowerCase().includes(search.toLowerCase());
-    const postStatus = (p as any).status || 'approved';
+    const postStatus = p.status || 'approved';
     const matchStatus = filterStatus === 'all' || postStatus === filterStatus;
     return matchSearch && matchStatus;
   });
 
-  const pending = posts.filter((p) => (p as any).status === 'pending').length;
+  const pending = posts.filter((p) => p.status === 'pending').length;
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
@@ -237,7 +237,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
           </div>
         ) : (
           filtered.map((post) => {
-            const postStatus = (post as any).status || 'approved';
+            const postStatus = post.status || 'approved';
             const isSelected = selectedIds.includes(post.id);
             const statusColors: Record<string, string> = {
               pending: 'bg-amber-50 text-amber-700',

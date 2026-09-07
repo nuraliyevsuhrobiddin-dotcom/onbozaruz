@@ -180,21 +180,21 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
 
       {/* Fixed bottom CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 lg:pl-24">
-        <div className="max-w-170 mx-auto flex items-center gap-3">
+        <div className="max-w-170 mx-auto flex items-center gap-3 min-h-[56px] transition-all duration-200">
           {product.availableQty === 0 ? (
             <button disabled className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-400 font-black text-sm border border-slate-200">
               Zaxira tugagan
             </button>
           ) : inCart > 0 ? (
-            <div className="flex-1 flex items-center gap-2">
-              <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-2xl p-1.5 min-w-[140px]">
+            <div className="flex-1 flex items-center gap-2 transition-all duration-200">
+              <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-2xl p-1.5 min-w-[140px] shrink-0">
                 <button
                   onClick={() => updateB2BCartQuantity(product.id, inCart - 1)}
                   className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 hover:border-slate-300 transition-colors"
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="font-black text-xs text-slate-900 px-2">{inCart} {product.unit}</span>
+                <span className="font-black text-xs text-slate-900 px-2 whitespace-nowrap">{inCart} {product.unit}</span>
                 <button
                   onClick={() => updateB2BCartQuantity(product.id, inCart + 1)}
                   disabled={inCart >= product.availableQty}

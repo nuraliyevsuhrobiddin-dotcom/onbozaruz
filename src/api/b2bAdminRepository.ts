@@ -5,7 +5,7 @@
 import { supabaseClient } from './authClient';
 import { SupplierProfile, B2BProduct, B2BOrder, CommissionLedgerEntry, SupplierVerificationStatus, B2BProductStatus } from './types';
 import { B2B_CONTRACT_VERSION } from '../data/b2bContractTemplate';
-import { mapSupplierProfile, mapB2BProduct, mapB2BOrder, mapB2BOrderItem } from './b2bRepository';
+import { mapSupplierProfile, mapB2BProduct, mapB2BOrder, mapB2BOrderItem, mapBusinessProfile } from './b2bRepository';
 
 const supabase = supabaseClient;
 
@@ -152,6 +152,73 @@ export async function listCommissionLedger(): Promise<CommissionLedgerEntry[]> {
   return data.map(mapLedger);
 }
 
+// ---------- Stores / Businesses on Map ----------
+export async function listAllBusinessStores(): Promise<import('./types').BusinessProfile[]> {
+  if (!supabase) return readMock<any[]>(MOCK_KEYS.business, []).map(mapBusinessProfile);
+  const { data, error } = await supabase.from('business_profiles').select('*').order('created_at', { ascending: false });
+  if (error || !data) return [];
+  return data.map(mapBusinessProfile);
+}
+
+export async function updateBusinessStoreByAdmin(
+  id: string,
+  patch: Partial<import('./types').BusinessProfile>
+): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.business, []);
+    writeMock(
+      MOCK_KEYS.business,
+      all.map((b) => {
+        if (b.id === id) {
+          return {
+            ...b,
+            store_name: patch.storeName ?? b.store_name,
+            owner_name: patch.ownerName ?? b.owner_name,
+            phone: patch.phone ?? b.phone,
+            business_type: patch.businessType ?? b.business_type,
+            region: patch.region ?? b.region,
+            district: patch.district ?? b.district,
+            address: patch.address ?? b.address,
+            latitude: patch.latitude !== undefined ? patch.latitude : b.latitude,
+            longitude: patch.longitude !== undefined ? patch.longitude : b.longitude,
+            description: patch.description ?? b.description,
+            status: patch.status ?? b.status,
+            cashback_balance: patch.cashbackBalance !== undefined ? patch.cashbackBalance : b.cashback_balance,
+          };
+        }
+        return b;
+      })
+    );
+    return;
+  }
+  const dbPatch: Record<string, any> = {};
+  if (patch.storeName !== undefined) dbPatch.store_name = patch.storeName;
+  if (patch.ownerName !== undefined) dbPatch.owner_name = patch.ownerName;
+  if (patch.phone !== undefined) dbPatch.phone = patch.phone;
+  if (patch.businessType !== undefined) dbPatch.business_type = patch.businessType;
+  if (patch.region !== undefined) dbPatch.region = patch.region;
+  if (patch.district !== undefined) dbPatch.district = patch.district;
+  if (patch.address !== undefined) dbPatch.address = patch.address;
+  if (patch.latitude !== undefined) dbPatch.latitude = patch.latitude;
+  if (patch.longitude !== undefined) dbPatch.longitude = patch.longitude;
+  if (patch.description !== undefined) dbPatch.description = patch.description;
+  if (patch.status !== undefined) dbPatch.status = patch.status;
+  if (patch.cashbackBalance !== undefined) dbPatch.cashback_balance = patch.cashbackBalance;
+
+  const { error } = await supabase.from('business_profiles').update(dbPatch).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteBusinessStoreByAdmin(id: string): Promise<void> {
+  if (!supabase) {
+    const all = readMock<any[]>(MOCK_KEYS.business, []);
+    writeMock(MOCK_KEYS.business, all.filter((b) => b.id !== id));
+    return;
+  }
+  const { error } = await supabase.from('business_profiles').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export const b2bAdminRepository = {
   listAllSuppliers,
   updateSupplierVerification,
@@ -161,4 +228,7 @@ export const b2bAdminRepository = {
   deleteB2BProductByAdmin,
   listAllB2BOrders,
   listCommissionLedger,
+  listAllBusinessStores,
+  updateBusinessStoreByAdmin,
+  deleteBusinessStoreByAdmin,
 };

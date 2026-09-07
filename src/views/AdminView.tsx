@@ -7,6 +7,7 @@ import { AdminDashboardTab } from '../components/admin/AdminDashboardTab';
 import { AdminUsersTab } from '../components/admin/AdminUsersTab';
 import { AdminPostsTab } from '../components/admin/AdminPostsTab';
 import { AdminB2BSuppliersTab } from '../components/admin/AdminB2BSuppliersTab';
+import { AdminB2BStoresTab } from '../components/admin/AdminB2BStoresTab';
 import { AdminB2BProductsTab } from '../components/admin/AdminB2BProductsTab';
 import { AdminB2BOrdersTab } from '../components/admin/AdminB2BOrdersTab';
 import { AdminB2BCommissionTab } from '../components/admin/AdminB2BCommissionTab';
@@ -81,7 +82,7 @@ export const AdminView: React.FC = () => {
   // Legacy Market/product moderation UI was removed (see supabase_schema.sql
   // "Eski Market ... UI olib tashlanadi") — only e'lon (post) approvals are
   // actionable from this panel now, so the badge only reflects those.
-  const pendingCount = posts.filter((p) => (p as any).status === 'pending').length;
+  const pendingCount = posts.filter((p) => p.status === 'pending').length;
 
   // ─── Tab Renderer ──────────────────────────────────────────────────────
   const renderTab = () => {
@@ -108,6 +109,8 @@ export const AdminView: React.FC = () => {
         );
       case 'b2b_suppliers':
         return <AdminB2BSuppliersTab onLogAction={logAction} showToast={showToast} />;
+      case 'b2b_stores':
+        return <AdminB2BStoresTab onLogAction={logAction} showToast={showToast} />;
       case 'b2b_products':
         return <AdminB2BProductsTab onLogAction={logAction} showToast={showToast} />;
       case 'b2b_orders':

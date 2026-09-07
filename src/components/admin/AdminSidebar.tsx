@@ -1,11 +1,10 @@
-import React from 'react';
 import {
   LayoutDashboard, Users, Megaphone, Factory, Package, ShoppingCart, Percent,
-  Tag, Image, Flag, FileText, X, Bell,
+  Tag, Image, Flag, FileText, X, Bell, Store
 } from 'lucide-react';
 
 export type AdminTab =
-  | 'dashboard' | 'users' | 'posts' | 'b2b_suppliers' | 'b2b_products'
+  | 'dashboard' | 'users' | 'posts' | 'b2b_suppliers' | 'b2b_stores' | 'b2b_products'
   | 'b2b_orders' | 'b2b_commission' | 'categories' | 'broadcast' | 'media' | 'reports' | 'audit';
 
 interface AdminSidebarProps {
@@ -20,6 +19,7 @@ const NAV_ITEMS: { id: AdminTab; label: string; icon: React.ElementType; badge?:
   { id: 'users', label: 'Foydalanuvchilar', icon: Users },
   { id: 'posts', label: "E'lonlar", icon: Megaphone, badge: true },
   { id: 'b2b_suppliers', label: 'B2B Supplierlar', icon: Factory },
+  { id: 'b2b_stores', label: "B2B Do'konlar (Xarita)", icon: Store },
   { id: 'b2b_products', label: 'B2B Mahsulotlar', icon: Package },
   { id: 'b2b_orders', label: 'B2B Buyurtmalar', icon: ShoppingCart },
   { id: 'b2b_commission', label: 'Komissiya', icon: Percent },

@@ -255,8 +255,12 @@ export function mapBusinessProfile(r: any): BusinessProfile {
     region: r.region ?? '',
     district: r.district ?? '',
     address: r.address ?? '',
-    latitude: r.latitude !== undefined && r.latitude !== null ? Number(r.latitude) : (r.region === 'Samarqand' ? 39.6542 : r.region === 'Farg\'ona' ? 40.3864 : 41.2995 + (Math.random() - 0.5) * 0.08),
-    longitude: r.longitude !== undefined && r.longitude !== null ? Number(r.longitude) : (r.region === 'Samarqand' ? 66.9597 : r.region === 'Farg\'ona' ? 71.7864 : 69.2401 + (Math.random() - 0.5) * 0.08),
+    latitude: r.latitude !== undefined && r.latitude !== null && !isNaN(Number(r.latitude))
+      ? Number(r.latitude)
+      : (r.region === 'Samarqand' ? 39.6542 : r.region === 'Farg\'ona' ? 40.3864 : 41.2995 + (((r.id ? r.id.charCodeAt(0) : 10) % 7) - 3) * 0.01),
+    longitude: r.longitude !== undefined && r.longitude !== null && !isNaN(Number(r.longitude))
+      ? Number(r.longitude)
+      : (r.region === 'Samarqand' ? 66.9597 : r.region === 'Farg\'ona' ? 71.7864 : 69.2401 + (((r.id ? r.id.charCodeAt(r.id.length - 1) : 20) % 7) - 3) * 0.01),
     description: r.description ?? '',
     logoUrl: r.logo_url ?? r.logoUrl ?? '',
     cashbackBalance: Number(r.cashback_balance ?? r.cashbackBalance ?? 0),

@@ -25,6 +25,7 @@ const VideoThumbnail: React.FC<{
   // Extract thumbnail frame on video metadata seeked
   useEffect(() => {
     if (capturedPoster) return;
+    let isCancelled = false;
     const video = document.createElement('video');
     video.src = src.includes('#t=') ? src : `${src}#t=0.5`;
     video.muted = true;
@@ -32,6 +33,7 @@ const VideoThumbnail: React.FC<{
     video.crossOrigin = 'anonymous';
 
     const capture = () => {
+      if (isCancelled) return;
       try {
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth || 360;
@@ -40,7 +42,7 @@ const VideoThumbnail: React.FC<{
         if (ctx && canvas.width > 0 && canvas.height > 0) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          if (dataUrl && dataUrl.length > 500) {
+          if (dataUrl && dataUrl.length > 500 && !isCancelled) {
             setCapturedPoster(dataUrl);
           }
         }
@@ -58,6 +60,15 @@ const VideoThumbnail: React.FC<{
     };
     video.onseeked = capture;
     video.onloadeddata = capture;
+
+    return () => {
+      isCancelled = true;
+      video.onloadedmetadata = null;
+      video.onseeked = null;
+      video.onloadeddata = null;
+      video.src = '';
+      video.load();
+    };
   }, [src, capturedPoster]);
 
   // Hover play / pause

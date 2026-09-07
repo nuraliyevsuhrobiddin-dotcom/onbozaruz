@@ -113,13 +113,13 @@ export const ProductDetailModal: React.FC = () => {
 
         {/* Main Media (Image or Video) */}
         <div className="relative aspect-square rounded-[22px] overflow-hidden bg-slate-950 border border-slate-200 flex items-center justify-center">
-          {isVideoPost ? (
+          {isVideoPost && 'mediaUrl' in productDetail ? (
             <VideoPlayer
-              src={(productDetail as any).mediaUrl}
-              poster={(productDetail as any).posterUrl}
+              src={productDetail.mediaUrl}
+              poster={productDetail.posterUrl}
               fit="contain"
               onOpenReels={() => {
-                const videoPost = productDetail as any;
+                const videoPost = productDetail;
                 setProductDetail(null);
                 openVideoViewer([videoPost], 0);
               }}
