@@ -25,7 +25,7 @@ export const B2BCartView: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3 select-none pb-32">
+    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3 select-none pb-44 lg:pb-32">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -143,7 +143,7 @@ export const B2BCartView: React.FC = () => {
 
       {/* Fixed bottom checkout bar */}
       {groups.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 lg:pl-24">
+        <div className="fixed mobile-fixed-action-bar lg:bottom-0 left-0 right-0 z-35 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 lg:pl-24 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
           <div className="max-w-170 mx-auto space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500">Umumiy jami</span>

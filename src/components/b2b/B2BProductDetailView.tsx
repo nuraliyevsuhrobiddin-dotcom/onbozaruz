@@ -50,7 +50,7 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
   };
 
   return (
-    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-4 select-none pb-28">
+    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-4 select-none pb-44 lg:pb-28">
       {/* Header */}
       <div className="flex items-center justify-between">
         <button
@@ -179,7 +179,7 @@ export const B2BProductDetailView: React.FC<Props> = ({ productId }) => {
       )}
 
       {/* Fixed bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 lg:pl-24">
+      <div className="fixed mobile-fixed-action-bar lg:bottom-0 left-0 right-0 z-35 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3 lg:pl-24 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         <div className="max-w-170 mx-auto flex items-center gap-3 min-h-[56px] transition-all duration-200">
           {product.availableQty === 0 ? (
             <button disabled className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-400 font-black text-sm border border-slate-200">
