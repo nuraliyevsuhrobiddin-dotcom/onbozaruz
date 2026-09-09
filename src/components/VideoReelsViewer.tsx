@@ -21,6 +21,7 @@ import {
 import { Post } from '../data/mockAgroData';
 import { useAgroStore } from '../store/useAgroStore';
 import confetti from 'canvas-confetti';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 // Official Telegram SVG icon
 const TelegramSVG = () => (
@@ -82,6 +83,8 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     showToast,
     setAuthPromptOpen,
   } = useAgroStore();
+
+  const { isSlowConnection } = useNetworkStatus();
 
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
@@ -235,9 +238,14 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
 
   // Preload strategy:
   // - active slide: 'auto' (instant download and decode)
-  // - next slide: 'auto' (pre-buffer chunks so swipe has 0 latency)
+  // - next slide: 'auto' on high-speed connection, 'metadata' on slow connections (2G/3G/save-data)
   // - distant slides: 'none' (zero network & RAM waste)
-  const preloadAttr = preloadMode === 'active' || preloadMode === 'next' ? 'auto' : 'none';
+  const preloadAttr =
+    preloadMode === 'active'
+      ? 'auto'
+      : preloadMode === 'next'
+        ? (isSlowConnection ? 'metadata' : 'auto')
+        : 'none';
 
   return (
     <div

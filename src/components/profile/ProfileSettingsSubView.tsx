@@ -17,6 +17,7 @@ import {
   Trash2,
   AlertTriangle,
   Loader2,
+  Volume2,
 } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 
@@ -31,7 +32,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   showToast,
   onLogout,
 }) => {
-  const { deleteAccount } = useAgroStore();
+  const { deleteAccount, showPushNotification } = useAgroStore();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -193,6 +194,27 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
             icon={Bell}
           />
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            showPushNotification({
+              id: `test-notif-${Date.now()}`,
+              userId: 'me',
+              type: 'order_status',
+              title: "OnBozar bildirishnomasi 🔔",
+              body: "SMS-banner va ovozli bildirishnoma muvaffaqiyatli ishlayapti!",
+              targetType: '',
+              isRead: false,
+              createdAt: new Date().toISOString(),
+            });
+            showToast("Sinov bildirishnomasi yuborildi 🔔");
+          }}
+          className="w-full mt-3.5 py-2.5 px-4 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#D84315] font-bold text-xs flex items-center justify-center gap-2 border border-orange-200/70 transition-colors cursor-pointer active:scale-[0.99]"
+        >
+          <Volume2 className="w-4 h-4" />
+          <span>Bildirishnoma va tovushni sinab ko'rish</span>
+        </button>
       </div>
 
       {/* Maxfiylik va xavfsizlik */}

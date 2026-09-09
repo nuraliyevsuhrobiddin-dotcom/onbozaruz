@@ -66,11 +66,21 @@ export const NotificationsDrawerModal: React.FC = () => {
     setActiveTab,
     setB2BRoute,
     showToast,
+    showPushNotification,
   } = useAgroStore();
 
   const handleTestSound = () => {
-    playNotificationSound();
-    showToast("Bildirishnoma ovozi chalindi 🔔");
+    showPushNotification({
+      id: `test-${Date.now()}`,
+      userId: 'test',
+      type: 'order_status',
+      title: "OnBozar bildirishnomasi 🔔",
+      body: "Bildirishnoma ovozi va SMS-banner muvaffaqiyatli ishlayapti!",
+      targetType: '',
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    });
+    setNotificationsOpen(false);
   };
 
   const handleSelect = (notification: Notification) => {

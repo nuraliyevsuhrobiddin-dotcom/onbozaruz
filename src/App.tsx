@@ -18,6 +18,7 @@ import { CommentSheetModal } from './components/CommentSheetModal';
 import { ShareModal } from './components/ShareModal';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { NotificationsDrawerModal } from './components/NotificationsDrawerModal';
+import { PushNotificationBanner } from './components/ui/PushNotificationBanner';
 import { Toast } from './components/ui/Toast';
 import { VideoReelsViewer } from './components/VideoReelsViewer';
 import { CategoryExplorerModal } from './components/CategoryExplorerModal';
@@ -361,6 +362,9 @@ export default function App() {
       <ProductDetailModal />
 
       <NotificationsDrawerModal />
+
+      {/* SMS / Top Dropdown Push Notification Banner */}
+      <PushNotificationBanner />
 
       {/* Global Toast Micro-Interaction */}
       <Toast message={toastMessage} onClose={hideToast} />

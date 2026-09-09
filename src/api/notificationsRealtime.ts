@@ -37,10 +37,16 @@ export function subscribeToNotifications(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
       (payload: { new: Record<string, unknown> }) => {
-        onInsert(mapRowToNotification(payload.new));
+        if (payload.new) {
+          onInsert(mapRowToNotification(payload.new));
+        }
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      if (err || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn(`[RealtimeNotifications] Channel status '${status}' for user ${userId}:`, err);
+      }
+    });
 
   return () => {
     void client.removeChannel(channel);

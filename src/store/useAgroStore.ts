@@ -1013,7 +1013,16 @@ export const useAgroStore = create<AgroStoreState>()(
       setIsAdminUser: (isAdmin: boolean) => set({ isAdminUser: isAdmin }),
       showToast: (msg) => set({ toastMessage: msg }),
       hideToast: () => set({ toastMessage: null }),
-      showPushNotification: (n) => set({ pushNotification: n }),
+      showPushNotification: (n) => {
+        set((state) => ({
+          pushNotification: n,
+          notifications: [n, ...state.notifications.filter((item) => item.id !== n.id)],
+          unreadNotificationsCount: state.unreadNotificationsCount + 1,
+        }));
+        if (isNotificationSoundEnabled()) {
+          playNotificationSound();
+        }
+      },
       clearPushNotification: () => set({ pushNotification: null }),
 
       openVideoViewer: (posts, startIndex) =>
