@@ -7,6 +7,7 @@
  */
 
 import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
+import * as tus from 'tus-js-client';
 import { processAndCompressImage } from '../utils/avatarUtils';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -33,6 +34,10 @@ export const supabaseClient = isSupabaseConfigured
   : null;
 
 const supabase = supabaseClient;
+
+// Supabase recommends resumable/TUS uploads for files above 6 MB.  Video
+// posts can be up to 100 MB, so use the regular API only for small media.
+const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
 
 const PRODUCTION_AUTH_CALLBACK_URL = 'https://onbozar.uz/auth/callback';
 
@@ -175,6 +180,69 @@ export async function getSupabaseAccessToken(): Promise<string | null> {
   return data.session?.access_token || null;
 }
 
+/**
+ * Large uploads should avoid the API hostname when the project uses the
+ * standard Supabase domain. The Storage hostname is the route Supabase
+ * optimizes for TUS/resumable transfers; custom domains keep the regular API
+ * hostname, which remains fully compatible with the same endpoint.
+ */
+function getResumableStorageEndpoint(): string {
+  const fallback = `${SUPABASE_URL!.replace(/\/$/, '')}/storage/v1/upload/resumable`;
+
+  try {
+    const url = new URL(SUPABASE_URL!);
+    if (url.hostname.endsWith('.supabase.co') && !url.hostname.endsWith('.storage.supabase.co')) {
+      url.hostname = url.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
+    }
+    url.pathname = `${url.pathname.replace(/\/$/, '')}/storage/v1/upload/resumable`;
+    url.search = '';
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return fallback;
+  }
+}
+
+async function uploadResumableListingMedia(
+  file: Blob,
+  path: string,
+  contentType: string
+): Promise<string> {
+  if (!supabase) throw new Error('Supabase sozlanmagan');
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error || !data.session?.access_token) {
+    throw new Error("Video yuklash uchun sessiya topilmadi. Qaytadan tizimga kiring.");
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: getResumableStorageEndpoint(),
+      retryDelays: [0, 1_000, 3_000, 5_000, 10_000],
+      chunkSize: RESUMABLE_UPLOAD_THRESHOLD_BYTES,
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      headers: {
+        authorization: `Bearer ${data.session.access_token}`,
+        apikey: SUPABASE_ANON_KEY!,
+        'x-upsert': 'false',
+      },
+      metadata: {
+        bucketName: 'listing-media',
+        objectName: path,
+        contentType,
+        cacheControl: '31536000',
+      },
+      onError: (error) => reject(error),
+      onSuccess: () => {
+        resolve(supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl);
+      },
+    });
+
+    upload.start();
+  });
+}
+
 export async function uploadListingMedia(
   input: string | File | Blob,
   path: string,
@@ -201,9 +269,15 @@ export async function uploadListingMedia(
   let storageError = '';
   if (supabase) {
     try {
+      if (fileOrBlob.size > RESUMABLE_UPLOAD_THRESHOLD_BYTES) {
+        return await uploadResumableListingMedia(fileOrBlob, path, contentType);
+      }
       const { error } = await supabase.storage.from('listing-media').upload(path, fileOrBlob, {
         contentType,
-        upsert: true,
+        // Every caller supplies a new path.  Disabling upsert means a normal
+        // upload only needs INSERT permission; it also prevents a user from
+        // accidentally replacing another user's object after a path collision.
+        upsert: false,
         cacheControl: '31536000',
       });
 
@@ -217,6 +291,16 @@ export async function uploadListingMedia(
       console.warn('[uploadListingMedia] Storage upload exception:', err);
     }
 
+    const normalizedError = storageError.toLowerCase();
+    if (normalizedError.includes('maximum allowed size') || normalizedError.includes('file size')) {
+      throw new Error("Fayl hajmi Storage chegarasidan katta. Supabase SQL sxemasidagi 100 MB bucket sozlamasini ishga tushiring yoki kichikroq video tanlang.");
+    }
+    if (normalizedError.includes('mime') || normalizedError.includes('content type')) {
+      throw new Error("Bu video formati Storage tomonidan qabul qilinmadi. MP4, WebM yoki MOV formatini tanlang.");
+    }
+    if (normalizedError.includes('row-level security') || normalizedError.includes('new row violates')) {
+      throw new Error("Media yuklash ruxsati topilmadi. Supabase SQL sxemasidagi listing-media Storage policylarini ishga tushiring.");
+    }
     throw new Error(
       `Media yuklanmadi${storageError ? `: ${storageError}` : ''}. Internetni tekshirib, qayta urinib ko'ring.`
     );
@@ -614,15 +698,22 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
     if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
 
     const cleanEmail = fields.email.trim().toLowerCase();
+    const cleanPhone = fields.phone.trim();
+    if (!cleanEmail && !cleanPhone) {
+      return { ok: false, error: "Email manzil yoki telefon raqamini kiriting." };
+    }
     const cleanHandle = fields.handle
       .trim()
       .toLowerCase()
       .replace(/^@/, '')
       .replace(/[^a-z0-9_]/g, '') || `user_${Date.now().toString().slice(-5)}`;
 
-    const contact = cleanEmail.includes('@')
+    // The UI currently exposes email registration, but keeping this explicit
+    // also makes the existing phone flow safe to enable when an SMS provider
+    // is configured. An empty email must never be sent as a phone signup.
+    const contact = cleanEmail
       ? { email: cleanEmail }
-      : { phone: cleanEmail };
+      : { phone: cleanPhone };
     const { data, error } = await supabase.auth.signUp({
       ...contact,
       password: fields.password,
@@ -631,7 +722,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
         data: {
           name: fields.name.trim(),
           handle: cleanHandle,
-          phone: fields.phone.trim() || (cleanEmail.includes('@') ? '' : cleanEmail),
+          phone: cleanPhone,
           location: fields.location || '',
           businessName: fields.businessName || '',
           role: fields.role || 'seller',
@@ -655,7 +746,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
       try {
         await supabase.from('profiles').upsert({
           id: data.user.id,
-          email: data.user.email || cleanEmail,
+          email: data.user.email || cleanEmail || '',
           name: fields.name.trim(),
           handle: cleanHandle,
           phone: fields.phone.trim(),
@@ -670,7 +761,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
 
       const user: AuthUser = {
         id: data.user.id,
-        email: data.user.email || cleanEmail,
+        email: data.user.email || cleanEmail || '',
         name: fields.name.trim(),
         handle: cleanHandle,
         phone: fields.phone.trim(),
@@ -740,11 +831,45 @@ async function supabaseSignOut(): Promise<void> {
 
 async function supabaseDeleteAccount(): Promise<void> {
   if (!supabase) return;
-  const { data: sessionData } = await supabase.auth.getUser();
-  if (sessionData?.user) {
-    await supabase.from('profiles').delete().eq('id', sessionData.user.id);
-    await supabase.auth.signOut();
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  const userId = sessionData.session?.user?.id;
+  if (sessionError || !accessToken || !userId) {
+    throw new Error("Akkauntni o'chirish uchun qaytadan tizimga kiring.");
   }
+
+  let serverSuccess = false;
+  try {
+    const response = await fetch('/api/account/delete', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const result = await response.json().catch(() => ({})) as { ok?: boolean; error?: string };
+    if ((response.ok && result.ok) || response.status === 200) {
+      serverSuccess = true;
+    } else if (response.status !== 404 && response.status !== 503) {
+      // A definitive server error (not "endpoint missing") — surface it.
+      throw new Error(result.error || "Akkauntni o'chirib bo'lmadi.");
+    }
+  } catch (err: unknown) {
+    // Network error or endpoint not deployed — fall through to client fallback.
+    const isNetworkError = err instanceof TypeError;
+    if (!isNetworkError) throw err;
+  }
+
+  if (!serverSuccess) {
+    // Fallback: delete the profile row directly. ON DELETE CASCADE in auth.users
+    // and profiles removes all related application records.
+    const { error: delError } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+    if (delError) {
+      throw new Error(`Akkauntni o'chirib bo'lmadi: ${delError.message}`);
+    }
+  }
+
+  await supabase.auth.signOut();
 }
 
 // ---------- Unified Auth API ----------

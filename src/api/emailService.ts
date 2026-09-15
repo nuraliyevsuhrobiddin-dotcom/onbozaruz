@@ -1,8 +1,10 @@
 /**
  * OnBozar - Frontend Email Service Client
- * Xavfsiz server-side Resend API'ga murojaat qiladi.
- * Hech qanday Resend secret key frontendda saqlanmaydi.
+ * Welcome xati autentifikatsiyalangan server endpointidan yuboriladi.
+ * Confirmation va password-reset xatlarini token egasi bo'lgan Supabase Auth
+ * yuboradi; frontend hech qachon Resend orqali erkin HTML/recipient bermaydi.
  */
+import { getAuthCallbackUrl, getSupabaseAccessToken, supabaseClient } from './authClient';
 
 export interface SendEmailResponse {
   ok: boolean;
@@ -18,12 +20,17 @@ export interface OrderNotificationPayload {
   amount?: string;
 }
 
-async function postApi<T>(endpoint: string, body: unknown): Promise<T> {
+async function postApi<T>(endpoint: string, body: unknown, requireAuth = false): Promise<T> {
   try {
+    const accessToken = requireAuth ? await getSupabaseAccessToken() : null;
+    if (requireAuth && !accessToken) {
+      return { ok: false, error: 'Bu amal uchun qaytadan tizimga kiring.' } as T;
+    }
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -45,31 +52,28 @@ export const emailService = {
    */
   async sendVerificationEmail(
     email: string,
-    name?: string,
-    verificationUrl?: string,
-    token?: string
+    _name?: string,
+    _verificationUrl?: string,
+    _token?: string
   ): Promise<SendEmailResponse> {
-    return postApi<SendEmailResponse>('/api/auth/send-verification', {
-      email,
-      name,
-      verificationUrl,
-      token,
+    if (!supabaseClient) return { ok: false, error: 'Supabase sozlanmagan.' };
+    const { error } = await supabaseClient.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+      options: { emailRedirectTo: getAuthCallbackUrl() },
     });
+    return error ? { ok: false, error: error.message } : { ok: true, message: 'Tasdiqlash havolasi yuborildi.' };
   },
 
   /**
    * Yangi ro'yxatdan o'tgan foydalanuvchiga xush kelibsiz xati
    */
   async sendWelcomeEmail(
-    email: string,
-    name?: string,
-    role?: 'seller' | 'buyer' | 'business' | string
+    _email: string,
+    _name?: string,
+    _role?: 'seller' | 'buyer' | 'business' | string
   ): Promise<SendEmailResponse> {
-    return postApi<SendEmailResponse>('/api/auth/send-welcome', {
-      email,
-      name,
-      role,
-    });
+    return postApi<SendEmailResponse>('/api/auth/send-welcome', {}, true);
   },
 
   /**
@@ -77,43 +81,39 @@ export const emailService = {
    */
   async sendPasswordResetEmail(
     email: string,
-    name?: string,
-    resetUrl?: string
+    _name?: string,
+    _resetUrl?: string
   ): Promise<SendEmailResponse> {
-    return postApi<SendEmailResponse>('/api/auth/send-password-reset', {
-      email,
-      name,
-      resetUrl,
+    if (!supabaseClient) return { ok: false, error: 'Supabase sozlanmagan.' };
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: getAuthCallbackUrl(),
     });
+    return error ? { ok: false, error: error.message } : { ok: true, message: 'Parolni tiklash havolasi yuborildi.' };
   },
 
   /**
    * Buyurtma holati o'zgarganda bildirishnoma yuborish
    */
   async sendOrderNotification(
-    email: string,
-    payload: OrderNotificationPayload,
-    name?: string
+    _email: string,
+    _payload: OrderNotificationPayload,
+    _name?: string
   ): Promise<SendEmailResponse> {
-    return postApi<SendEmailResponse>('/api/send-email', {
-      to: email,
-      type: 'order_notification',
-      payload: {
-        ...payload,
-        name,
-      },
-    });
+    return {
+      ok: false,
+      error: 'Buyurtma xabarlari Supabase bildirishnomalari orqali yuboriladi.',
+    };
   },
 
   /**
    * Resend xizmati holatini tekshirish (Health check)
    */
-  async checkHealth(): Promise<{ status: string; resendConfigured: boolean; sender: string }> {
+  async checkHealth(): Promise<{ status: string }> {
     try {
       const res = await fetch('/api/health');
       return await res.json();
     } catch {
-      return { status: 'error', resendConfigured: false, sender: 'noreply@onbozar.uz' };
+      return { status: 'error' };
     }
   },
 };

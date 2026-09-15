@@ -6,7 +6,18 @@ import { Edit3, Save, Trash2, Tag, MapPin, DollarSign, Package } from 'lucide-re
 import { categoriesForScope } from '../utils/categoryScope';
 
 export const EditListingModal: React.FC = () => {
-  const { editModalItem, setEditModalItem, updatePost, updateProduct, deletePost, deleteProduct, showToast, isAdminUser, categories: allCategories } = useAgroStore();
+  const {
+    editModalItem,
+    setEditModalItem,
+    updatePost,
+    updateProduct,
+    deletePost,
+    deleteProduct,
+    showToast,
+    isAdminUser,
+    currentUser,
+    categories: allCategories,
+  } = useAgroStore();
 
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
@@ -32,9 +43,16 @@ export const EditListingModal: React.FC = () => {
       setFeatures('features' in editModalItem ? editModalItem.features || '' : '');    }
   }, [editModalItem, allCategories]);
 
-  if (!editModalItem || !isAdminUser) return null;
+  if (!editModalItem) return null;
 
   const isPost = 'sellerName' in editModalItem || 'mediaUrl' in editModalItem;
+  const isOwner = isPost && Boolean(
+    currentUser && (
+      editModalItem.userId === currentUser.id ||
+      editModalItem.sellerId === currentUser.id
+    )
+  );
+  if (!isAdminUser && !isOwner) return null;
   // Posts and products draw from separate admin-managed category lists.
   const categories = categoriesForScope(allCategories, isPost ? 'post' : 'market');
 

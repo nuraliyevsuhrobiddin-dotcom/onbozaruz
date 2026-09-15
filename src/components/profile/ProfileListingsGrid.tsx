@@ -223,7 +223,10 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
             /* 3x3 Compact Grid Mode */
             <div className="grid grid-cols-3 gap-1.5">
               {filteredItems.map((item) => {
-                const imageSrc = item.posterUrl || item.mediaUrl || '/logo.png';
+                // A video can be published even if poster-frame extraction is
+                // unavailable on the device. Never use the MP4 itself as an
+                // <img> source — display a clear video placeholder instead.
+                const imageSrc = item.posterUrl || (item.type === 'image' ? item.mediaUrl : '');
                 const isPending = item.status === 'pending';
                 const isRejected = item.status === 'rejected';
 
@@ -233,11 +236,21 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                     onClick={() => onSelectPost(item)}
                     className="relative aspect-square bg-slate-100 overflow-hidden cursor-pointer group rounded-[14px]"
                   >
-                    <img
-                      src={imageSrc}
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
+                    {imageSrc ? (
+                      <img
+                        src={imageSrc}
+                        alt={item.title}
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = '/logo.png';
+                        }}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-gradient-to-br from-slate-800 via-slate-950 to-black flex items-center justify-center">
+                        <Play className="w-7 h-7 text-white/75 fill-white/75" />
+                      </div>
+                    )}
 
                     {/* Status Badges */}
                     {isPending && (
@@ -312,7 +325,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
             /* Detailed List Mode */
             <div className="space-y-2">
               {filteredItems.map((item) => {
-                const imageSrc = item.posterUrl || item.mediaUrl || '/logo.png';
+                const imageSrc = item.posterUrl || (item.type === 'image' ? item.mediaUrl : '');
                 const isPending = item.status === 'pending';
                 const isRejected = item.status === 'rejected';
 
@@ -324,11 +337,21 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-16 h-16 rounded-xl bg-slate-200 overflow-hidden relative shrink-0">
-                        <img
-                          src={imageSrc}
-                          alt={item.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
+                        {imageSrc ? (
+                          <img
+                            src={imageSrc}
+                            alt={item.title}
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = '/logo.png';
+                            }}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-gradient-to-br from-slate-800 via-slate-950 to-black flex items-center justify-center">
+                            <Play className="w-5 h-5 text-white/75 fill-white/75" />
+                          </div>
+                        )}
                         {item.type === 'video' && (
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                             <Play className="w-4 h-4 text-white fill-white" />

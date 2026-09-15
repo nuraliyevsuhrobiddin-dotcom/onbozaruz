@@ -149,14 +149,14 @@ export const CreatePostModal: React.FC = () => {
             <input
               type="file"
               ref={fileInputRef}
-              accept={mediaMode === 'video' ? 'video/mp4,video/webm' : 'image/*'}
+              accept={mediaMode === 'video' ? 'video/mp4,video/webm,video/quicktime,.mov' : 'image/jpeg,image/png,image/webp,image/gif'}
               onChange={handleFileChange}
               className="hidden"
             />
             <input
               type="file"
               ref={cameraInputRef}
-              accept={mediaMode === 'video' ? 'video/mp4,video/webm' : 'image/*'}
+              accept={mediaMode === 'video' ? 'video/mp4,video/webm,video/quicktime,.mov' : 'image/jpeg,image/png,image/webp,image/gif'}
               capture="environment"
               onChange={handleFileChange}
               className="hidden"

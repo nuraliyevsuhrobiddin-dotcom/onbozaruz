@@ -706,11 +706,18 @@ export const useAgroStore = create<AgroStoreState>()(
       setEditModalItem: (item) => set({ editModalItem: item }),
 
       deletePost: (postId) => {
-        if (!get().isAdminUser) {
-          set({ toastMessage: "E'lonni o'chirish faqat Admin paneli orqali amalga oshiriladi!" });
+        const stateBeforeDelete = get();
+        const targetPost = stateBeforeDelete.posts.find((p) => p.id === postId);
+        const isOwner = Boolean(
+          stateBeforeDelete.currentUser && targetPost && (
+            targetPost.userId === stateBeforeDelete.currentUser.id ||
+            targetPost.sellerId === stateBeforeDelete.currentUser.id
+          )
+        );
+        if (!stateBeforeDelete.isAdminUser && !isOwner) {
+          set({ toastMessage: "Faqat e'lon egasi uni o'chira oladi." });
           return;
         }
-        const targetPost = get().posts.find((p) => p.id === postId);
         set((state) => {
           const nextPosts = state.posts.filter((p) => p.id !== postId);
           cacheManager.savePostsCache(nextPosts);
@@ -731,8 +738,16 @@ export const useAgroStore = create<AgroStoreState>()(
       },
 
       updatePost: (postId, updatedFields) => {
-        if (!get().isAdminUser) {
-          set({ toastMessage: "E'lonni tahrirlash faqat Admin paneli orqali amalga oshiriladi!" });
+        const stateBeforeUpdate = get();
+        const targetPost = stateBeforeUpdate.posts.find((p) => p.id === postId);
+        const isOwner = Boolean(
+          stateBeforeUpdate.currentUser && targetPost && (
+            targetPost.userId === stateBeforeUpdate.currentUser.id ||
+            targetPost.sellerId === stateBeforeUpdate.currentUser.id
+          )
+        );
+        if (!stateBeforeUpdate.isAdminUser && !isOwner) {
+          set({ toastMessage: "Faqat e'lon egasi uni tahrirlay oladi." });
           return;
         }
         set((state) => {

@@ -39,16 +39,11 @@ export const ordersRepository = {
           console.warn(`[ordersRepository] Removed missing DB column '${missingCol}' and retrying...`);
           continue;
         }
-        console.warn(`[ordersRepository] Could not save order to server: ${msg}`);
-        break;
+        throw new Error(`Buyurtma serverda saqlanmadi: ${msg}`);
       }
     }
 
-    // Fallback: return input order object so local state and UI continue smoothly
-    return {
-      ...input,
-      id: input.id || `ord-${Date.now()}`,
-    };
+    throw new Error("Buyurtma serverda saqlanmadi: ma'lumotlar bazasi sxemasini tekshiring.");
   },
 
   /** PATCH /orders/:id - status yangilash */

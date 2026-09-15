@@ -476,7 +476,6 @@ export async function registerBusinessBuyer(input: CreateBusinessProfileInput): 
     district: input.district || '',
     description: input.description || '',
     logo_url: input.logoUrl || '',
-    status: 'active',
   }).select().single();
 
   if (error || !data) throw new Error(error?.message || "Biznes profil yaratilmadi");
@@ -1315,7 +1314,9 @@ export async function listStoresForMap(): Promise<B2BStorePublicMarker[]> {
   // 1. Try RPC get_public_stores_for_map if available
   try {
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_stores_for_map');
-    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+    // An empty result is valid (for example, before the first store is
+    // registered). Do not replace it with mock stores in a real project.
+    if (!rpcError && Array.isArray(rpcData)) {
       return rpcData.map((s: any) => {
         const coords = getStoreCoordinates(s.region, s.latitude, s.longitude);
         return {
@@ -1411,6 +1412,21 @@ function mapDirectOffer(r: any): B2BDirectOffer {
   };
 }
 
+async function addPublicStoreNames(offers: B2BDirectOffer[]): Promise<B2BDirectOffer[]> {
+  if (offers.length === 0) return offers;
+
+  // business_profiles is private because it includes owner contact details and
+  // cashback balance. The map RPC returns the safe public store label needed
+  // by the offers UI without re-exposing those fields.
+  const stores = await listStoresForMap();
+  const storeNames = new Map(stores.map((store) => [store.id, store.storeName]));
+
+  return offers.map((offer) => ({
+    ...offer,
+    storeName: storeNames.get(offer.businessId) || offer.storeName,
+  }));
+}
+
 export async function sendDirectOffer(
   input: Omit<B2BDirectOffer, 'id' | 'status' | 'createdAt'>
 ): Promise<B2BDirectOffer> {
@@ -1429,10 +1445,10 @@ export async function sendDirectOffer(
       discount_percent: input.discountPercent ?? null,
       products: input.products ?? [],
     })
-    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .select('*, supplier_profiles(company_name)')
     .single();
   if (error || !data) throw new Error(error?.message || 'Taklif yuborilmadi');
-  return mapDirectOffer(data);
+  return (await addPublicStoreNames([mapDirectOffer(data)]))[0];
 }
 
 export async function listDirectOffersForStore(businessId: string): Promise<B2BDirectOffer[]> {
@@ -1442,11 +1458,11 @@ export async function listDirectOffersForStore(businessId: string): Promise<B2BD
   }
   const { data, error } = await supabase
     .from('b2b_direct_offers')
-    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .select('*, supplier_profiles(company_name)')
     .eq('business_id', businessId)
     .order('created_at', { ascending: false });
   if (error || !data) return [];
-  return data.map(mapDirectOffer);
+  return addPublicStoreNames(data.map(mapDirectOffer));
 }
 
 export async function listDirectOffersForSupplier(supplierId: string): Promise<B2BDirectOffer[]> {
@@ -1456,11 +1472,11 @@ export async function listDirectOffersForSupplier(supplierId: string): Promise<B
   }
   const { data, error } = await supabase
     .from('b2b_direct_offers')
-    .select('*, supplier_profiles(company_name), business_profiles(store_name)')
+    .select('*, supplier_profiles(company_name)')
     .eq('supplier_id', supplierId)
     .order('created_at', { ascending: false });
   if (error || !data) return [];
-  return data.map(mapDirectOffer);
+  return addPublicStoreNames(data.map(mapDirectOffer));
 }
 
 export async function respondToDirectOffer(offerId: string, status: 'accepted' | 'declined'): Promise<void> {

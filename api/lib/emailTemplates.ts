@@ -8,6 +8,25 @@ interface BaseEmailProps {
   bodyContent: string;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeHttpsUrl(value: string | undefined, fallback: string): string {
+  if (!value) return fallback;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 function baseEmailLayout({ previewText = '', bodyContent }: BaseEmailProps): string {
   return `<!DOCTYPE html>
 <html lang="uz">
@@ -39,7 +58,7 @@ function baseEmailLayout({ previewText = '', bodyContent }: BaseEmailProps): str
   </style>
 </head>
 <body>
-  ${previewText ? `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
+  ${previewText ? `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">${escapeHtml(previewText)}</div>` : ''}
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f8fafc;padding:32px 12px;">
     <tr>
       <td align="center">
@@ -78,8 +97,8 @@ export function getVerificationEmailTemplate({ name, verificationUrl, token }: V
   html: string;
   text: string;
 } {
-  const greeting = name ? `Assalomu alaykum, ${name}!` : 'Assalomu alaykum!';
-  const link = verificationUrl || 'https://onbozar.uz';
+  const greeting = name ? `Assalomu alaykum, ${escapeHtml(name)}!` : 'Assalomu alaykum!';
+  const link = safeHttpsUrl(verificationUrl, 'https://onbozar.uz');
 
   const bodyContent = `
     <div style="text-align: center; margin-bottom: 24px;">
@@ -95,7 +114,7 @@ export function getVerificationEmailTemplate({ name, verificationUrl, token }: V
     ${token ? `
       <div style="text-align: center;">
         <p style="font-size: 13px; color: #64748b; margin-bottom: 8px;">Sizning tasdiqlash kodingiz:</p>
-        <div class="code-box">${token}</div>
+        <div class="code-box">${escapeHtml(token)}</div>
       </div>
     ` : ''}
 
@@ -145,7 +164,7 @@ export function getWelcomeEmailTemplate({ name, role = 'seller' }: WelcomeEmailP
   html: string;
   text: string;
 } {
-  const greeting = name ? `Assalomu alaykum, ${name}!` : 'Assalomu alaykum!';
+  const greeting = name ? `Assalomu alaykum, ${escapeHtml(name)}!` : 'Assalomu alaykum!';
   const roleText = role === 'business' ? 'Biznes hamkor' : role === 'seller' ? 'Sotuvchi' : 'Xaridor';
 
   const bodyContent = `
@@ -203,7 +222,8 @@ export function getPasswordResetEmailTemplate({ name, resetUrl }: PasswordResetE
   html: string;
   text: string;
 } {
-  const greeting = name ? `Assalomu alaykum, ${name}!` : 'Assalomu alaykum!';
+  const greeting = name ? `Assalomu alaykum, ${escapeHtml(name)}!` : 'Assalomu alaykum!';
+  const safeResetUrl = safeHttpsUrl(resetUrl, 'https://onbozar.uz');
 
   const bodyContent = `
     <div style="text-align: center; margin-bottom: 24px;">
@@ -217,14 +237,14 @@ export function getPasswordResetEmailTemplate({ name, resetUrl }: PasswordResetE
     </p>
 
     <div style="text-align: center; margin: 28px 0;">
-      <a href="${resetUrl}" class="btn" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);" target="_blank" rel="noopener noreferrer">
+      <a href="${safeResetUrl}" class="btn" style="background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);" target="_blank" rel="noopener noreferrer">
         Parolni tiklash
       </a>
     </div>
 
     <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; text-align: center;">
       Agar tugma ishlamasa, quyidagi havolani brauzeringizga nusxalang:<br>
-      <a href="${resetUrl}" style="color: #dc2626; word-break: break-all;">${resetUrl}</a>
+      <a href="${safeResetUrl}" style="color: #dc2626; word-break: break-all;">${safeResetUrl}</a>
     </p>
 
     <div class="info-card" style="margin-top: 32px; border-left: 4px solid #dc2626;">
@@ -239,7 +259,7 @@ export function getPasswordResetEmailTemplate({ name, resetUrl }: PasswordResetE
     bodyContent,
   });
 
-  const text = `${greeting}\n\nOnBozar profilingiz uchun parolni qayta tiklash so'rovi qabul qilindi.\n\nParolni tiklash havolasi:\n${resetUrl}\n\nAgar bu so'rovni siz yubormagan bo'lsangiz, xatni e'tiborsiz qoldiring.\n\nOnBozar jamoasi`;
+  const text = `${greeting}\n\nOnBozar profilingiz uchun parolni qayta tiklash so'rovi qabul qilindi.\n\nParolni tiklash havolasi:\n${safeResetUrl}\n\nAgar bu so'rovni siz yubormagan bo'lsangiz, xatni e'tiborsiz qoldiring.\n\nOnBozar jamoasi`;
 
   return {
     subject: 'OnBozar — Parolni tiklash so‘rovi',
@@ -270,7 +290,11 @@ export function getOrderNotificationEmailTemplate({
   html: string;
   text: string;
 } {
-  const greeting = name ? `Assalomu alaykum, ${name}!` : 'Assalomu alaykum!';
+  const greeting = name ? `Assalomu alaykum, ${escapeHtml(name)}!` : 'Assalomu alaykum!';
+  const safeOrderId = escapeHtml(orderId);
+  const safeStatus = escapeHtml(status);
+  const safeTitle = escapeHtml(title);
+  const safeAmount = amount ? escapeHtml(amount) : '';
 
   const bodyContent = `
     <div style="text-align: center; margin-bottom: 24px;">
@@ -287,20 +311,20 @@ export function getOrderNotificationEmailTemplate({
       <table width="100%" cellspacing="0" cellpadding="6" style="font-size: 14px; color: #334155;">
         <tr>
           <td style="color:#64748b;width:120px;"><strong>Buyurtma ID:</strong></td>
-          <td><code>${orderId}</code></td>
+          <td><code>${safeOrderId}</code></td>
         </tr>
         <tr>
           <td style="color:#64748b;"><strong>Mahsulot:</strong></td>
-          <td><strong>${title}</strong></td>
+          <td><strong>${safeTitle}</strong></td>
         </tr>
         <tr>
           <td style="color:#64748b;"><strong>Yangi holat:</strong></td>
-          <td><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#e0f2fe;color:#0369a1;font-weight:700;font-size:12px;">${status}</span></td>
+          <td><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#e0f2fe;color:#0369a1;font-weight:700;font-size:12px;">${safeStatus}</span></td>
         </tr>
         ${amount ? `
         <tr>
           <td style="color:#64748b;"><strong>Summa:</strong></td>
-          <td><strong style="color:#16a34a;">${amount}</strong></td>
+          <td><strong style="color:#16a34a;">${safeAmount}</strong></td>
         </tr>
         ` : ''}
       </table>

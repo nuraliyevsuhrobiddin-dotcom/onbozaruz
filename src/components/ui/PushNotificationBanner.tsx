@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import {
   Bell,
@@ -73,6 +73,11 @@ export const PushNotificationBanner: React.FC = () => {
     }
   }, [pushNotification]);
 
+  const handleClose = useCallback(() => {
+    setActiveItem(null);
+    clearPushNotification();
+  }, [clearPushNotification]);
+
   // Auto-dismiss countdown (5.5 seconds)
   useEffect(() => {
     if (!activeItem || isHovered) return;
@@ -84,12 +89,7 @@ export const PushNotificationBanner: React.FC = () => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [activeItem, isHovered]);
-
-  const handleClose = () => {
-    setActiveItem(null);
-    clearPushNotification();
-  };
+  }, [activeItem, isHovered, handleClose]);
 
   const handleClick = () => {
     if (!activeItem) return;

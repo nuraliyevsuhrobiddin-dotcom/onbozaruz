@@ -191,21 +191,24 @@ export async function updateBusinessStoreByAdmin(
     );
     return;
   }
-  const dbPatch: Record<string, any> = {};
-  if (patch.storeName !== undefined) dbPatch.store_name = patch.storeName;
-  if (patch.ownerName !== undefined) dbPatch.owner_name = patch.ownerName;
-  if (patch.phone !== undefined) dbPatch.phone = patch.phone;
-  if (patch.businessType !== undefined) dbPatch.business_type = patch.businessType;
-  if (patch.region !== undefined) dbPatch.region = patch.region;
-  if (patch.district !== undefined) dbPatch.district = patch.district;
-  if (patch.address !== undefined) dbPatch.address = patch.address;
-  if (patch.latitude !== undefined) dbPatch.latitude = patch.latitude;
-  if (patch.longitude !== undefined) dbPatch.longitude = patch.longitude;
-  if (patch.description !== undefined) dbPatch.description = patch.description;
-  if (patch.status !== undefined) dbPatch.status = patch.status;
-  if (patch.cashbackBalance !== undefined) dbPatch.cashback_balance = patch.cashbackBalance;
-
-  const { error } = await supabase.from('business_profiles').update(dbPatch).eq('id', id);
+  // Protected business status/cashback fields and default-address coordinates
+  // live in separate tables. The checked RPC updates them atomically and
+  // keeps those columns unavailable to ordinary authenticated clients.
+  const { error } = await supabase.rpc('admin_update_business_store', {
+    p_business_id: id,
+    p_store_name: patch.storeName ?? null,
+    p_owner_name: patch.ownerName ?? null,
+    p_phone: patch.phone ?? null,
+    p_business_type: patch.businessType ?? null,
+    p_region: patch.region ?? null,
+    p_district: patch.district ?? null,
+    p_description: patch.description ?? null,
+    p_status: patch.status ?? null,
+    p_cashback_balance: patch.cashbackBalance ?? null,
+    p_address: patch.address ?? null,
+    p_latitude: patch.latitude ?? null,
+    p_longitude: patch.longitude ?? null,
+  });
   if (error) throw new Error(error.message);
 }
 

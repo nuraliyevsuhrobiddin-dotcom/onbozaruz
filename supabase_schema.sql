@@ -200,13 +200,13 @@ EXCEPTION
 END $$;
 
 -- PostgREST uchun frontend ishlatadigan rollarga kerakli jadval huquqlari.
-GRANT SELECT ON public.posts, public.products, public.profiles, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs TO anon, authenticated;
+GRANT SELECT ON public.posts, public.products, public.profiles, public.categories, public.liked_posts, public.saved_posts, public.comments TO anon, authenticated;
 -- orders bu ro'yxatda umuman yo'q edi — RLS siyosati to'g'ri bo'lsa ham,
 -- jadval darajasidagi GRANT bo'lmagani uchun HECH KIM (egasi ham, admin
 -- ham) o'z buyurtmalarini o'qiy olmasdi. anon'ga emas, faqat authenticated'ga.
 GRANT SELECT ON public.orders TO authenticated;
-GRANT INSERT, UPDATE, DELETE ON public.posts, public.products, public.categories, public.liked_posts, public.saved_posts, public.comments, public.reports, public.audit_logs, public.orders TO authenticated;
-GRANT INSERT, UPDATE ON public.profiles TO authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.posts, public.products, public.categories, public.liked_posts, public.saved_posts, public.comments, public.orders TO authenticated;
+GRANT INSERT, UPDATE, DELETE ON public.profiles TO authenticated;
 
 -- REPORTS (Foydalanuvchi va e'lonlar ustidan shikoyatlar)
 CREATE TABLE IF NOT EXISTS public.reports (
@@ -233,6 +233,12 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- These tables are created above before their privileges are granted. Keeping
+-- GRANT statements after DDL lets a fresh Supabase project run this complete
+-- schema without a missing-relation error.
+GRANT SELECT, INSERT, UPDATE ON public.reports TO authenticated;
+GRANT SELECT, INSERT ON public.audit_logs TO authenticated;
+
 -- =====================================================================
 -- 3. AUTOMATIC PROFILE CREATION TRIGGER & ADMIN SECURITY TRIGGER
 -- =====================================================================
@@ -245,6 +251,13 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 CREATE OR REPLACE FUNCTION public.protect_profile_admin_flag()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- profiles.email Auth emailning nusxasi. Uni PostgREST orqali o'zgartirish
+  -- login emailini o'zgartirmaydi va ikki ma'lumotni bir-biridan ajratib
+  -- qo'yadi; shuning uchun bunday bevosita o'zgarishni rad etamiz.
+  IF OLD.email IS DISTINCT FROM NEW.email THEN
+    NEW.email := OLD.email;
+  END IF;
+
   IF (OLD.is_admin IS DISTINCT FROM NEW.is_admin OR OLD.status IS DISTINCT FROM NEW.status) THEN
     -- MUHIM: bu yerda CURRENT_USER emas, SESSION_USER tekshiriladi.
     -- CURRENT_USER SECURITY DEFINER funksiya ichida DOIM funksiya
@@ -376,14 +389,15 @@ CREATE POLICY "Foydalanuvchi faqat o'z profilini yoki admin barchasini ko'radi" 
 );
 DROP POLICY IF EXISTS "Foydalanuvchi o'z profilini yaratishi mumkin" ON public.profiles;
 CREATE POLICY "Foydalanuvchi o'z profilini yaratishi mumkin" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles;
+DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z profilini o'chira oladi" ON public.profiles;
+CREATE POLICY "Foydalanuvchi faqat o'z profilini o'chira oladi" ON public.profiles FOR DELETE USING (auth.uid() = id OR public.is_admin());
 CREATE POLICY "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles FOR UPDATE USING (
   auth.uid() = id OR public.is_admin()
 );
 
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "E'lonlarni barcha ko'rishi mumkin" ON public.posts;
-CREATE POLICY "E'lonlarni barcha ko'rishi mumkin" ON public.posts FOR SELECT USING (true);
+CREATE POLICY "E'lonlarni barcha ko'rishi mumkin" ON public.posts FOR SELECT USING (status = 'approved' OR auth.uid() = user_id OR public.is_admin());
 DROP POLICY IF EXISTS "Tizimdagi foydalanuvchi e'lon qo'sha oladi" ON public.posts;
 CREATE POLICY "Tizimdagi foydalanuvchi e'lon qo'sha oladi" ON public.posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z e'lonini tahrirlay oladi" ON public.posts;
@@ -499,9 +513,20 @@ CREATE INDEX IF NOT EXISTS idx_products_approval ON public.products(approval_sta
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON public.orders(user_id);
 
 -- E'lon media fayllari uchun public Storage bucket va xavfsiz upload qoidalari.
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('listing-media', 'listing-media', TRUE)
-ON CONFLICT (id) DO UPDATE SET public = TRUE;
+-- The client accepts video files up to 100 MB.  Without these bucket-level
+-- values Supabase can reject an otherwise valid video before RLS is evaluated.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'listing-media',
+  'listing-media',
+  TRUE,
+  104857600,
+  ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime']::text[]
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = TRUE,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 DROP POLICY IF EXISTS "Listing media public read" ON storage.objects;
 CREATE POLICY "Listing media public read" ON storage.objects
@@ -510,7 +535,10 @@ CREATE POLICY "Listing media public read" ON storage.objects
 DROP POLICY IF EXISTS "Listing media authenticated upload" ON storage.objects;
 CREATE POLICY "Listing media authenticated upload" ON storage.objects
   FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'listing-media');
+  WITH CHECK (
+    bucket_id = 'listing-media'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 -- Eski siyosatlar nomida "owner" deyilgan bo'lsa-da, faqat bucket_id'ni
 -- tekshirardi — HAR QANDAY tizimga kirgan foydalanuvchi BOSHQA
@@ -852,6 +880,9 @@ RETURNS BOOLEAN AS $$
 DECLARE
   v_current_stock INTEGER;
 BEGIN
+  IF p_quantity IS NULL OR p_quantity <= 0 THEN
+    RAISE EXCEPTION 'Miqdor 0 dan katta bo''lishi kerak';
+  END IF;
   SELECT stock INTO v_current_stock FROM public.products WHERE id = p_product_id FOR UPDATE;
   IF v_current_stock IS NULL THEN
     RETURN TRUE;
@@ -864,7 +895,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-GRANT EXECUTE ON FUNCTION public.decrement_product_stock(UUID, INTEGER) TO authenticated;
+-- Legacy inventory adjustment is intentionally not exposed to clients. B2B
+-- checkout uses create_b2b_order(), which performs authorization and stock
+-- changes in a single transaction.
+REVOKE EXECUTE ON FUNCTION public.decrement_product_stock(UUID, INTEGER) FROM PUBLIC, anon, authenticated;
 
 -- --- 11.2 Bitta xariddagi buyurtmalarni birlashtirish ------------------
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS group_id UUID NULL;
@@ -934,7 +968,12 @@ CREATE OR REPLACE FUNCTION public.enforce_product_moderation()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NOT public.is_admin() THEN
-    NEW.approval_status := 'pending';
+    -- UPDATE paytida: oddiy foydalanuvchi approval_status ni o'zgartira olmaydi.
+    IF TG_OP = 'UPDATE' THEN
+      NEW.approval_status := OLD.approval_status;
+    ELSE
+      NEW.approval_status := 'pending';
+    END IF;
     IF NEW.source IS NULL OR NEW.source = 'admin' THEN
       NEW.source := 'user';
     END IF;
@@ -945,8 +984,30 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS tr_enforce_product_moderation ON public.products;
 CREATE TRIGGER tr_enforce_product_moderation
-  BEFORE INSERT ON public.products
+  BEFORE INSERT OR UPDATE ON public.products
   FOR EACH ROW EXECUTE FUNCTION public.enforce_product_moderation();
+
+-- E'lon (posts) moderatsiyasi: oddiy foydalanuvchi yangi e'lon qo'shganda
+-- status avtomatik 'pending' bo'ladi; UPDATE paytida ham o'zi 'approved'
+-- qila olmaydi — faqat admin tasdiqlashi mumkin.
+CREATE OR REPLACE FUNCTION public.enforce_post_moderation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    IF TG_OP = 'UPDATE' THEN
+      NEW.status := OLD.status;
+    ELSE
+      NEW.status := 'pending';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_enforce_post_moderation ON public.posts;
+CREATE TRIGGER tr_enforce_post_moderation
+  BEFORE INSERT OR UPDATE ON public.posts
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_post_moderation();
 
 -- =====================================================================
 -- 12. B2B ULGURJI BOZOR (Supplier / Business Buyer / Commission)
@@ -1420,6 +1481,34 @@ $$ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE;
 CREATE OR REPLACE FUNCTION public.protect_b2b_order_integrity()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- A terminal order must not be reopened: otherwise the stock/commission
+  -- trigger can be applied more than once for the same order.
+  IF OLD.status IN ('delivered', 'rejected', 'cancelled')
+    AND NEW.status IS DISTINCT FROM OLD.status THEN
+    RAISE EXCEPTION 'Yakunlangan buyurtma holatini o''zgartirib bo''lmaydi';
+  END IF;
+
+  -- Suppliers advance orders through one defined state machine. Admins retain
+  -- the ability to correct a non-terminal order when it is operationally
+  -- necessary, but browser callers cannot skip steps through the Data API.
+  IF NOT public.is_admin() AND NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NOT (
+      (OLD.status = 'pending' AND NEW.status IN ('supplier_confirmed', 'rejected', 'cancelled')) OR
+      (OLD.status = 'supplier_confirmed' AND NEW.status IN ('preparing', 'rejected', 'cancelled')) OR
+      (OLD.status = 'preparing' AND NEW.status IN ('ready', 'rejected', 'cancelled')) OR
+      (OLD.status = 'ready' AND NEW.status IN ('delivering', 'rejected', 'cancelled')) OR
+      (OLD.status = 'delivering' AND NEW.status IN ('delivered', 'rejected', 'cancelled'))
+    ) THEN
+      RAISE EXCEPTION 'Buyurtma holatini bu bosqichga o''tkazib bo''lmaydi';
+    END IF;
+
+    IF NEW.status = 'delivered'
+      AND NEW.payment_method = 'cash'
+      AND NEW.payment_status <> 'cash_confirmed' THEN
+      RAISE EXCEPTION 'Yetkazilgan deb belgilashdan oldin naqd to''lovni tasdiqlang';
+    END IF;
+  END IF;
+
   IF NEW.status = 'rejected' AND (NEW.rejection_reason IS NULL OR trim(NEW.rejection_reason) = '') THEN
     RAISE EXCEPTION 'Rad etish sababi kiritilishi shart';
   END IF;
@@ -1436,12 +1525,18 @@ CREATE TRIGGER tr_protect_b2b_order_integrity BEFORE UPDATE ON public.b2b_orders
 CREATE OR REPLACE FUNCTION public.handle_b2b_order_status_change()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('rejected','cancelled') THEN
+  -- Only the first transition into a terminal state returns stock / voids a
+  -- ledger entry. This makes the accounting operation one-way.
+  IF OLD.status IS DISTINCT FROM NEW.status
+    AND OLD.status NOT IN ('delivered', 'rejected', 'cancelled')
+    AND NEW.status IN ('rejected','cancelled') THEN
     UPDATE public.b2b_products p SET available_qty = p.available_qty + oi.quantity, updated_at = NOW()
     FROM public.b2b_order_items oi WHERE oi.order_id = NEW.id AND oi.product_id = p.id;
     UPDATE public.commission_ledger SET status = 'voided', updated_at = NOW() WHERE order_id = NEW.id;
   END IF;
-  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'delivered' THEN
+  IF OLD.status IS DISTINCT FROM NEW.status
+    AND OLD.status NOT IN ('delivered', 'rejected', 'cancelled')
+    AND NEW.status = 'delivered' THEN
     UPDATE public.commission_ledger SET status = 'settled', updated_at = NOW() WHERE order_id = NEW.id;
   END IF;
   RETURN NEW;
@@ -1974,6 +2069,29 @@ CREATE POLICY "Qabul qiluvchi holatni yangilaydi" ON public.b2b_direct_offers FO
   public.is_own_business(business_id) OR public.is_admin()
 );
 
+-- RLS decides which offer a store can reach; the trigger below decides the
+-- only permitted transition. Browser users can otherwise call the Data API
+-- directly and overwrite an accepted/declined offer.
+CREATE OR REPLACE FUNCTION public.protect_b2b_direct_offer_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    IF OLD.status <> 'pending' THEN
+      RAISE EXCEPTION 'Bu taklif allaqachon ko''rib chiqilgan';
+    END IF;
+    IF NEW.status NOT IN ('accepted', 'declined') THEN
+      RAISE EXCEPTION 'Taklif faqat qabul qilinishi yoki rad etilishi mumkin';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_protect_b2b_direct_offer_update ON public.b2b_direct_offers;
+CREATE TRIGGER tr_protect_b2b_direct_offer_update
+  BEFORE UPDATE ON public.b2b_direct_offers
+  FOR EACH ROW EXECUTE FUNCTION public.protect_b2b_direct_offer_update();
+
 CREATE INDEX IF NOT EXISTS idx_b2b_direct_offers_supplier_id ON public.b2b_direct_offers(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_b2b_direct_offers_business_id ON public.b2b_direct_offers(business_id);
 
@@ -2007,13 +2125,17 @@ CREATE POLICY "Admin bildirishnomani o'chiradi"
 -- Admin yuborgan barcha broadcastlar saqlanadi (audit maqsadida).
 CREATE TABLE IF NOT EXISTS public.broadcast_announcements (
     id          UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-    admin_id    UUID        NOT NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+    admin_id    UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
     title       TEXT        NOT NULL,
     message     TEXT        NOT NULL DEFAULT '',
     target_role TEXT        NOT NULL DEFAULT 'all',  -- 'all' | 'seller' | 'business' | 'supplier'
     sent_count  INTEGER     NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Existing databases may have been created before the nullable definition.
+-- ON DELETE SET NULL requires the child column to accept NULL.
+ALTER TABLE public.broadcast_announcements ALTER COLUMN admin_id DROP NOT NULL;
 
 ALTER TABLE public.broadcast_announcements ENABLE ROW LEVEL SECURITY;
 
@@ -2084,6 +2206,145 @@ CREATE POLICY "Admin postni tahrirlaydi"
     ON public.posts
     FOR UPDATE
     USING (public.is_admin());
+
+-- =====================================================================
+-- 14. SECURITY HARDENING PATCH
+-- RLS determines which row a user can reach. A broad table-level UPDATE or
+-- INSERT grant still lets that user supply every column in that row, so the
+-- client privileges below are explicitly narrowed. SECURITY DEFINER checkout
+-- and cashback RPCs retain owner privileges and are unaffected.
+-- =====================================================================
+
+-- Business profiles contain owner contact details and cashback balance. Public
+-- map data comes only from get_public_stores_for_map(), whose SELECT list is
+-- intentionally limited to safe store fields.
+DROP POLICY IF EXISTS "Xarita uchun do'konlarni hamma ko'radi" ON public.business_profiles;
+DROP POLICY IF EXISTS "Biznes profilini egasi yoki admin ko'radi" ON public.business_profiles;
+CREATE POLICY "Biznes profilini egasi yoki admin ko'radi"
+  ON public.business_profiles
+  FOR SELECT
+  USING (user_id = auth.uid() OR public.is_admin());
+
+DROP POLICY IF EXISTS "Xarita uchun manzillarni hamma ko'radi" ON public.business_addresses;
+DROP POLICY IF EXISTS "Manzilni egasi yoki admin ko'radi" ON public.business_addresses;
+CREATE POLICY "Manzilni egasi yoki admin ko'radi"
+  ON public.business_addresses
+  FOR SELECT
+  USING (public.is_own_business(business_id) OR public.is_admin());
+
+-- A raw client cannot create a business with an arbitrary status or cashback
+-- balance, nor overwrite either after creation.
+REVOKE INSERT, UPDATE ON public.business_profiles FROM anon, authenticated;
+GRANT INSERT (
+  user_id, store_name, owner_name, phone, business_type,
+  region, district, description, logo_url
+) ON public.business_profiles TO authenticated;
+GRANT UPDATE (
+  store_name, owner_name, phone, business_type,
+  region, district, description, logo_url
+) ON public.business_profiles TO authenticated;
+GRANT DELETE ON public.business_profiles TO authenticated;
+
+-- Admin edits include protected fields (status/cashback) and default-address
+-- fields stored in business_addresses, so they go through one checked RPC
+-- rather than reopening column privileges to every authenticated user.
+CREATE OR REPLACE FUNCTION public.admin_update_business_store(
+  p_business_id UUID,
+  p_store_name TEXT DEFAULT NULL,
+  p_owner_name TEXT DEFAULT NULL,
+  p_phone TEXT DEFAULT NULL,
+  p_business_type TEXT DEFAULT NULL,
+  p_region TEXT DEFAULT NULL,
+  p_district TEXT DEFAULT NULL,
+  p_description TEXT DEFAULT NULL,
+  p_status TEXT DEFAULT NULL,
+  p_cashback_balance NUMERIC DEFAULT NULL,
+  p_address TEXT DEFAULT NULL,
+  p_latitude NUMERIC DEFAULT NULL,
+  p_longitude NUMERIC DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Faqat admin biznes profilini boshqara oladi';
+  END IF;
+  IF p_status IS NOT NULL AND p_status NOT IN ('active', 'suspended') THEN
+    RAISE EXCEPTION 'Noto''g''ri biznes holati';
+  END IF;
+  IF p_cashback_balance IS NOT NULL AND p_cashback_balance < 0 THEN
+    RAISE EXCEPTION 'Keshbek balansi manfiy bo''lishi mumkin emas';
+  END IF;
+
+  UPDATE public.business_profiles
+  SET
+    store_name = COALESCE(p_store_name, store_name),
+    owner_name = COALESCE(p_owner_name, owner_name),
+    phone = COALESCE(p_phone, phone),
+    business_type = COALESCE(p_business_type, business_type),
+    region = COALESCE(p_region, region),
+    district = COALESCE(p_district, district),
+    description = COALESCE(p_description, description),
+    status = COALESCE(p_status, status),
+    cashback_balance = COALESCE(p_cashback_balance, cashback_balance),
+    updated_at = NOW()
+  WHERE id = p_business_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Biznes profili topilmadi';
+  END IF;
+
+  IF p_store_name IS NOT NULL OR p_phone IS NOT NULL OR p_region IS NOT NULL
+    OR p_district IS NOT NULL OR p_address IS NOT NULL
+    OR p_latitude IS NOT NULL OR p_longitude IS NOT NULL THEN
+    UPDATE public.business_addresses
+    SET
+      store_name = COALESCE(p_store_name, store_name),
+      phone = COALESCE(p_phone, phone),
+      region = COALESCE(p_region, region),
+      district = COALESCE(p_district, district),
+      address = COALESCE(p_address, address),
+      latitude = COALESCE(p_latitude, latitude),
+      longitude = COALESCE(p_longitude, longitude)
+    WHERE business_id = p_business_id AND is_default = TRUE;
+
+    IF NOT FOUND THEN
+      INSERT INTO public.business_addresses (
+        business_id, store_name, phone, region, district, address,
+        latitude, longitude, is_default
+      ) VALUES (
+        p_business_id,
+        COALESCE(p_store_name, ''),
+        COALESCE(p_phone, ''),
+        COALESCE(p_region, ''),
+        COALESCE(p_district, ''),
+        COALESCE(p_address, ''),
+        p_latitude, p_longitude, TRUE
+      );
+    END IF;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.admin_update_business_store(
+  UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC
+) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_update_business_store(
+  UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, NUMERIC, NUMERIC
+) TO authenticated;
+
+-- These financial/identity columns are written solely through checked RPCs.
+REVOKE UPDATE ON public.b2b_orders FROM anon, authenticated;
+GRANT UPDATE (status, rejection_reason) ON public.b2b_orders TO authenticated;
+
+-- An offer's sender, recipient, content and discount are immutable once it
+-- is stored. Its recipient can only choose an outcome.
+REVOKE INSERT, UPDATE ON public.b2b_direct_offers FROM anon, authenticated;
+GRANT INSERT (supplier_id, business_id, message, discount_percent, products)
+  ON public.b2b_direct_offers TO authenticated;
+GRANT UPDATE (status) ON public.b2b_direct_offers TO authenticated;
 
 -- =====================================================================
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!

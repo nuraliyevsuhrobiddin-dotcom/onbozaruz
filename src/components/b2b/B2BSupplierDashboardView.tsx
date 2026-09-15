@@ -159,6 +159,10 @@ export const B2BSupplierDashboardView: React.FC = () => {
   const handleAdvanceStatus = (order: B2BOrder) => {
     const next = NEXT_STATUS[order.status];
     if (!next) return;
+    if (next === 'delivered' && order.paymentMethod === 'cash' && order.paymentStatus !== 'cash_confirmed') {
+      showToast("Yetkazildi deb belgilashdan oldin naqd to'lov qabul qilinganini tasdiqlang.");
+      return;
+    }
     void supplierUpdateB2BOrderStatus(order.id, next);
   };
 

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -14,7 +14,7 @@ import {
   Send,
   UserCheck,
 } from 'lucide-react';
-import { AuthUser, uploadProfileMedia } from '../../api/authClient';
+import { AuthUser, deleteListingMedia, uploadProfileMedia } from '../../api/authClient';
 
 interface EditProfileSubViewProps {
   currentUser: AuthUser;
@@ -54,6 +54,16 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Object URLs only exist locally. Revoke them when a new preview replaces
+  // one or this screen unmounts, otherwise repeated image selection leaks RAM.
+  useEffect(() => () => {
+    if (avatarPreview.startsWith('blob:')) URL.revokeObjectURL(avatarPreview);
+  }, [avatarPreview]);
+
+  useEffect(() => () => {
+    if (coverPreview.startsWith('blob:')) URL.revokeObjectURL(coverPreview);
+  }, [coverPreview]);
+
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -66,7 +76,9 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
     const fileExt = file.name.split('.').pop()?.toLowerCase();
     const allowedExts = ['jpg', 'jpeg', 'png', 'webp'];
 
-    if (!allowedTypes.includes(file.type) && (!fileExt || !allowedExts.includes(fileExt))) {
+    // File extension alone is not trustworthy: it must have an allowed image
+    // MIME type too, because the file will later be decoded and transformed.
+    if (!allowedTypes.includes(file.type) || (!fileExt || !allowedExts.includes(fileExt))) {
       const err = "Faqat JPG, PNG va WEBP formatidagi rasmlar qabul qilinadi";
       setErrorMessage(err);
       showToast(err);
@@ -101,44 +113,100 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
       return;
     }
 
+    if (form.name.trim().length > 80) {
+      const err = "Ism yoki sotuvchi nomi 80 belgidan oshmasligi kerak";
+      setErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
     const cleanHandle = form.handle.trim().toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
-    if (!cleanHandle || cleanHandle.length < 2) {
-      const err = "Username kamida 2 ta harf yoki raqamdan iborat bo'lishi kerak";
+    if (!cleanHandle || cleanHandle.length < 2 || cleanHandle.length > 30) {
+      const err = "Username 2–30 ta harf, raqam yoki _ dan iborat bo'lishi kerak";
+      setErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
+    const cleanPhone = form.phone.trim();
+    if (cleanPhone && !/^\+?998\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2}$/.test(cleanPhone)) {
+      const err = "Telefon raqamini +998 XX XXX XX XX formatida kiriting";
+      setErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
+    const cleanWebsite = form.website.trim();
+    if (cleanWebsite && !/^https?:\/\/[^\s]+$/i.test(cleanWebsite)) {
+      const err = "Veb-sayt http:// yoki https:// bilan boshlanishi kerak";
+      setErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
+    const cleanTelegram = form.telegram.trim().replace(/^@/, '');
+    if (cleanTelegram && !/^[a-zA-Z0-9_]{5,32}$/.test(cleanTelegram)) {
+      const err = "Telegram username 5–32 ta harf, raqam yoki _ dan iborat bo'lishi kerak";
+      setErrorMessage(err);
+      showToast(err);
+      return;
+    }
+
+    if (form.bio.trim().length > 500 || form.location.trim().length > 120 || form.businessName.trim().length > 120) {
+      const err = "Bio 500, manzil va biznes nomi esa 120 belgidan oshmasligi kerak";
       setErrorMessage(err);
       showToast(err);
       return;
     }
 
     setIsSaving(true);
+    let uploadedAvatarUrl = '';
+    let uploadedCoverUrl = '';
     try {
       let finalAvatarUrl = form.avatar;
       let finalCoverUrl = form.cover;
 
       if (avatarFile) {
         finalAvatarUrl = await uploadProfileMedia(avatarFile, currentUser.id, 'avatar');
+        uploadedAvatarUrl = finalAvatarUrl;
       }
       if (coverFile) {
         finalCoverUrl = await uploadProfileMedia(coverFile, currentUser.id, 'cover');
+        uploadedCoverUrl = finalCoverUrl;
       }
 
       await updateUserProfile({
         name: form.name.trim(),
         handle: cleanHandle,
-        email: form.email.trim(),
-        phone: form.phone.trim(),
+        // Login email belongs to Supabase Auth; it must be changed through its
+        // verified email-change flow rather than silently changing profiles.email.
+        phone: cleanPhone,
         avatar: finalAvatarUrl,
         cover: finalCoverUrl,
         location: form.location.trim(),
         businessName: form.businessName.trim(),
         bio: form.bio.trim(),
         role: form.role as 'seller' | 'buyer' | 'business',
-        website: form.website.trim(),
-        telegram: form.telegram.trim().replace(/^@/, ''),
+        website: cleanWebsite,
+        telegram: cleanTelegram,
       });
+
+      // New URLs are committed to the profile first. Only then remove the old
+      // Storage objects, so a failed save never leaves a broken profile image.
+      if (uploadedAvatarUrl && currentUser.avatar && currentUser.avatar !== uploadedAvatarUrl) {
+        void deleteListingMedia(currentUser.avatar);
+      }
+      if (uploadedCoverUrl && currentUser.cover && currentUser.cover !== uploadedCoverUrl) {
+        void deleteListingMedia(currentUser.cover);
+      }
 
       showToast("Profil ma'lumotlari muvaffaqiyatli saqlandi! ✨");
       onBack();
     } catch (err: unknown) {
+      // A failed profile update must not leave newly uploaded, unreferenced
+      // avatar/cover files in Storage.
+      if (uploadedAvatarUrl) void deleteListingMedia(uploadedAvatarUrl);
+      if (uploadedCoverUrl) void deleteListingMedia(uploadedCoverUrl);
       const msg = err instanceof Error ? err.message : "Profil ma'lumotlarini saqlab bo'lmadi";
       setErrorMessage(msg);
       showToast(msg);
@@ -175,6 +243,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
+          onClick={(e) => { e.currentTarget.value = ''; }}
           onChange={(e) => handleImageSelect('avatar', e.target.files?.[0])}
         />
         <input
@@ -182,6 +251,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
+          onClick={(e) => { e.currentTarget.value = ''; }}
           onChange={(e) => handleImageSelect('cover', e.target.files?.[0])}
         />
 
@@ -285,11 +355,23 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
                   )}
                 </span>
                 <input
+                  type={field.key === 'email' ? 'email' : field.key === 'website' ? 'url' : 'text'}
                   value={form[field.key as keyof typeof form]}
                   onChange={(e) => updateField(field.key as keyof typeof form, e.target.value)}
                   placeholder={field.placeholder}
-                  className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-semibold text-[#111827] outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:bg-white transition-all"
+                  readOnly={field.key === 'email'}
+                  aria-describedby={field.key === 'email' ? 'profile-email-note' : undefined}
+                  className={`w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-semibold text-[#111827] outline-none transition-all ${
+                    field.key === 'email'
+                      ? 'cursor-not-allowed text-slate-500'
+                      : 'focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10 focus:bg-white'
+                  }`}
                 />
+                {field.key === 'email' && (
+                  <span id="profile-email-note" className="block text-[10px] font-medium leading-4 text-slate-400">
+                    Kirish emailini o'zgartirish tasdiqlashni talab qiladi; hozircha u akkaunt xavfsizligi uchun qulflangan.
+                  </span>
+                )}
               </label>
             );
           })}

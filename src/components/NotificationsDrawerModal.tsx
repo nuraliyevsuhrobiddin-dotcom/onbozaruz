@@ -3,7 +3,6 @@ import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
 import { Bell, Heart, MessageCircle, PackageCheck, CheckCircle2, XCircle, CheckCheck, Building2, Truck, Volume2 } from 'lucide-react';
 import { Notification, NotificationType } from '../api/types';
-import { playNotificationSound } from '../utils/notificationSound';
 
 const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
   comment: MessageCircle,
@@ -65,7 +64,6 @@ export const NotificationsDrawerModal: React.FC = () => {
     setActiveSubView,
     setActiveTab,
     setB2BRoute,
-    showToast,
     showPushNotification,
   } = useAgroStore();
 

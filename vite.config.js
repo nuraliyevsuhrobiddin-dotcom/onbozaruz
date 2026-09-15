@@ -32,6 +32,10 @@ function apiDevServerPlugin() {
             const mod = await server.ssrLoadModule('/api/auth/send-password-reset.ts')
             return await mod.default(req, res)
           }
+          if (pathname === '/api/account/delete') {
+            const mod = await server.ssrLoadModule('/api/account/delete.ts')
+            return await mod.default(req, res)
+          }
         } catch (error) {
           console.error('[API Dev Server Error]', error)
           res.statusCode = 500

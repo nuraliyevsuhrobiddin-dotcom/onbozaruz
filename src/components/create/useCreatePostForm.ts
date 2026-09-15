@@ -7,7 +7,7 @@ import { REGIONS } from '../../data/mockAgroData';
 import { MEDIA_MAX_SIZE_MB } from './constants';
 import { formatNumeric, formatPhone, isPhoneComplete, parseNumeric } from './formatting';
 import { clearDraft, draftToForm, loadDraft, saveDraft } from './createPostDraft';
-import { uploadListingMedia } from '../../api/authClient';
+import { deleteListingMedia, uploadListingMedia } from '../../api/authClient';
 
 export const postSchema = z.object({
   title: z.string().min(5, 'Kamida 5 ta belgi kiriting'),
@@ -131,8 +131,25 @@ export function useCreatePostForm() {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      const supportedImage = file.type.startsWith('image/');
-      const supportedVideo = file.type.startsWith('video/') || ['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type);
+      const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      const videoTypeByExtension: Record<string, string> = {
+        mp4: 'video/mp4',
+        webm: 'video/webm',
+        mov: 'video/quicktime',
+      };
+      const imageTypeByExtension: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp',
+        gif: 'image/gif',
+      };
+      // Some mobile browsers leave File.type blank, therefore a safe known
+      // extension is accepted as a fallback and receives an explicit MIME type.
+      const supportedImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
+        || (!file.type && Boolean(imageTypeByExtension[extension]));
+      const supportedVideo = ['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)
+        || (!file.type && Boolean(videoTypeByExtension[extension]));
       const supported = supportedImage || supportedVideo;
       if (!supported) {
         showToast("Rasm yoki MP4 / WebM / MOV videoni tanlang.");
@@ -144,16 +161,29 @@ export function useCreatePostForm() {
         e.target.value = '';
         return;
       }
+      if (mediaMode === 'video' && !supportedVideo) {
+        showToast('Video rejimida MP4, WebM yoki MOV video faylini tanlang.');
+        e.target.value = '';
+        return;
+      }
+      if (mediaMode === 'image' && !supportedImage) {
+        showToast('Rasm rejimida rasm faylini tanlang.');
+        e.target.value = '';
+        return;
+      }
 
+      if (selectedMediaUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(selectedMediaUrl);
+      }
       const previewUrl = URL.createObjectURL(file);
       setSelectedMediaFile(file);
       setSelectedMediaUrl(previewUrl);
 
-      const selectedType = file.type.startsWith('video') ? 'video' : 'image';
+      const selectedType = supportedVideo ? 'video' : 'image';
       setMediaType(selectedType);
       const standardContentType = selectedType === 'video'
-        ? (file.type && file.type.startsWith('video/') ? file.type : 'video/mp4')
-        : (file.type || 'image/jpeg');
+        ? (videoTypeByExtension[extension] || file.type || 'video/mp4')
+        : (imageTypeByExtension[extension] || file.type || 'image/jpeg');
       setMediaContentType(standardContentType);
       setMediaMode(selectedType);
 
@@ -194,7 +224,7 @@ export function useCreatePostForm() {
         setSelectedPosterUrl('');
       }
     },
-    [showToast]
+    [mediaMode, selectedMediaUrl, showToast]
   );
 
   const removeMedia = useCallback(() => {
@@ -207,6 +237,8 @@ export function useCreatePostForm() {
     setMediaType('image');
     setMediaContentType('image/jpeg');
     setMediaMode('video');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   }, [selectedMediaUrl]);
 
   // ── Joylashuv ──
@@ -391,10 +423,16 @@ export function useCreatePostForm() {
       setDurationDays(30);
 
       // Background upload process
+      let uploadedMediaUrl = '';
+      let uploadedPosterUrl = '';
       try {
         let extension = 'jpg';
         if (mediaTypeToUpload === 'video') {
-          extension = mediaContentTypeToUpload.includes('webm') ? 'webm' : 'mp4';
+          extension = mediaContentTypeToUpload.includes('webm')
+            ? 'webm'
+            : mediaContentTypeToUpload.includes('quicktime')
+              ? 'mov'
+              : 'mp4';
         } else {
           extension = mediaContentTypeToUpload.includes('png') ? 'png' : mediaContentTypeToUpload.includes('webp') ? 'webp' : 'jpg';
         }
@@ -403,9 +441,11 @@ export function useCreatePostForm() {
           `${currentUserId}/${now}-media.${extension}`,
           mediaContentTypeToUpload
         );
+        uploadedMediaUrl = mediaUrl;
         const posterUrl = posterToUpload
           ? await uploadListingMedia(posterToUpload, `${currentUserId}/${now}-poster.jpg`, 'image/jpeg')
           : undefined;
+        uploadedPosterUrl = posterUrl || '';
 
         await addPost({
           id: `post-${now}`,
@@ -446,6 +486,10 @@ export function useCreatePostForm() {
           setUploadingPostStatus(null);
         }, 3500);
       } catch (error: unknown) {
+        // If media reached Storage but post creation (or poster upload) failed,
+        // remove the orphaned objects so the profile/storage does not fill up.
+        if (uploadedPosterUrl) void deleteListingMedia(uploadedPosterUrl);
+        if (uploadedMediaUrl) void deleteListingMedia(uploadedMediaUrl);
         const message = error instanceof Error ? error.message : '';
         setUploadingPostStatus({
           isUploading: false,
@@ -536,7 +580,11 @@ export function useCreatePostForm() {
     goNext,
     goPrev,
     onSubmit,
-    handleClose: () => setCreateModalOpen(false),
+    handleClose: () => {
+      if (isPublishing) return;
+      removeMedia();
+      setCreateModalOpen(false);
+    },
     openGallery: () => fileInputRef.current?.click(),
     openCamera: () => cameraInputRef.current?.click(),
     mediaMode,

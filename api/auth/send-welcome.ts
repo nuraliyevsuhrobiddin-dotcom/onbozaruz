@@ -1,95 +1,65 @@
-﻿import type { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { getResendClient, DEFAULT_FROM_EMAIL } from '../lib/resendClient';
 import { getWelcomeEmailTemplate } from '../lib/emailTemplates';
+import { requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
 
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
+const rateLimit = new Map<string, number>();
+const WELCOME_COOLDOWN_MS = 10 * 60 * 1000;
 
-async function parseJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    req.on('data', (chunk) => {
-      body += chunk;
-      if (body.length > 1e6) {
-        req.destroy();
-        reject(new Error('Payload too large'));
-      }
-    });
-    req.on('end', () => {
-      try {
-        resolve(body ? JSON.parse(body) : {});
-      } catch (err) {
-        reject(err);
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
-export default async function handler(req: IncomingMessage & { body?: any }, res: ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    res.statusCode = 200;
-    res.end();
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    sendApiJson(res, 405, { ok: false, error: 'Faqat POST so\'rovi qabul qilinadi.' });
     return;
   }
 
-  if (req.method !== 'POST') {
-    res.statusCode = 405;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ ok: false, error: 'Faqat POST so‘rovlari qabul qilinadi.' }));
+  const user = await requireAuthenticatedUser(req, res);
+  if (!user) return;
+
+  const lastSent = rateLimit.get(user.id) || 0;
+  if (Date.now() - lastSent < WELCOME_COOLDOWN_MS) {
+    sendApiJson(res, 429, { ok: false, error: 'Xush kelibsiz xati yaqinda yuborilgan.' });
     return;
   }
 
   try {
-    const body = req.body && typeof req.body === 'object' ? req.body : await parseJsonBody(req);
-    const { email, name, role } = body;
-
-    if (!email || typeof email !== 'string' || !isValidEmail(email.trim())) {
-      res.statusCode = 400;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ ok: false, error: 'Yaroqli email manzili kiritilmadi.' }));
+    const email = user.email?.trim().toLowerCase();
+    if (!email) {
+      sendApiJson(res, 400, { ok: false, error: 'Akkauntingizda email manzili topilmadi.' });
       return;
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const { subject, html, text } = getWelcomeEmailTemplate({
-      name: name ? String(name) : undefined,
-      role: role ? String(role) : 'seller',
-    });
+    // Never trust a request body for recipient or template data. This limits
+    // welcome mail to the verified owner of the bearer token.
+    const name = typeof user.user_metadata?.name === 'string'
+      ? user.user_metadata.name.slice(0, 120)
+      : undefined;
+    const rawRole = user.user_metadata?.role;
+    const role = rawRole === 'business' || rawRole === 'seller' || rawRole === 'buyer'
+      ? rawRole
+      : 'seller';
+    const { subject, html, text } = getWelcomeEmailTemplate({ name, role });
 
-    const resend = getResendClient();
-    const result = await resend.emails.send({
+    const result = await getResendClient().emails.send({
       from: DEFAULT_FROM_EMAIL,
-      to: cleanEmail,
+      to: email,
       subject,
       html,
       text,
     });
-
     if (result.error) {
       console.error('[Resend Welcome Error]', result.error);
-      res.statusCode = 500;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ ok: false, error: result.error.message || 'Email yuborishda xatolik yuz berdi.' }));
+      sendApiJson(res, 500, { ok: false, error: 'Email yuborishda xatolik yuz berdi.' });
       return;
     }
 
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({
+    rateLimit.set(user.id, Date.now());
+    sendApiJson(res, 200, {
       ok: true,
       id: result.data?.id,
       message: 'Xush kelibsiz xati muvaffaqiyatli yuborildi.',
-    }));
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Serverda kutilmagan xatolik';
-    res.statusCode = 500;
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ ok: false, error: message }));
+    });
+  } catch {
+    sendApiJson(res, 500, { ok: false, error: 'Email yuborishda xatolik yuz berdi.' });
   }
 }

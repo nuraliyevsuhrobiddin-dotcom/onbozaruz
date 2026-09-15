@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { lockBodyScroll, unlockBodyScroll } from '../utils/scrollLock';
 import {
@@ -35,10 +35,13 @@ const TelegramSVG = () => (
 // ---------------------------------------------------------------------------
 type PreloadMode = 'active' | 'next' | 'none';
 
-function getPreloadMode(idx: number, currentIndex: number): PreloadMode {
+function getPreloadMode(idx: number, currentIndex: number, isSlowConnection: boolean): PreloadMode {
   if (idx === currentIndex) return 'active';
-  // Preload BOTH directions: next (forward) + prev (backward swipe instant start)
-  if (idx === currentIndex + 1 || idx === currentIndex - 1) return 'next';
+  // Only warm up the next video. Preloading both neighbours with `auto` can
+  // start three large video downloads at once and is the main source of Reels
+  // stutter on mid-range phones. On a slow/data-saver connection even the
+  // next video waits until the user actually swipes to it.
+  if (!isSlowConnection && idx === currentIndex + 1) return 'next';
   return 'none';
 }
 
@@ -50,12 +53,11 @@ interface SlideProps {
   isActive: boolean;
   preloadMode: PreloadMode;
   globalMuted: boolean;
-  onUnmute?: () => void;
 }
 
 // memo prevents re-renders when the parent's state changes but this slide's
 // props haven't changed (e.g. globalMuted toggle causes full list re-render).
-const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted, onUnmute: _onUnmute }) => {
+const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -84,8 +86,6 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     setAuthPromptOpen,
   } = useAgroStore();
 
-  const { isSlowConnection } = useNetworkStatus();
-
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
   const isFollowing = followedSellerIds.includes(post.sellerId);
@@ -112,8 +112,6 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
       video.muted = globalMuted;
       video.volume = globalMuted ? 0 : 1;
       // Har safar active bo'lganda boshidan boshlaydi — Instagram xatti-harakati
-      video.currentTime = 0;
-
       const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise
@@ -237,14 +235,14 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const posterSrc = post.posterUrl || undefined;
 
   // Preload strategy:
-  // - active slide: 'auto' (instant download and decode)
-  // - next slide: 'auto' on high-speed connection, 'metadata' on slow connections (2G/3G/save-data)
-  // - distant slides: 'none' (zero network & RAM waste)
+  // - active slide: start buffering immediately
+  // - next slide: request metadata only, never media bytes
+  // - distant slides: no request and no decoder
   const preloadAttr =
     preloadMode === 'active'
       ? 'auto'
       : preloadMode === 'next'
-        ? (isSlowConnection ? 'metadata' : 'auto')
+        ? 'metadata'
         : 'none';
 
   return (
@@ -266,7 +264,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
         {posterSrc ? (
           <div
             aria-hidden="true"
-            className="absolute inset-[-24px] bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none"
+            className="absolute inset-[-24px] hidden bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none sm:block"
             style={{ backgroundImage: `url(${posterSrc})` }}
           />
         ) : (
@@ -615,7 +613,9 @@ export const VideoReelsViewer: React.FC = () => {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   // Ovozli boshlanadi — foydalanuvchi bosib kirdi (user gesture)
-  const [globalMuted, setGlobalMuted] = useState(false);
+  // Starting muted avoids a blocked sound-autoplay attempt and starts the
+  // first frame faster on mobile. Users can unmute from the floating control.
+  const [globalMuted, setGlobalMuted] = useState(true);
   // Floating control visibility: appears on scroll, hides after inactivity
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const floatingControlsTimer = useRef<number | null>(null);
@@ -625,41 +625,53 @@ export const VideoReelsViewer: React.FC = () => {
   const wheelTimeout = useRef<number | null>(null);
   const lastWheelTime = useRef(0);
   const scrollSettleTimer = useRef<number | null>(null);
+  const wasOpenRef = useRef(false);
   // Keep a ref to currentIndex so the IntersectionObserver callback can read
   // the latest value without being recreated on every index change.
   const currentIndexRef = useRef(currentIndex);
+  const { isSlowConnection } = useNetworkStatus();
+  const requestedStartIndex = Math.max(0, Math.min(videoViewerStartIndex, Math.max(0, liveVideoPosts.length - 1)));
+  // This component stays mounted while closed. On the opening render, use the
+  // requested item rather than the stale index from the previous session so
+  // phones never start fetching videos 0 and 1 before the selected reel.
+  const renderedIndex = isVideoViewerOpen && !wasOpenRef.current
+    ? requestedStartIndex
+    : currentIndex;
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
 
-  // Sync start index when viewer opens & position container cleanly
-  useEffect(() => {
-    if (!isVideoViewerOpen) return;
-    setCurrentIndex(videoViewerStartIndex);
-    currentIndexRef.current = videoViewerStartIndex;
-    setGlobalMuted(false);
+  // Sync the requested item and scroll position before the overlay paints.
+  // `useEffect` here produces a short flash at item 0 and starts needless
+  // network requests for its video on slower phones.
+  useLayoutEffect(() => {
+    if (!isVideoViewerOpen) {
+      wasOpenRef.current = false;
+      return;
+    }
+
+    wasOpenRef.current = true;
+    setCurrentIndex(requestedStartIndex);
+    currentIndexRef.current = requestedStartIndex;
+    // Muted playback is allowed immediately on mobile. Starting with sound
+    // first causes a rejected autoplay attempt and a second, slower attempt.
+    setGlobalMuted(true);
     setShowFloatingControls(true);
 
     isScrolling.current = true;
-    const timer = setTimeout(() => {
-      const el = containerRef.current;
-      if (el) {
-        const targetChild = el.children[videoViewerStartIndex] as HTMLElement;
-        if (targetChild && typeof targetChild.scrollIntoView === 'function') {
-          targetChild.scrollIntoView({ block: 'start', behavior: 'instant' as ScrollBehavior });
-        } else {
-          const viewportHeight = el.clientHeight || window.innerHeight;
-          el.scrollTop = videoViewerStartIndex * viewportHeight;
-        }
-      }
-      setTimeout(() => {
-        isScrolling.current = false;
-      }, 50);
-    }, 10);
+    const el = containerRef.current;
+    const targetChild = el?.children[requestedStartIndex] as HTMLElement | undefined;
+    if (el) {
+      el.scrollTop = targetChild?.offsetTop ?? requestedStartIndex * (el.clientHeight || window.innerHeight);
+    }
 
-    return () => clearTimeout(timer);
-  }, [isVideoViewerOpen, videoViewerStartIndex]);
+    const frame = window.requestAnimationFrame(() => {
+      isScrolling.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [isVideoViewerOpen, requestedStartIndex]);
 
   // Floating controls auto-hide timer
   useEffect(() => {
@@ -924,12 +936,12 @@ export const VideoReelsViewer: React.FC = () => {
           } as React.CSSProperties}
         >
           {liveVideoPosts.map((post, idx) => {
-            const preloadMode = getPreloadMode(idx, currentIndex);
+            const preloadMode = getPreloadMode(idx, renderedIndex, isSlowConnection);
             // Only mount the real slide (with its <video> element) for the
             // active slide and its immediate neighbors. Farther slides stay
             // as cheap placeholders so opening the viewer doesn't force React
             // to mount every video component in the feed at once.
-            const isNearby = Math.abs(idx - currentIndex) <= 1;
+            const isNearby = Math.abs(idx - renderedIndex) <= 1;
             return (
               <div
                 key={post.id}
@@ -955,10 +967,9 @@ export const VideoReelsViewer: React.FC = () => {
                 {isNearby ? (
                   <VideoSlide
                     post={post}
-                    isActive={idx === currentIndex}
+                    isActive={idx === renderedIndex}
                     preloadMode={preloadMode}
                     globalMuted={globalMuted}
-                    onUnmute={() => setGlobalMuted(false)}
                   />
                 ) : (
                   <div className="relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden">

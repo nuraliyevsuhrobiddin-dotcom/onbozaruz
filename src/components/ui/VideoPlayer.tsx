@@ -20,12 +20,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  // Start muted so the first viewport video can play on iOS/Android without
+  // waiting for a failed sound-autoplay attempt.
+  const [isMuted, setIsMuted] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
   const { isVideoViewerOpen } = useAgroStore();
+  const [isNearViewport, setIsNearViewport] = useState(false);
+  // A feed can contain many VideoPlayer instances. Keep a source attached only
+  // for cards near the viewport, and release it while Reels is open. This
+  // prevents every feed card from competing for the mobile connection.
+  const activeSrc = !isVideoViewerOpen && isNearViewport ? src : undefined;
 
   const [hasFrame, setHasFrame] = useState(false);
 
@@ -36,31 +43,54 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     setIsBuffering(false);
     setHasFrame(false);
     setAspectRatio(null);
-  }, [src, poster, retryKey]);
+  }, [src, poster, retryKey, activeSrc]);
+
+  // Load only the current card and the cards just before/after it. The margin
+  // gives the next card enough time to fetch metadata without loading a whole
+  // feed of videos at page start.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsNearViewport(entry.isIntersecting),
+      { rootMargin: '300px 0px', threshold: 0 }
+    );
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   // Reels ochilganida feed videolarni to'xtatish va mute qilish
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    if (isVideoViewerOpen) {
+    if (isVideoViewerOpen || !isNearViewport) {
       // Reels ochilganida: video mute qil va pause qil
       video.volume = 0;
       video.muted = true;
       video.pause();
+      setIsPlaying(false);
+      setIsBuffering(false);
     } else {
       // Reels yopilganida: original mute holatiga qaytarish
       video.muted = isMuted;
       video.volume = isMuted ? 0 : 1;
     }
-  }, [isVideoViewerOpen, isMuted]);
+  }, [isVideoViewerOpen, isMuted, isNearViewport]);
 
   // IntersectionObserver — feed da avtomatik ijro/to'xtatish
   // Pero Reels ochilganida auto-play ishlamaydi
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
-    if (!video || !container) return;
+    if (!video || !container || !activeSrc) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -96,7 +126,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [src, retryKey, isVideoViewerOpen]);
+  }, [activeSrc, retryKey, isVideoViewerOpen]);
 
   const handleRetry = useCallback(() => {
     setRetryKey((k) => k + 1);
@@ -166,7 +196,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       <video
         key={retryKey}
         ref={videoRef}
-        src={src}
+        src={activeSrc}
         poster={poster}
         loop
         muted={isMuted}
