@@ -391,6 +391,7 @@ DROP POLICY IF EXISTS "Foydalanuvchi o'z profilini yaratishi mumkin" ON public.p
 CREATE POLICY "Foydalanuvchi o'z profilini yaratishi mumkin" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z profilini o'chira oladi" ON public.profiles;
 CREATE POLICY "Foydalanuvchi faqat o'z profilini o'chira oladi" ON public.profiles FOR DELETE USING (auth.uid() = id OR public.is_admin());
+DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles;
 CREATE POLICY "Foydalanuvchi faqat o'z profilini tahrirlay oladi" ON public.profiles FOR UPDATE USING (
   auth.uid() = id OR public.is_admin()
 );
