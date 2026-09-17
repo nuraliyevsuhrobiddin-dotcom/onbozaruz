@@ -9,6 +9,9 @@ import {
   XCircle,
   Building2,
   Truck,
+  Coins,
+  Sparkles,
+  Megaphone,
   X,
   ChevronRight,
 } from 'lucide-react';
@@ -30,6 +33,10 @@ const ICON_MAP: Record<NotificationType, React.ElementType> = {
   b2b_product_rejected: XCircle,
   b2b_new_order: Truck,
   b2b_order_status: Truck,
+  b2b_cashback: Coins,
+  b2b_offer: Sparkles,
+  b2b_offer_status: CheckCircle2,
+  broadcast: Megaphone,
 };
 
 const COLOR_MAP: Record<NotificationType, { bg: string; text: string; ring: string }> = {
@@ -47,6 +54,10 @@ const COLOR_MAP: Record<NotificationType, { bg: string; text: string; ring: stri
   b2b_product_rejected: { bg: 'bg-rose-500', text: 'text-white', ring: 'ring-rose-100' },
   b2b_new_order: { bg: 'bg-blue-600', text: 'text-white', ring: 'ring-blue-100' },
   b2b_order_status: { bg: 'bg-emerald-600', text: 'text-white', ring: 'ring-emerald-100' },
+  b2b_cashback: { bg: 'bg-emerald-600', text: 'text-white', ring: 'ring-emerald-100' },
+  b2b_offer: { bg: 'bg-violet-600', text: 'text-white', ring: 'ring-violet-100' },
+  b2b_offer_status: { bg: 'bg-indigo-600', text: 'text-white', ring: 'ring-indigo-100' },
+  broadcast: { bg: 'bg-purple-600', text: 'text-white', ring: 'ring-purple-100' },
 };
 
 export const PushNotificationBanner: React.FC = () => {
@@ -112,6 +123,9 @@ export const PushNotificationBanner: React.FC = () => {
     } else if (activeItem.targetType === 'b2b_product' && activeItem.targetId) {
       setActiveTab('market');
       setB2BRoute({ view: 'product', id: activeItem.targetId });
+    } else if (activeItem.targetType === 'b2b_offer' || activeItem.targetType === 'b2b_cashback') {
+      setActiveTab('market');
+      setB2BRoute({ view: 'dashboard' });
     } else {
       setNotificationsOpen(true);
     }
@@ -158,13 +172,20 @@ export const PushNotificationBanner: React.FC = () => {
             {/* Header row */}
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <div className="flex items-center gap-2 min-w-0">
-                <div
-                  className={`w-6 h-6 rounded-lg ${colors.bg} ${colors.text} ring-2 ${colors.ring} flex items-center justify-center shrink-0 shadow-xs`}
-                >
-                  <IconComponent className="w-3.5 h-3.5" />
+                <div className="relative shrink-0">
+                  <img
+                    src="/logo.png"
+                    alt="OnBozar"
+                    className="w-6 h-6 rounded-lg object-cover shadow-xs border border-slate-100 dark:border-slate-800"
+                  />
+                  <div
+                    className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full ${colors.bg} ${colors.text} flex items-center justify-center ring-1.5 ring-white dark:ring-slate-900 shadow-xs`}
+                  >
+                    <IconComponent className="w-2 h-2 stroke-[2.5]" />
+                  </div>
                 </div>
-                <span className="font-extrabold text-[12px] tracking-tight text-slate-900 dark:text-white truncate">
-                  {activeItem.actorName || "OnBozar"}
+                <span className="font-black text-[12px] tracking-tight text-slate-900 dark:text-white truncate">
+                  OnBozar {activeItem.actorName ? `• ${activeItem.actorName}` : ''}
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium shrink-0">• Hozirgina</span>
               </div>

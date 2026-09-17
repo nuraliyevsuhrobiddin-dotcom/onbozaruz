@@ -20,6 +20,13 @@ import {
   Volume2,
 } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
+import {
+  getDeviceNotificationPermission,
+  requestDeviceNotificationPermission,
+  showDeviceNotification,
+  type NotificationPermissionStatus,
+} from '../../utils/deviceNotifications';
+import { playNotificationSound, unlockAudioContext } from '../../utils/notificationSound';
 
 interface ProfileSettingsSubViewProps {
   onBack: () => void;
@@ -32,10 +39,11 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   showToast,
   onLogout,
 }) => {
-  const { deleteAccount, showPushNotification } = useAgroStore();
+  const { deleteAccount } = useAgroStore();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [permStatus, setPermStatus] = useState<NotificationPermissionStatus>(() => getDeviceNotificationPermission());
 
   // Load saved settings from localStorage or fallback to defaults
   const [settingsForm, setSettingsForm] = useState(() => {
@@ -62,7 +70,19 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
     };
   });
 
-  const toggleSetting = (field: keyof typeof settingsForm) => {
+  const toggleSetting = async (field: keyof typeof settingsForm) => {
+    if (field === 'pushNotifications' && !settingsForm.pushNotifications) {
+      unlockAudioContext();
+      const result = await requestDeviceNotificationPermission();
+      setPermStatus(result);
+      if (result !== 'granted') {
+        showToast(result === 'denied'
+          ? 'Brauzer sozlamalaridan bildirishnomaga ruxsat bering'
+          : "Bu brauzer tizim bildirishnomalarini qo'llab-quvvatlamaydi");
+        return;
+      }
+    }
+
     setSettingsForm((prev: any) => {
       const updated = { ...prev, [field]: !prev[field] };
       localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
@@ -76,6 +96,31 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
       return updated;
     });
+  };
+
+  const handleRequestPermission = async () => {
+    unlockAudioContext();
+    const result = await requestDeviceNotificationPermission();
+    setPermStatus(result);
+    if (result === 'granted') {
+      showToast('Telefon bildirishnomalari va ovozi yoqildi');
+    } else if (result === 'denied') {
+      showToast('Brauzer sozlamalaridan ruxsat bering');
+    }
+  };
+
+  const handleTestSoundAndNotification = async () => {
+    unlockAudioContext();
+    playNotificationSound();
+    const delivered = await showDeviceNotification({
+      title: 'OnBozar bildirishnomasi',
+      body: 'Telefon ovozi, vibratsiya va tizim bildirishnomasi muvaffaqiyatli ishlayapti!',
+      tag: 'onbozar-notification-test',
+      url: '#home',
+    });
+    showToast(delivered
+      ? 'Sinov ovozi va bildirishnomasi yuborildi'
+      : 'Ovoz sinovi yuborildi. Tizim bildirishnomasi uchun brauzer ruxsatini tekshiring.');
   };
 
   const handleSaveSettings = () => {
@@ -170,15 +215,50 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
       {/* Bildirishnomalar */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
-        <h3 className="font-black text-sm text-[#111827] mb-2 flex items-center gap-2">
-          <Bell className="w-4 h-4 text-[#D84315]" />
-          Bildirishnomalar
-        </h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
+            <Bell className="w-4 h-4 text-[#D84315]" />
+            Bildirishnomalar
+          </h3>
+          {permStatus === 'granted' && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Ovoz va push faol
+            </span>
+          )}
+        </div>
+
+        {permStatus === 'default' && (
+          <div className="mb-3 rounded-2xl bg-orange-50/90 border border-orange-200/90 p-3 flex items-center justify-between gap-2 shadow-xs">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-[#111827] leading-tight">
+                Telefon ruxsati berilmagan
+              </p>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Ovoz va bildirishnomalar kelishi uchun ruxsat bering
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRequestPermission}
+              className="px-3.5 py-1.5 rounded-xl bg-[#D84315] hover:bg-[#BF360C] text-white text-xs font-black shrink-0 shadow-xs transition-transform active:scale-95 cursor-pointer"
+            >
+              Ruxsat berish
+            </button>
+          </div>
+        )}
+
+        {permStatus === 'denied' && (
+          <div className="mb-3 rounded-2xl bg-rose-50 border border-rose-200 p-2.5 text-[11px] text-rose-700 font-medium">
+            ⚠️ Telefonda bildirishnoma bloklangan. Brauzer sozlamalaridan OnBozar uchun ruxsat bering.
+          </div>
+        )}
+
         <div className="divide-y divide-slate-100">
           <ToggleRow
             field="pushNotifications"
-            title="Push-xabarlar"
-            text="Yangi e'lonlar, xaridlar va sharhlar haqida xabar berish"
+            title="Push-xabarlar va telefon ovozi"
+            text="Yangi e'lonlar, xaridlar va sharhlar haqida telefoningizga xabar berish"
             icon={Smartphone}
           />
           <ToggleRow
@@ -197,23 +277,11 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
         <button
           type="button"
-          onClick={() => {
-            showPushNotification({
-              id: `test-notif-${Date.now()}`,
-              userId: 'me',
-              type: 'order_status',
-              title: "OnBozar bildirishnomasi 🔔",
-              body: "SMS-banner va ovozli bildirishnoma muvaffaqiyatli ishlayapti!",
-              targetType: '',
-              isRead: false,
-              createdAt: new Date().toISOString(),
-            });
-            showToast("Sinov bildirishnomasi yuborildi 🔔");
-          }}
+          onClick={handleTestSoundAndNotification}
           className="w-full mt-3.5 py-2.5 px-4 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#D84315] font-bold text-xs flex items-center justify-center gap-2 border border-orange-200/70 transition-colors cursor-pointer active:scale-[0.99]"
         >
           <Volume2 className="w-4 h-4" />
-          <span>Bildirishnoma va tovushni sinab ko'rish</span>
+          <span>Telefon ovozi va bildirishnomasini sinab ko'rish</span>
         </button>
       </div>
 

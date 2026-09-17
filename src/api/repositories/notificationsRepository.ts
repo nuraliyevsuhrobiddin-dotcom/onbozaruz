@@ -8,7 +8,12 @@ import { api } from '../http';
 import { Notification } from '../types';
 
 export const notificationsRepository = {
-  list: () => api.get<Notification[]>('/notifications'),
+  // Keep this bounded: the drawer needs recent activity, not an unbounded
+  // history request on every sign-in.
+  list: () => api.get<Notification[]>('/notifications', { order: 'created_at.desc', limit: 100 }),
 
   markRead: (id: string) => api.patch<Notification>(`/notifications/${id}`, { isRead: true }),
+
+  markAllRead: () =>
+    api.patch<Notification[]>('/notifications', { isRead: true }, { params: { isRead: 'eq.false' } }),
 };

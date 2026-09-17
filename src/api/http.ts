@@ -19,6 +19,10 @@ type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 export interface RequestOptions {
   params?: Record<string, string | number | undefined>;
+  /** PostgREST ordering clause, for example created_at.desc. */
+  order?: string;
+  /** Maximum number of rows returned by PostgREST. */
+  limit?: number;
 }
 
 export class ApiTransportError extends Error {
@@ -173,6 +177,8 @@ async function requestSupabase(
 
   if (method === 'GET') params.set('select', '*');
   if (id) params.set('id', `eq.${id}`);
+  if (options?.order) params.set('order', options.order);
+  if (options?.limit !== undefined) params.set('limit', String(options.limit));
 
   if (options?.params) {
     Object.entries(options.params).forEach(([key, value]) => {
@@ -235,6 +241,6 @@ async function requestSupabase(
 export const api = {
   get: <T>(path: string, options?: RequestOptions) => request<T>('GET', path, undefined, options),
   post: <T>(path: string, body: unknown) => request<T>('POST', path, body),
-  patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
+  patch: <T>(path: string, body: unknown, options?: RequestOptions) => request<T>('PATCH', path, body, options),
   delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
 };

@@ -128,7 +128,11 @@ export type NotificationType =
   | 'b2b_product_approved'
   | 'b2b_product_rejected'
   | 'b2b_new_order'
-  | 'b2b_order_status';
+  | 'b2b_order_status'
+  | 'b2b_cashback'
+  | 'b2b_offer'
+  | 'b2b_offer_status'
+  | 'broadcast';
 
 export interface Notification {
   id: string;
@@ -136,7 +140,7 @@ export interface Notification {
   type: NotificationType;
   title: string;
   body: string;
-  targetType?: 'post' | 'order' | 'product' | 'supplier_profile' | 'b2b_product' | 'b2b_order' | '';
+  targetType?: 'post' | 'order' | 'product' | 'supplier_profile' | 'b2b_product' | 'b2b_order' | 'b2b_cashback' | 'b2b_offer' | 'announcement' | '';
   targetId?: string;
   actorId?: string;
   actorName?: string;

@@ -1,4 +1,4 @@
--- =====================================================================
+﻿-- =====================================================================
 -- OnBozar Agro Marketplace — Complete Supabase SQL Schema & Initial Seed
 -- =====================================================================
 -- Ushbu skriptni Supabase Dashboard -> SQL Editor sahifasiga joylang
@@ -709,9 +709,14 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Foydalanuvchi faqat o'z bildirishnomalarini ko'radi" ON public.notifications;
 CREATE POLICY "Foydalanuvchi faqat o'z bildirishnomalarini ko'radi" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Foydalanuvchi bildirishnomani o'qilgan deb belgilaydi" ON public.notifications;
-CREATE POLICY "Foydalanuvchi bildirishnomani o'qilgan deb belgilaydi" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
+-- WITH CHECK: UPDATE paytida user_id o'zgartirib boshqasining bildirishnomasini "claim" qilishdan himoya.
+CREATE POLICY "Foydalanuvchi bildirishnomani o'qilgan deb belgilaydi" ON public.notifications FOR UPDATE
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Foydalanuvchi o'z bildirishnomalarini o'chira oladi" ON public.notifications;
+CREATE POLICY "Foydalanuvchi o'z bildirishnomalarini o'chira oladi" ON public.notifications FOR DELETE
+  USING (auth.uid() = user_id);
 
-GRANT SELECT, UPDATE ON public.notifications TO authenticated;
+GRANT SELECT, UPDATE, DELETE ON public.notifications TO authenticated;
 
 -- Izoh qoldirilganda post egasiga bildirishnoma.
 CREATE OR REPLACE FUNCTION public.notify_on_new_comment()
@@ -2098,6 +2103,66 @@ CREATE INDEX IF NOT EXISTS idx_b2b_direct_offers_business_id ON public.b2b_direc
 
 GRANT SELECT, INSERT, UPDATE ON public.b2b_direct_offers TO authenticated;
 
+-- Supplier to'g'ridan-to'g'ri taklif yuborganda do'kon egasiga bildirishnoma
+CREATE OR REPLACE FUNCTION public.notify_on_b2b_direct_offer()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_business_owner UUID;
+  v_supplier_name TEXT;
+BEGIN
+  SELECT user_id INTO v_business_owner FROM public.business_profiles WHERE id = NEW.business_id;
+  SELECT company_name INTO v_supplier_name FROM public.supplier_profiles WHERE id = NEW.supplier_id;
+  IF v_business_owner IS NOT NULL THEN
+    INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+    VALUES (
+      v_business_owner,
+      'b2b_offer',
+      'Yangi tijorat taklifi 🤝',
+      COALESCE(v_supplier_name, 'Supplier') || ' sizning do''koningizga yangi taklif yubordi',
+      'b2b_offer',
+      NEW.id::text
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_notify_on_b2b_direct_offer ON public.b2b_direct_offers;
+CREATE TRIGGER tr_notify_on_b2b_direct_offer
+  AFTER INSERT ON public.b2b_direct_offers
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_b2b_direct_offer();
+
+-- Do'kon taklifni qabul qilganda yoki rad etganda supplierga bildirishnoma
+CREATE OR REPLACE FUNCTION public.notify_on_b2b_direct_offer_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_supplier_owner UUID;
+  v_store_name TEXT;
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('accepted', 'declined') THEN
+    SELECT user_id INTO v_supplier_owner FROM public.supplier_profiles WHERE id = NEW.supplier_id;
+    SELECT store_name INTO v_store_name FROM public.business_profiles WHERE id = NEW.business_id;
+    IF v_supplier_owner IS NOT NULL THEN
+      INSERT INTO public.notifications (user_id, type, title, body, target_type, target_id)
+      VALUES (
+        v_supplier_owner,
+        'b2b_offer_status',
+        CASE WHEN NEW.status = 'accepted' THEN 'Taklifingiz qabul qilindi! 🎉' ELSE 'Taklifingiz rad etildi' END,
+        COALESCE(v_store_name, 'Do''kon') || ' taklifingizni ' || (CASE WHEN NEW.status = 'accepted' THEN 'qabul qildi' ELSE 'rad etdi' END),
+        'b2b_offer',
+        NEW.id::text
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS tr_notify_on_b2b_direct_offer_status_change ON public.b2b_direct_offers;
+CREATE TRIGGER tr_notify_on_b2b_direct_offer_status_change
+  AFTER UPDATE OF status ON public.b2b_direct_offers
+  FOR EACH ROW EXECUTE FUNCTION public.notify_on_b2b_direct_offer_status_change();
+
 -- =====================================================================
 -- 13. PATCH — Mavjud joylashuv uchun qo'shimcha ALTER / tuzatmalar
 -- =====================================================================
@@ -2114,13 +2179,21 @@ ALTER TABLE public.notifications
 -- eski triggerlar body'ga yozadi, yangi kod message'ga yozadi.
 -- Ikkalasi ham TEXT, NULL emas, ikkovi ham foydalaniladi.
 
--- 13.2  Admin notifications uchun DELETE ruxsati
--- Admin broadcast bildirishnomalarini bekor qila olishi kerak.
+-- 13.2  Admin notifications uchun INSERT va DELETE ruxsati
+-- Admin broadcast xabarlarini barcha foydalanuvchilarga yozishi va bekor qila olishi kerak.
+DROP POLICY IF EXISTS "Admin bildirishnomani yaratadi" ON public.notifications;
+CREATE POLICY "Admin bildirishnomani yaratadi"
+    ON public.notifications
+    FOR INSERT
+    WITH CHECK (public.is_admin());
+
 DROP POLICY IF EXISTS "Admin bildirishnomani o'chiradi" ON public.notifications;
 CREATE POLICY "Admin bildirishnomani o'chiradi"
     ON public.notifications
     FOR DELETE
     USING (public.is_admin());
+
+GRANT INSERT, DELETE ON public.notifications TO authenticated;
 
 -- 13.3  broadcast_announcements — Yuborilgan e'lonlar tarixi
 -- Admin yuborgan barcha broadcastlar saqlanadi (audit maqsadida).

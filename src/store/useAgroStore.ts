@@ -34,6 +34,8 @@ import { notificationsRepository } from '../api/repositories/notificationsReposi
 import { productReviewsRepository } from '../api/repositories/productReviewsRepository';
 import { subscribeToNotifications } from '../api/notificationsRealtime';
 import { playNotificationSound } from '../utils/notificationSound';
+import { showDeviceNotification } from '../utils/deviceNotifications';
+import { syncWebPushSubscription } from '../utils/webPush';
 import { cacheManager } from '../utils/cacheManager';
 import { adminRepository } from '../api/adminRepository';
 import { b2bRepository, DEFAULT_PLATFORM_REQUISITES, type B2BDeliveryInfo, type CheckoutResult } from '../api/b2bRepository';
@@ -214,15 +216,64 @@ const ADMIN_EMAIL = 'nuraliyevsuhrobiddin@gmail.com';
 // Realtime subscription handle — lives outside Zustand state since it's a side-effect handle, not serializable.
 let notificationsUnsubscribe: (() => void) | null = null;
 
-function isNotificationSoundEnabled(): boolean {
+type NotificationPreferences = {
+  pushNotifications: boolean;
+  orderUpdates: boolean;
+  marketingMessages: boolean;
+};
+
+function getNotificationPreferences(): NotificationPreferences {
+  const defaults: NotificationPreferences = {
+    pushNotifications: true,
+    orderUpdates: true,
+    marketingMessages: false,
+  };
+
+  if (typeof window === 'undefined') return defaults;
+
   try {
     const saved = localStorage.getItem('onbozor-app-settings');
-    if (!saved) return true;
-    const parsed = JSON.parse(saved) as { pushNotifications?: boolean };
-    return parsed.pushNotifications !== false;
+    if (!saved) return defaults;
+    const parsed = JSON.parse(saved) as Partial<NotificationPreferences>;
+    return {
+      pushNotifications: parsed.pushNotifications !== false,
+      orderUpdates: parsed.orderUpdates !== false,
+      marketingMessages: parsed.marketingMessages === true,
+    };
   } catch {
-    return true;
+    return defaults;
   }
+}
+
+function shouldPresentNotification(notification: Notification): boolean {
+  const settings = getNotificationPreferences();
+  if (!settings.pushNotifications) return false;
+
+  const isOrderUpdate = notification.type === 'order_status'
+    || notification.type === 'b2b_new_order'
+    || notification.type === 'b2b_order_status';
+  if (isOrderUpdate && !settings.orderUpdates) return false;
+
+  return notification.type !== 'broadcast' || settings.marketingMessages;
+}
+
+function mergeNotifications(current: Notification[], incoming: Notification[]): Notification[] {
+  const byId = new Map<string, Notification>();
+  [...current, ...incoming].forEach((notification) => {
+    const existing = byId.get(notification.id);
+    // A local read acknowledgement must not be overwritten by an older fetch.
+    byId.set(notification.id, existing?.isRead && !notification.isRead
+      ? { ...notification, isRead: true }
+      : notification);
+  });
+
+  return [...byId.values()]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 100);
+}
+
+function countUnreadNotifications(notifications: Notification[]): number {
+  return notifications.filter((notification) => !notification.isRead).length;
 }
 
 // E'lon muddati: expiresAt yo'q (cheksiz) yoki hali kelmagan bo'lsa — faol.
@@ -232,6 +283,14 @@ function isPostActive(post: Post): boolean {
 
 function filterActivePosts(posts: Post[]): Post[] {
   return posts.filter(isPostActive);
+}
+
+function getNotificationTargetUrl(n: Notification): string {
+  if (n.targetType === 'b2b_order' && n.targetId) return `#market/order/${n.targetId}`;
+  if (n.targetType === 'b2b_product' && n.targetId) return `#market/product/${n.targetId}`;
+  if (n.targetType === 'supplier_profile') return '#market/dashboard';
+  if (n.targetType === 'order') return '#profile/orders';
+  return '#home';
 }
 
 export const useAgroStore = create<AgroStoreState>()(
@@ -263,15 +322,40 @@ export const useAgroStore = create<AgroStoreState>()(
         }
       }
 
+      function receiveNotification(notification: Notification) {
+        const presentOnDevice = shouldPresentNotification(notification);
+        let isNew = false;
+
+        set((state) => {
+          isNew = !state.notifications.some((item) => item.id === notification.id);
+          const notifications = mergeNotifications(state.notifications, [notification]);
+          return {
+            notifications,
+            unreadNotificationsCount: countUnreadNotifications(notifications),
+            ...(isNew && presentOnDevice ? { pushNotification: notification } : {}),
+          };
+        });
+
+        if (isNew && presentOnDevice) {
+          playNotificationSound();
+          void showDeviceNotification({
+            title: notification.title,
+            body: notification.body,
+            id: notification.id,
+            url: getNotificationTargetUrl(notification),
+          });
+        }
+      }
+
       async function fetchNotificationsList() {
         try {
           const rows = await notificationsRepository.list();
-          const sorted = [...rows].sort(
-            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          set({
-            notifications: sorted,
-            unreadNotificationsCount: sorted.filter((n) => !n.isRead).length,
+          set((state) => {
+            const notifications = mergeNotifications(state.notifications, rows);
+            return {
+              notifications,
+              unreadNotificationsCount: countUnreadNotifications(notifications),
+            };
           });
         } catch {
           // Keep previously loaded notifications if the fetch fails.
@@ -280,14 +364,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       function startNotificationsSubscription(userId: string) {
         notificationsUnsubscribe?.();
-        notificationsUnsubscribe = subscribeToNotifications(userId, (notification) => {
-          set((state) => ({
-            notifications: [notification, ...state.notifications],
-            unreadNotificationsCount: state.unreadNotificationsCount + 1,
-            pushNotification: notification,
-          }));
-          if (isNotificationSoundEnabled()) playNotificationSound();
-        });
+        notificationsUnsubscribe = subscribeToNotifications(userId, receiveNotification);
       }
 
       const cachedPostsResult = cacheManager.loadPostsCache();
@@ -407,9 +484,10 @@ export const useAgroStore = create<AgroStoreState>()(
             loadUserInteractions(user),
             get().hydrateFromApi(),
           ]);
+          startNotificationsSubscription(user.id);
           void fetchNotificationsList();
           void get().fetchOwnB2BProfiles();
-          startNotificationsSubscription(user.id);
+          void syncWebPushSubscription();
         },
 
         restoreSession: async () => {
@@ -462,9 +540,10 @@ export const useAgroStore = create<AgroStoreState>()(
           if (get().posts.length === 0) {
             void get().hydrateFromApi();
           }
+          startNotificationsSubscription(restoredUser.id);
           void fetchNotificationsList();
           void get().fetchOwnB2BProfiles();
-          startNotificationsSubscription(restoredUser.id);
+          void syncWebPushSubscription();
         },
 
         logoutUser: async () => {
@@ -961,28 +1040,38 @@ export const useAgroStore = create<AgroStoreState>()(
       markNotificationRead: async (id) => {
         const target = get().notifications.find((n) => n.id === id);
         if (!target || target.isRead) return;
-        set((state) => ({
-          notifications: state.notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
-          unreadNotificationsCount: Math.max(0, state.unreadNotificationsCount - 1),
-        }));
+        set((state) => {
+          const notifications = state.notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+          return { notifications, unreadNotificationsCount: countUnreadNotifications(notifications) };
+        });
         try {
           await notificationsRepository.markRead(id);
         } catch {
-          // Local state is already updated optimistically; ignore server failure.
+          // Restore only this notification if the server rejected the update.
+          set((state) => {
+            const notifications = state.notifications.map((n) => (n.id === id ? target : n));
+            return { notifications, unreadNotificationsCount: countUnreadNotifications(notifications) };
+          });
         }
       },
 
       markAllNotificationsRead: async () => {
-        const unread = get().notifications.filter((n) => !n.isRead);
-        if (unread.length === 0) return;
-        set((state) => ({
-          notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
-          unreadNotificationsCount: 0,
-        }));
+        const unreadIds = new Set(get().notifications.filter((n) => !n.isRead).map((n) => n.id));
+        if (unreadIds.size === 0) return;
+        set((state) => {
+          const notifications = state.notifications.map((n) => (unreadIds.has(n.id) ? { ...n, isRead: true } : n));
+          return { notifications, unreadNotificationsCount: countUnreadNotifications(notifications) };
+        });
         try {
-          await Promise.all(unread.map((n) => notificationsRepository.markRead(n.id)));
+          await notificationsRepository.markAllRead();
         } catch {
-          // Local state is already updated optimistically; ignore partial server failures.
+          // Keep the UI truthful when the bulk request could not be persisted.
+          set((state) => {
+            const notifications = state.notifications.map((n) => (
+              unreadIds.has(n.id) ? { ...n, isRead: false } : n
+            ));
+            return { notifications, unreadNotificationsCount: countUnreadNotifications(notifications) };
+          });
         }
       },
 
@@ -1029,14 +1118,7 @@ export const useAgroStore = create<AgroStoreState>()(
       showToast: (msg) => set({ toastMessage: msg }),
       hideToast: () => set({ toastMessage: null }),
       showPushNotification: (n) => {
-        set((state) => ({
-          pushNotification: n,
-          notifications: [n, ...state.notifications.filter((item) => item.id !== n.id)],
-          unreadNotificationsCount: state.unreadNotificationsCount + 1,
-        }));
-        if (isNotificationSoundEnabled()) {
-          playNotificationSound();
-        }
+        receiveNotification(n);
       },
       clearPushNotification: () => set({ pushNotification: null }),
 

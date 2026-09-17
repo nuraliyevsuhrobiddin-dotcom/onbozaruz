@@ -13,7 +13,9 @@ function mapRowToNotification(row: Record<string, unknown>): Notification {
     userId: row.user_id as string,
     type: row.type as Notification['type'],
     title: row.title as string,
-    body: (row.body as string) || '',
+    // `message` was used by an older broadcast implementation. Keep this
+    // fallback so notifications already stored with that column still render.
+    body: (row.body as string) || (row.message as string) || '',
     targetType: (row.target_type as Notification['targetType']) || '',
     targetId: (row.target_id as string) || '',
     actorId: (row.actor_id as string) || undefined,

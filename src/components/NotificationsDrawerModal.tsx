@@ -1,8 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
-import { Bell, Heart, MessageCircle, PackageCheck, CheckCircle2, XCircle, CheckCheck, Building2, Truck, Volume2 } from 'lucide-react';
+import {
+  Bell,
+  Heart,
+  MessageCircle,
+  PackageCheck,
+  CheckCircle2,
+  XCircle,
+  CheckCheck,
+  Building2,
+  Truck,
+  Volume2,
+  Coins,
+  Sparkles,
+  Megaphone,
+  Smartphone,
+  ShieldAlert,
+} from 'lucide-react';
 import { Notification, NotificationType } from '../api/types';
+import {
+  getDeviceNotificationPermission,
+  requestDeviceNotificationPermission,
+  showDeviceNotification,
+  type NotificationPermissionStatus,
+} from '../utils/deviceNotifications';
+import { playNotificationSound, unlockAudioContext } from '../utils/notificationSound';
 
 const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
   comment: MessageCircle,
@@ -19,6 +42,10 @@ const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
   b2b_product_rejected: XCircle,
   b2b_new_order: Truck,
   b2b_order_status: Truck,
+  b2b_cashback: Coins,
+  b2b_offer: Sparkles,
+  b2b_offer_status: CheckCircle2,
+  broadcast: Megaphone,
 };
 
 const TONE_BY_TYPE: Record<NotificationType, string> = {
@@ -36,6 +63,10 @@ const TONE_BY_TYPE: Record<NotificationType, string> = {
   b2b_product_rejected: 'text-rose-600 bg-rose-50',
   b2b_new_order: 'text-blue-600 bg-blue-50',
   b2b_order_status: 'text-blue-600 bg-blue-50',
+  b2b_cashback: 'text-emerald-600 bg-emerald-50',
+  b2b_offer: 'text-violet-600 bg-violet-50',
+  b2b_offer_status: 'text-indigo-600 bg-indigo-50',
+  broadcast: 'text-purple-600 bg-purple-50',
 };
 
 function formatRelativeTime(iso: string): string {
@@ -64,21 +95,45 @@ export const NotificationsDrawerModal: React.FC = () => {
     setActiveSubView,
     setActiveTab,
     setB2BRoute,
-    showPushNotification,
+    showToast,
   } = useAgroStore();
 
-  const handleTestSound = () => {
-    showPushNotification({
-      id: `test-${Date.now()}`,
-      userId: 'test',
-      type: 'order_status',
-      title: "OnBozar bildirishnomasi 🔔",
-      body: "Bildirishnoma ovozi va SMS-banner muvaffaqiyatli ishlayapti!",
-      targetType: '',
-      isRead: false,
-      createdAt: new Date().toISOString(),
+  const [permStatus, setPermStatus] = useState<NotificationPermissionStatus>('default');
+
+  useEffect(() => {
+    if (isNotificationsOpen) {
+      setPermStatus(getDeviceNotificationPermission());
+    }
+  }, [isNotificationsOpen]);
+
+  const sendDeviceTest = async (successMessage: string) => {
+    unlockAudioContext();
+    playNotificationSound();
+    const delivered = await showDeviceNotification({
+      title: 'OnBozar bildirishnomasi',
+      body: 'Telefon ovozi, vibratsiya va tizim bildirishnomasi muvaffaqiyatli ishlayapti!',
+      tag: 'onbozar-notification-test',
+      url: '#home',
     });
-    setNotificationsOpen(false);
+    showToast(delivered
+      ? successMessage
+      : 'Ovoz sinovi yuborildi. Tizim bildirishnomasi uchun brauzer ruxsatini tekshiring.');
+  };
+
+  const handleEnableNotifications = async () => {
+    unlockAudioContext();
+    const result = await requestDeviceNotificationPermission();
+    setPermStatus(result);
+
+    if (result === 'granted') {
+      await sendDeviceTest('Telefon bildirishnomalari va ovozi yoqildi');
+    } else if (result === 'denied') {
+      showToast('Brauzer sozlamalaridan bildirishnomani yoqing');
+    }
+  };
+
+  const handleTestSound = async () => {
+    await sendDeviceTest('Sinov ovozi va bildirishnomasi yuborildi');
   };
 
   const handleSelect = (notification: Notification) => {
@@ -99,6 +154,9 @@ export const NotificationsDrawerModal: React.FC = () => {
     } else if (notification.targetType === 'b2b_product' && notification.targetId) {
       setActiveTab('market');
       setB2BRoute({ view: 'product', id: notification.targetId });
+    } else if (notification.targetType === 'b2b_offer' || notification.targetType === 'b2b_cashback') {
+      setActiveTab('market');
+      setB2BRoute({ view: 'dashboard' });
     }
     setNotificationsOpen(false);
   };
@@ -110,6 +168,40 @@ export const NotificationsDrawerModal: React.FC = () => {
       title="Bildirishnomalar"
     >
       <div className="space-y-3 py-2 select-none">
+        {/* Permission Request Banner if not granted */}
+        {permStatus === 'default' && (
+          <div className="rounded-[18px] bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 border border-orange-200/90 p-3.5 flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-8 h-8 rounded-full bg-white border border-orange-200 text-[#D84315] flex items-center justify-center shrink-0 shadow-xs">
+                <Smartphone className="w-4 h-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-[#111827] leading-tight">
+                  Telefon ovozi va bildirishnomasini yoqing
+                </p>
+                <p className="text-[11px] text-slate-500 font-medium leading-snug">
+                  Ekranni qulflaganda ham yangi xarid va xabarlarni eshitasiz
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnableNotifications}
+              className="shrink-0 px-3.5 py-1.5 rounded-xl bg-[#D84315] hover:bg-[#BF360C] text-white text-xs font-black shadow-sm transition-transform active:scale-95 cursor-pointer"
+            >
+              Yoqish
+            </button>
+          </div>
+        )}
+
+        {permStatus === 'denied' && (
+          <div className="rounded-[16px] bg-rose-50 border border-rose-200 p-2.5 flex items-center gap-2 text-rose-800 text-[11px] font-semibold">
+            <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+            <span>Telefonda bildirishnoma bloklangan. Brauzer sozlamalaridan OnBozar uchun ruxsat bering.</span>
+          </div>
+        )}
+
+        {/* Top Action Bar */}
         <div className="flex items-center justify-between rounded-[18px] bg-slate-50 px-3 py-2 border border-slate-100">
           <div className="flex items-center gap-2">
             <span className="w-9 h-9 rounded-full bg-orange-50 text-[#D84315] flex items-center justify-center">
@@ -126,8 +218,8 @@ export const NotificationsDrawerModal: React.FC = () => {
             <button
               type="button"
               onClick={handleTestSound}
-              title="Ovozni sinash"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white border border-slate-200 text-[10px] font-black text-[#D84315] hover:bg-orange-50 transition-colors cursor-pointer"
+              title="Ovoz va telefon bildirishnomasini sinash"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white border border-slate-200 text-[10px] font-black text-[#D84315] hover:bg-orange-50 transition-colors cursor-pointer active:scale-95"
             >
               <Volume2 className="w-3.5 h-3.5" />
               <span>Ovozni sinash</span>
@@ -166,7 +258,7 @@ export const NotificationsDrawerModal: React.FC = () => {
                   key={notification.id}
                   type="button"
                   onClick={() => handleSelect(notification)}
-                  className={`relative w-full flex items-start gap-3 rounded-[18px] border p-3 text-left shadow-sm transition-colors cursor-pointer ${
+                  className={`relative w-full flex items-start gap-3 rounded-[18px] border p-3 text-left shadow-xs transition-colors cursor-pointer ${
                     notification.isRead
                       ? 'border-slate-100 bg-white hover:border-slate-200'
                       : 'border-red-100 bg-red-50/40 hover:border-red-200'
