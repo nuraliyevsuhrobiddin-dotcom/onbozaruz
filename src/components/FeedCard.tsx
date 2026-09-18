@@ -231,7 +231,9 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           <VideoPlayer
             src={post.mediaUrl}
             poster={post.posterUrl}
-            fit="cover"
+            // Keep the complete frame visible. `cover` crops the top and
+            // bottom of videos whose ratio differs from the 4:5 feed card.
+            fit="contain"
             onOpenReels={handleMediaClick}
           />
         ) : (

@@ -189,37 +189,82 @@ export function useCreatePostForm() {
 
       if (selectedType === 'video') {
         const video = document.createElement('video');
-        video.src = previewUrl;
         video.muted = true;
         video.playsInline = true;
         video.preload = 'auto';
         video.crossOrigin = 'anonymous';
 
-        const captureFrame = () => {
+        // Do not capture `loadeddata`/`canplay`: at that point mobile videos
+        // commonly still render their black first frame. Seek to a few points
+        // in the clip and keep the first frame that is not essentially black.
+        let captureTimes: number[] = [];
+        let captureIndex = 0;
+        let hasCapturedPoster = false;
+
+        const seekToNextFrame = () => {
+          if (hasCapturedPoster || captureIndex >= captureTimes.length) return;
+          const nextTime = captureTimes[captureIndex++];
           try {
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.min(video.videoWidth || 480, 720);
-            canvas.height = Math.min(video.videoHeight || 640, 1280);
-            const ctx = canvas.getContext('2d');
-            if (ctx && canvas.width > 0 && canvas.height > 0) {
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-              if (dataUrl && dataUrl.length > 500) {
-                setSelectedPosterUrl(dataUrl);
-              }
-            }
+            video.currentTime = nextTime;
           } catch {
-            // Ignore canvas capture exceptions
+            seekToNextFrame();
           }
         };
 
-        video.onloadedmetadata = () => {
-          video.currentTime = Math.min(0.2, (video.duration || 1) / 4);
+        const captureFrame = () => {
+          if (hasCapturedPoster) return;
+          try {
+            if (!video.videoWidth || !video.videoHeight) {
+              seekToNextFrame();
+              return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.min(video.videoWidth, 720);
+            canvas.height = Math.min(video.videoHeight, 1280);
+            const ctx = canvas.getContext('2d');
+            if (ctx && canvas.width > 0 && canvas.height > 0) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+              // A tiny sample is enough to reject a fully black intro frame
+              // without retaining the full-size image data in memory.
+              const sample = ctx.getImageData(0, 0, Math.min(canvas.width, 48), Math.min(canvas.height, 48)).data;
+              let brightness = 0;
+              let pixels = 0;
+              for (let i = 0; i < sample.length; i += 16) {
+                brightness += sample[i] + sample[i + 1] + sample[i + 2];
+                pixels += 1;
+              }
+              if (pixels > 0 && brightness / (pixels * 3) < 8) {
+                seekToNextFrame();
+                return;
+              }
+
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              if (dataUrl && dataUrl.length > 500) {
+                hasCapturedPoster = true;
+                setSelectedPosterUrl(dataUrl);
+                return;
+              }
+            }
+          } catch {
+            // Try a later decoded frame before giving up.
+          }
+          seekToNextFrame();
         };
-        video.onseeked = captureFrame;
-        video.onloadeddata = captureFrame;
-        video.oncanplay = captureFrame;
+
+        video.onloadedmetadata = () => {
+          const duration = Number.isFinite(video.duration) ? video.duration : 0;
+          const maxTime = Math.max(0.1, duration - 0.15);
+          captureTimes = [duration * 0.12, duration * 0.36, duration * 0.65]
+            .map((time) => Math.min(Math.max(time, 0.35), maxTime))
+            .filter((time, index, all) => all.indexOf(time) === index);
+          seekToNextFrame();
+        };
+        // Give the decoder one paint turn after the seek before drawing to canvas.
+        video.onseeked = () => window.setTimeout(captureFrame, 80);
         video.onerror = () => setSelectedPosterUrl('');
+        video.src = previewUrl;
+        video.load();
       } else {
         setSelectedPosterUrl('');
       }
