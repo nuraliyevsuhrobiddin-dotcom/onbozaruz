@@ -299,9 +299,9 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               onCanPlay={() => { setIsBuffering(false); setHasFrame(true); }}
               onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
               onError={() => { setHasError(true); setIsBuffering(false); }}
-              // Never crop a landscape or extra-tall upload in the Reels
-              // viewport; the background fills any remaining space instead.
-              className="relative z-[1] w-full h-full object-contain cursor-pointer"
+              // Fill the Reels viewport on phones. `contain` leaves black
+              // bars whenever the uploaded video's ratio differs from it.
+              className="relative z-[1] w-full h-full object-cover cursor-pointer"
             />
 
             {/* Poster / Placeholder Overlay — smoothly covers video until first frame arrives */}
@@ -312,7 +312,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                     src={posterSrc}
                     alt={post.title}
                     onError={() => setPosterFailed(true)}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-black">
