@@ -92,6 +92,10 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const isFollowing = followedSellerIds.includes(post.sellerId);
   const isOwnPost = currentUser?.id === post.sellerId;
 
+  // Determine video src: only attach for active + next slides.
+  const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
+  const posterSrc = post.posterUrl || undefined;
+
   // Reset error/frame state when retryKey or src changes
   useEffect(() => {
     setHasError(false);
@@ -171,7 +175,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     }
   }, [globalMuted, isActive]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — fully release Android MediaCodec hardware decoder & network stream
   useEffect(() => {
     const video = videoRef.current;
     return () => {
@@ -179,9 +183,23 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
         video.volume = 0;
         video.muted = true;
         video.pause();
+        video.removeAttribute('src');
+        video.load();
       }
     };
   }, []);
+
+  // When videoSrc is detached (distant slide), explicitly reset media element
+  // so Chromium on Android does not retain the decoder in memory
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!videoSrc) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+  }, [videoSrc]);
 
   const handleRetry = useCallback(() => {
     setRetryKey((k) => k + 1);
@@ -231,9 +249,6 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const telegramLink = cleanTelegram ? `https://t.me/${cleanTelegram}` : undefined;
   const telLink = `tel:${cleanPhone}`;
 
-  // Determine video src: only attach for active + next slides.
-  const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
-  const posterSrc = post.posterUrl || undefined;
 
   // Preload strategy:
   // - active slide: start buffering immediately
@@ -276,17 +291,22 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               playsInline
               preload={preloadAttr}
               onClick={handleClick}
-              onLoadedData={() => setHasFrame(true)}
-              onLoadedMetadata={() => {
-                // If poster is missing, first metadata event indicates readiness
-                setHasFrame(true);
-              }}
               onPlay={() => { setIsPlaying(true); setIsBuffering(false); }}
               onPause={() => setIsPlaying(false)}
               onWaiting={() => { if (isActive) setIsBuffering(true); }}
               onStalled={() => { if (isActive) setIsBuffering(true); }}
-              onCanPlay={() => { setIsBuffering(false); setHasFrame(true); }}
-              onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
+              onCanPlay={() => { setIsBuffering(false); }}
+              onPlaying={() => {
+                setIsPlaying(true);
+                setIsBuffering(false);
+                setHasFrame(true);
+              }}
+              onTimeUpdate={(e) => {
+                if (e.currentTarget.currentTime > 0) {
+                  setHasFrame(true);
+                  setIsBuffering(false);
+                }
+              }}
               onError={() => { setHasError(true); setIsBuffering(false); }}
               className="reels-visual relative z-[1] w-full h-full cursor-pointer"
             />
@@ -302,12 +322,15 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                     className="reels-visual w-full h-full"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-black">
-                    <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10">
-                      <Play className="w-6 h-6 text-white/80 fill-white/80 translate-x-0.5" />
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-gradient-to-b from-slate-900 via-black to-slate-950">
+                    <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10">
+                      <Play className="w-7 h-7 text-white/80 fill-white/80 translate-x-0.5" />
                     </div>
-                    <span className="text-xs font-bold text-white/70 max-w-[200px] truncate">{post.title}</span>
-                    <Loader2 className="w-6 h-6 text-[#D84315] animate-spin mt-1" />
+                    <span className="text-sm font-bold text-white/90 max-w-[240px] truncate">{post.title}</span>
+                    <div className="flex items-center gap-2 mt-1 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white/70 text-xs">
+                      <Loader2 className="w-4 h-4 text-[#D84315] animate-spin" />
+                      <span>Yuklanmoqda...</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -740,9 +763,9 @@ export const VideoReelsViewer: React.FC = () => {
       },
       {
         root: container,
-        // 0.4 threshold: video o'rtaga kelmay turib ham early trigger
-        // Instagram ham 40-50% ko'ringanda o'tadi, 60% emas
-        threshold: [0.4, 0.5, 0.6],
+        // 0.75 threshold: only commit when the incoming slide covers most of the screen,
+        // preventing jank caused by mid-swipe DOM rebuilds and decoder churn
+        threshold: [0.75],
       }
     );
 
@@ -778,8 +801,6 @@ export const VideoReelsViewer: React.FC = () => {
   }, [liveVideoPosts.length]);
 
   // Native scroll settlement handler for touch & momentum scrolling.
-  // 120ms debounce (vs 80ms before) gives momentum scroll time to settle
-  // on mid-range Android devices before we commit to an index.
   const handleScroll = useCallback(() => {
     revealControls();
 
@@ -803,9 +824,33 @@ export const VideoReelsViewer: React.FC = () => {
         currentIndexRef.current = settledIdx;
         setCurrentIndex(settledIdx);
       }
-    // 60ms: scroll tugaganidan keyin tezroq commit — 120ms edi, sekin edi
-    }, 60);
+    }, 80);
   }, [liveVideoPosts.length, revealControls]);
+
+  // Native scrollend event listener — fires as soon as touch/momentum snap rests (Chrome 114+, Safari 17+)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !isVideoViewerOpen) return;
+
+    const onScrollEnd = () => {
+      if (isScrolling.current) return;
+      const viewportHeight = el.clientHeight || window.innerHeight;
+      if (viewportHeight <= 0) return;
+      const settledIdx = Math.max(
+        0,
+        Math.min(Math.round(el.scrollTop / viewportHeight), liveVideoPosts.length - 1)
+      );
+      if (settledIdx !== currentIndexRef.current) {
+        currentIndexRef.current = settledIdx;
+        setCurrentIndex(settledIdx);
+      }
+    };
+
+    el.addEventListener('scrollend', onScrollEnd);
+    return () => {
+      el.removeEventListener('scrollend', onScrollEnd);
+    };
+  }, [isVideoViewerOpen, liveVideoPosts.length]);
 
   // Keyboard navigation
   useEffect(() => {

@@ -199,15 +199,41 @@ export function useCreatePostForm() {
         video.preload = 'auto';
         video.crossOrigin = 'anonymous';
 
-        // Do not capture `loadeddata`/`canplay`: at that point mobile videos
-        // commonly still render their black first frame. Seek to a few points
-        // in the clip and keep the first frame that is not essentially black.
+        // Attach invisibly to DOM so mobile Android Chromium allocates hardware decoder & paints
+        video.style.position = 'fixed';
+        video.style.top = '-9999px';
+        video.style.left = '-9999px';
+        video.style.width = '1px';
+        video.style.height = '1px';
+        video.style.opacity = '0';
+        video.style.pointerEvents = 'none';
+        document.body.appendChild(video);
+
         let captureTimes: number[] = [];
         let captureIndex = 0;
         let hasCapturedPoster = false;
+        let fallbackPosterUrl = '';
+
+        const cleanupVideo = () => {
+          video.onloadedmetadata = null;
+          video.onseeked = null;
+          video.onerror = null;
+          video.pause();
+          video.removeAttribute('src');
+          video.load();
+          if (video.parentNode) {
+            video.parentNode.removeChild(video);
+          }
+        };
 
         const seekToNextFrame = () => {
-          if (hasCapturedPoster || captureIndex >= captureTimes.length) return;
+          if (hasCapturedPoster || captureIndex >= captureTimes.length) {
+            if (!hasCapturedPoster && fallbackPosterUrl) {
+              setSelectedPosterUrl(fallbackPosterUrl);
+            }
+            cleanupVideo();
+            return;
+          }
           const nextTime = captureTimes[captureIndex++];
           try {
             video.currentTime = nextTime;
@@ -230,24 +256,26 @@ export function useCreatePostForm() {
             if (ctx && canvas.width > 0 && canvas.height > 0) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-              // A tiny sample is enough to reject a fully black intro frame
-              // without retaining the full-size image data in memory.
-              const sample = ctx.getImageData(0, 0, Math.min(canvas.width, 48), Math.min(canvas.height, 48)).data;
-              let brightness = 0;
-              let pixels = 0;
-              for (let i = 0; i < sample.length; i += 16) {
-                brightness += sample[i] + sample[i + 1] + sample[i + 2];
-                pixels += 1;
-              }
-              if (pixels > 0 && brightness / (pixels * 3) < 8) {
-                seekToNextFrame();
-                return;
-              }
-
               const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
               if (dataUrl && dataUrl.length > 500) {
+                if (!fallbackPosterUrl) fallbackPosterUrl = dataUrl;
+
+                // Check brightness to reject a pitch black intro frame if another frame is available
+                const sample = ctx.getImageData(0, 0, Math.min(canvas.width, 48), Math.min(canvas.height, 48)).data;
+                let brightness = 0;
+                let pixels = 0;
+                for (let i = 0; i < sample.length; i += 16) {
+                  brightness += sample[i] + sample[i + 1] + sample[i + 2];
+                  pixels += 1;
+                }
+                if (pixels > 0 && brightness / (pixels * 3) < 8 && captureIndex < captureTimes.length) {
+                  seekToNextFrame();
+                  return;
+                }
+
                 hasCapturedPoster = true;
                 setSelectedPosterUrl(dataUrl);
+                cleanupVideo();
                 return;
               }
             }
@@ -260,14 +288,18 @@ export function useCreatePostForm() {
         video.onloadedmetadata = () => {
           const duration = Number.isFinite(video.duration) ? video.duration : 0;
           const maxTime = Math.max(0.1, duration - 0.15);
-          captureTimes = [duration * 0.12, duration * 0.36, duration * 0.65]
-            .map((time) => Math.min(Math.max(time, 0.35), maxTime))
+          captureTimes = [duration * 0.15, duration * 0.35, duration * 0.60, 0.1]
+            .map((time) => Math.min(Math.max(time, 0.1), maxTime))
             .filter((time, index, all) => all.indexOf(time) === index);
           seekToNextFrame();
         };
+
         // Give the decoder one paint turn after the seek before drawing to canvas.
         video.onseeked = () => window.setTimeout(captureFrame, 80);
-        video.onerror = () => setSelectedPosterUrl('');
+        video.onerror = () => {
+          setSelectedPosterUrl('');
+          cleanupVideo();
+        };
         video.src = previewUrl;
         video.load();
       } else {

@@ -66,6 +66,31 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return () => observer.disconnect();
   }, []);
 
+  // Cleanup on unmount — fully release Android MediaCodec decoder & network buffers
+  useEffect(() => {
+    const video = videoRef.current;
+    return () => {
+      if (video) {
+        video.volume = 0;
+        video.muted = true;
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+      }
+    };
+  }, []);
+
+  // When activeSrc is cleared (e.g. out of viewport or Reels opened), release decoder
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!activeSrc) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+  }, [activeSrc]);
+
   // Reels ochilganida feed videolarni to'xtatish va mute qilish
   useEffect(() => {
     const video = videoRef.current;
@@ -202,14 +227,18 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         muted={isMuted}
         playsInline
         preload="metadata"
-        onLoadedData={() => setHasFrame(true)}
         onError={() => { setHasError(true); setIsBuffering(false); }}
         onWaiting={() => setIsBuffering(true)}
         onStalled={() => setIsBuffering(true)}
-        onCanPlay={() => { setIsBuffering(false); setHasFrame(true); }}
+        onCanPlay={() => { setIsBuffering(false); }}
         onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
+        onTimeUpdate={(e) => {
+          if (e.currentTarget.currentTime > 0) {
+            setHasFrame(true);
+            setIsBuffering(false);
+          }
+        }}
         onLoadedMetadata={(event) => {
-          setHasFrame(true);
           const video = event.currentTarget;
           if (video.videoWidth > 0 && video.videoHeight > 0) {
             setAspectRatio(video.videoWidth / video.videoHeight);
