@@ -76,7 +76,7 @@ export const PushNotificationBanner: React.FC = () => {
 
   const [activeItem, setActiveItem] = useState<Notification | null>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (pushNotification) {
