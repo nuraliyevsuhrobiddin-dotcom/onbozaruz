@@ -2434,12 +2434,12 @@ ALTER TABLE public.posts ADD CONSTRAINT posts_coordinates_check CHECK (
 );
 
 CREATE OR REPLACE FUNCTION public.sync_profile_to_posts()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   UPDATE public.posts SET seller_name=NEW.name, seller_avatar=COALESCE(NEW.avatar_url,''), phone=COALESCE(NEW.phone,''), updated_at=NOW() WHERE user_id=NEW.id;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- --- 15.2 business_type va supplier_type cheklovlarini yangilash ---
 ALTER TABLE public.business_profiles DROP CONSTRAINT IF EXISTS business_profiles_business_type_check;
@@ -2454,7 +2454,7 @@ ALTER TABLE public.supplier_profiles ADD CONSTRAINT supplier_profiles_supplier_t
 
 -- --- 15.3 register_business_buyer_with_address RPC ---
 CREATE OR REPLACE FUNCTION public.register_business_buyer_with_address(p_input jsonb)
-RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $
+RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $$
 DECLARE
   v_profile public.business_profiles; v_address public.business_addresses;
   v_lat double precision := (p_input->>'latitude')::double precision;
@@ -2473,7 +2473,7 @@ BEGIN
   VALUES(v_profile.id,v_profile.store_name,v_profile.phone,v_profile.region,v_profile.district,trim(p_input->>'address'),v_lat,v_lng,true)
   RETURNING * INTO v_address;
   RETURN to_jsonb(v_profile)||jsonb_build_object('address',v_address.address,'latitude',v_address.latitude,'longitude',v_address.longitude);
-END $;
+END $$;
 REVOKE ALL ON FUNCTION public.register_business_buyer_with_address(jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.register_business_buyer_with_address(jsonb) TO authenticated;
 
@@ -2494,7 +2494,7 @@ ALTER TABLE public.b2b_products ADD CONSTRAINT b2b_products_agro_check CHECK (
 );
 
 CREATE OR REPLACE FUNCTION public.validate_agro_product_link()
-RETURNS TRIGGER AS $
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.linked_post_id IS NOT NULL AND (TG_OP='INSERT' OR NEW.linked_post_id IS DISTINCT FROM OLD.linked_post_id) THEN
     IF NOT EXISTS (SELECT 1 FROM public.posts p JOIN public.supplier_profiles s ON s.user_id=p.user_id
@@ -2503,7 +2503,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 DROP TRIGGER IF EXISTS tr_validate_agro_product_link ON public.b2b_products;
 CREATE TRIGGER tr_validate_agro_product_link BEFORE INSERT OR UPDATE ON public.b2b_products FOR EACH ROW EXECUTE FUNCTION public.validate_agro_product_link();
 
@@ -2574,7 +2574,7 @@ GRANT SELECT ON public.agro_trade_offers TO authenticated;
 
 -- --- 15.7 Agro savdo RPC funksiyalari ---
 CREATE OR REPLACE FUNCTION public.create_agro_request(p_input jsonb)
-RETURNS public.agro_purchase_requests LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+RETURNS public.agro_purchase_requests LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_row public.agro_purchase_requests; v_name text;
 BEGIN
   IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Avval akkauntingizga kiring'; END IF;
@@ -2587,17 +2587,17 @@ BEGIN
          p_input->>'deliveryMethod',coalesce(p_input->>'description',''))
   RETURNING * INTO v_row;
   RETURN v_row;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.close_agro_request(p_id uuid)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 BEGIN
   UPDATE public.agro_purchase_requests SET status='closed' WHERE id=p_id AND user_id=auth.uid();
   IF NOT FOUND THEN RAISE EXCEPTION 'Ruxsat yo''q yoki so''rov topilmadi'; END IF;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.check_agro_offer_target(p_offer public.agro_trade_offers)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_request public.agro_purchase_requests; v_product public.b2b_products;
 BEGIN
   IF p_offer.quantity IS NULL OR p_offer.quantity<=0 OR p_offer.unit_price IS NULL OR p_offer.unit_price<=0
@@ -2622,10 +2622,10 @@ BEGIN
     IF v_product.availability='upcoming' AND p_offer.delivery_date<v_product.available_from THEN RAISE EXCEPTION 'Hosil hali tayyor bo''lmaydi'; END IF;
     IF p_offer.delivery_method='delivery' AND NOT v_product.delivery_available THEN RAISE EXCEPTION 'Yetkazib berish mavjud emas'; END IF;
   END IF;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.send_agro_offer(p_input jsonb)
-RETURNS public.agro_trade_offers LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+RETURNS public.agro_trade_offers LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE
   v_offer public.agro_trade_offers; v_request public.agro_purchase_requests; v_product public.b2b_products;
 BEGIN
@@ -2653,10 +2653,10 @@ BEGIN
   VALUES(v_offer.request_id,v_offer.product_id,v_offer.product_name,v_offer.unit,v_offer.buyer_user_id,v_offer.seller_user_id,v_offer.buyer_name,v_offer.seller_name,v_offer.proposed_by,v_offer.quantity,v_offer.unit_price,v_offer.delivery_date,v_offer.delivery_method,v_offer.message)
   RETURNING * INTO v_offer;
   RETURN v_offer;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.respond_agro_offer(p_id uuid, p_action text, p_version integer, p_terms jsonb DEFAULT NULL)
-RETURNS public.agro_trade_offers LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+RETURNS public.agro_trade_offers LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_offer public.agro_trade_offers; v_delta numeric:=0;
 BEGIN
   SELECT * INTO STRICT v_offer FROM public.agro_trade_offers WHERE id=p_id FOR UPDATE;
@@ -2689,21 +2689,21 @@ BEGIN
     delivery_method=v_offer.delivery_method,message=v_offer.message,proposed_by=v_offer.proposed_by,
     status=v_offer.status,version=version+1,updated_at=now() WHERE id=p_id RETURNING * INTO v_offer;
   RETURN v_offer;
-END $;
+END $$;
 
-CREATE OR REPLACE FUNCTION public.guard_upcoming_checkout() RETURNS TRIGGER AS $
+CREATE OR REPLACE FUNCTION public.guard_upcoming_checkout() RETURNS TRIGGER AS $$
 BEGIN
   IF EXISTS (SELECT 1 FROM public.b2b_products WHERE id=NEW.product_id AND availability='upcoming')
   THEN RAISE EXCEPTION 'Kutilayotgan hosil uchun avval sana va shartlarni kelishing'; END IF;
   RETURN NEW;
 END;
-$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=public;
 DROP TRIGGER IF EXISTS tr_guard_upcoming_checkout ON public.b2b_order_items;
 CREATE TRIGGER tr_guard_upcoming_checkout BEFORE INSERT ON public.b2b_order_items FOR EACH ROW EXECUTE FUNCTION public.guard_upcoming_checkout();
 
 -- --- 15.8 Joy asosida qidiruv RPC'lari ---
 CREATE OR REPLACE FUNCTION public.nearby_posts(p_lat double precision, p_lng double precision, p_limit integer DEFAULT 300)
-RETURNS SETOF public.posts LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $
+RETURNS SETOF public.posts LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $$
 BEGIN
   IF p_lat IS NULL OR p_lng IS NULL OR NOT (p_lat BETWEEN -90 AND 90 AND p_lng BETWEEN -180 AND 180)
   THEN RAISE EXCEPTION 'Xarita nuqtasi noto''g''ri'; END IF;
@@ -2714,10 +2714,10 @@ BEGIN
     power(sin(radians(p.latitude-p_lat)/2),2)+cos(radians(p_lat))*cos(radians(p.latitude))*power(sin(radians(p.longitude-p_lng)/2),2)
    END ASC NULLS LAST,p.created_at DESC,p.id
    LIMIT greatest(1,least(coalesce(p_limit,300),1000));
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.nearby_b2b_products(p_lat double precision, p_lng double precision, p_filters jsonb DEFAULT '{}')
-RETURNS SETOF jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $
+RETURNS SETOF jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $$
 BEGIN
   IF p_lat IS NULL OR p_lng IS NULL OR NOT (p_lat BETWEEN -90 AND 90 AND p_lng BETWEEN -180 AND 180)
   THEN RAISE EXCEPTION 'Xarita nuqtasi noto''g''ri'; END IF;
@@ -2736,17 +2736,17 @@ BEGIN
    ORDER BY CASE WHEN p.latitude IS NOT NULL AND p.longitude IS NOT NULL THEN
     power(sin(radians(p.latitude-p_lat)/2),2)+cos(radians(p_lat))*cos(radians(p.latitude))*power(sin(radians(p.longitude-p_lng)/2),2)
    END ASC NULLS LAST,p.created_at DESC,p.id LIMIT 300;
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION public.get_public_stores_for_map()
 RETURNS TABLE (id uuid,store_name text,business_type text,region text,district text,address text,latitude numeric,longitude numeric,logo_url text,description text,created_at timestamptz)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
  SELECT bp.id,bp.store_name,bp.business_type,bp.region,bp.district,coalesce(ba.address,''),ba.latitude,ba.longitude,bp.logo_url,bp.description,bp.created_at
  FROM public.business_profiles bp JOIN LATERAL (
   SELECT a.* FROM public.business_addresses a WHERE a.business_id=bp.id AND a.is_default
   AND a.latitude BETWEEN -90 AND 90 AND a.longitude BETWEEN -180 AND 180 ORDER BY a.id LIMIT 1
  ) ba ON true WHERE bp.status='active';
-$;
+$$;
 
 -- --- 15.9 GRANT / REVOKE ---
 REVOKE ALL ON FUNCTION public.create_agro_request(jsonb), public.close_agro_request(uuid), public.send_agro_offer(jsonb), public.respond_agro_offer(uuid,text,integer,jsonb), public.check_agro_offer_target(public.agro_trade_offers), public.validate_agro_product_link(), public.guard_upcoming_checkout() FROM PUBLIC, anon, authenticated;
