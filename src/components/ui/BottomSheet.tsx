@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock';
+import { useOverlayNavigation } from '../../hooks/useOverlayNavigation';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -16,10 +17,11 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   title,
   children,
 }) => {
+  const titleId = useId();
+  const dismiss = useOverlayNavigation(isOpen, onClose);
   useEffect(() => {
-    if (isOpen) {
-      lockBodyScroll();
-    }
+    if (!isOpen) return;
+    lockBodyScroll();
     return () => {
       unlockBodyScroll();
     };
@@ -33,11 +35,14 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={dismiss}
             className="fixed inset-0 bg-black/60"
           />
 
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? titleId : undefined}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
@@ -48,9 +53,10 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
 
             {title && (
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 shrink-0">
-                <h3 className="font-bold text-sm text-[#111827]">{title}</h3>
+                <h3 id={titleId} className="font-bold text-sm text-[#111827]">{title}</h3>
                 <button
-                  onClick={onClose}
+                  onClick={dismiss}
+                  aria-label="Yopish"
                   className="p-1 rounded-full text-slate-400 hover:bg-slate-100 transition-colors"
                 >
                   <X className="w-5 h-5" />

@@ -157,6 +157,11 @@ function normalizeApiDates(value: unknown): unknown {
   return normalized;
 }
 
+/** Shared mapping for PostgREST table reads and RPC results. */
+export function normalizeApiRow<T>(value: unknown): T {
+  return normalizeApiDates(mapObjectKeys(value, toCamelCase)) as T;
+}
+
 async function requestSupabase(
   method: HttpMethod,
   path: string,

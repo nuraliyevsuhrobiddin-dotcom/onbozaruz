@@ -7,6 +7,10 @@ import { useAgroStore } from '../store/useAgroStore';
 import { REGIONS } from '../data/mockAgroData';
 import { Post } from '../api/types';
 import { categoriesForScope } from '../utils/categoryScope';
+import { LocationPicker } from '../components/ui/LocationPicker';
+import { Modal } from '../components/ui/Modal';
+import { useViewerLocation } from '../store/useViewerLocation';
+import { hasCoordinates, sortNearby, type GeoPoint } from '../utils/geo';
 
 /* ─────────────────────────────────────────────
    Video thumbnail card — video elementdan
@@ -224,13 +228,17 @@ export const SearchExploreView: React.FC = () => {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const { point: viewerPoint, setLocation, clearLocation } = useViewerLocation();
+  const [showLocation, setShowLocation] = useState(false);
+  const [chosenPoint, setChosenPoint] = useState<GeoPoint | null>(null);
 
   const filteredPosts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     const minP = minPrice ? Number(minPrice.replace(/\D/g, '')) : 0;
     const maxP = maxPrice ? Number(maxPrice.replace(/\D/g, '')) : Infinity;
 
-    return posts.filter((p) => {
+    return sortNearby(posts.filter((p) => {
+      if (p.status && p.status !== 'approved') return false;
       const matchesCat = selectedCat === 'all' || p.category === selectedCat;
       const matchesRegion =
         selectedRegion === 'all' ||
@@ -242,8 +250,8 @@ export const SearchExploreView: React.FC = () => {
         p.categoryName.toLowerCase().includes(term);
       const matchesPrice = p.numericPrice >= minP && (maxP === Infinity || p.numericPrice <= maxP);
       return matchesCat && matchesRegion && matchesSearch && matchesPrice;
-    });
-  }, [posts, searchTerm, selectedCat, selectedRegion, minPrice, maxPrice]);
+    }), viewerPoint);
+  }, [posts, searchTerm, selectedCat, selectedRegion, minPrice, maxPrice, viewerPoint]);
 
   const handlePostClick = useCallback(
     (idx: number) => {
@@ -294,6 +302,36 @@ export const SearchExploreView: React.FC = () => {
 
   return (
     <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3">
+      <div className="border-b border-slate-200 pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => { setChosenPoint(viewerPoint); setShowLocation(true); }}
+            className="flex min-h-11 items-center gap-2 text-left text-sm font-bold text-[#D84315] focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <MapPin className="h-4 w-4 shrink-0" />
+            {viewerPoint ? 'Yaqinlar birinchi · joyni o‘zgartirish' : 'Yaqin e’lonlar uchun joy tanlang'}
+          </button>
+          {viewerPoint && <button type="button" onClick={clearLocation} className="min-h-11 px-2 text-xs font-semibold text-slate-600">Tozalash</button>}
+        </div>
+        {viewerPoint && <p className="text-[11px] text-slate-600">Yuklangan natijalar yaqinlik bo'yicha. Joylashuvsiz e'lonlar oxirida.</p>}
+      </div>
+      <Modal isOpen={showLocation} onClose={() => setShowLocation(false)} title="Yaqin e’lonlarni topish">
+        <div className="space-y-4">
+          <p className="text-xs leading-relaxed text-slate-600">Qidirish uchun joy tanlang. Bu nuqta profilingiz yoki e'loningizga joylanmaydi.</p>
+          <LocationPicker value={chosenPoint} onChange={setChosenPoint} label="Qidiruv joylashuvi" description="Bu nuqta faqat qidirish uchun saqlanadi; profilingiz yoki e’loningizga joylanmaydi." />
+          <button
+            type="button"
+            disabled={!hasCoordinates(chosenPoint)}
+            onClick={() => {
+              if (!hasCoordinates(chosenPoint)) return;
+              setLocation(chosenPoint);
+              setShowLocation(false);
+            }}
+            className="min-h-11 w-full rounded-xl bg-[#D84315] px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >Shu joyga yaqin e'lonlar</button>
+        </div>
+      </Modal>
 
       {/* ── Search Input Row ── */}
       <div className="flex items-center gap-2">

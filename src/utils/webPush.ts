@@ -2,7 +2,7 @@ import { getSupabaseAccessToken } from '../api/authClient';
 
 const VAPID_PUBLIC_KEY = String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || '').trim();
 
-function base64UrlToUint8Array(value: string): Uint8Array {
+function base64UrlToUint8Array(value: string): Uint8Array<ArrayBuffer> {
   const normalized = `${value.replace(/-/g, '+').replace(/_/g, '/')}${'='.repeat((4 - (value.length % 4)) % 4)}`;
   const binary = atob(normalized);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));

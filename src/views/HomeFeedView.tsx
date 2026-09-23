@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAgroStore } from '../store/useAgroStore';
 import { StoryBar, FarmerStory } from '../components/home/StoryBar';
 import { FeedCard } from '../components/FeedCard';
 import { LoadingSkeleton } from '../components/home/LoadingSkeleton';
 import { EmptyState } from '../components/home/EmptyState';
-import { WifiOff, RefreshCw, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { WifiOff, RefreshCw, Loader2, CheckCircle2, AlertCircle, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { LocationPicker } from '../components/ui/LocationPicker';
+import { Modal } from '../components/ui/Modal';
+import { useViewerLocation } from '../store/useViewerLocation';
+import { hasCoordinates, sortNearby, type GeoPoint } from '../utils/geo';
 
 export const HomeFeedView: React.FC = () => {
   const {
-    posts,
+    posts: allPosts,
     followedSellerIds,
     isHydrating,
     isOffline,
@@ -18,15 +22,14 @@ export const HomeFeedView: React.FC = () => {
     retryHydrate,
     uploadingPostStatus,
   } = useAgroStore();
+  const { point: viewerPoint, setLocation, clearLocation } = useViewerLocation();
+  const [showLocation, setShowLocation] = useState(false);
+  const [chosenPoint, setChosenPoint] = useState<GeoPoint | null>(null);
+  const posts = useMemo(() => sortNearby(
+    allPosts.filter(p => !p.status || p.status === 'approved'), viewerPoint
+  ), [allPosts, viewerPoint]);
 
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
-
-  // If store has 0 posts and is not currently fetching or in error, trigger hydration immediately
-  useEffect(() => {
-    if (posts.length === 0 && !isHydrating && !isBackgroundFetching && !fetchError) {
-      retryHydrate();
-    }
-  }, [posts.length, isHydrating, isBackgroundFetching, fetchError, retryHydrate]);
 
   // Auth modal/profile flowdan qaytganda eski story filter feedni bo'sh qoldirmasin.
   useEffect(() => {
@@ -72,6 +75,38 @@ export const HomeFeedView: React.FC = () => {
 
   return (
     <div className="w-full max-w-170 mx-auto px-0 sm:px-4 py-1.5 sm:py-2 space-y-2.5 sm:space-y-3.5">
+      <div className="mx-3 sm:mx-0 border-b border-slate-200 pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => { setChosenPoint(viewerPoint); setShowLocation(true); }}
+            className="flex min-h-11 items-center gap-2 text-left text-sm font-bold text-[#D84315] focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <MapPin className="h-4 w-4 shrink-0" />
+            {viewerPoint ? 'Yaqinlar birinchi · joyni o‘zgartirish' : 'Yaqin e’lonlar uchun joy tanlang'}
+          </button>
+          {viewerPoint && (
+            <button type="button" onClick={clearLocation} className="min-h-11 px-2 text-xs font-semibold text-slate-600">Tozalash</button>
+          )}
+        </div>
+        {viewerPoint && <p className="text-[11px] text-slate-600">Yuklangan e'lonlar masofa bo'yicha. Joylashuvsiz e'lonlar oxirida.</p>}
+      </div>
+      <Modal isOpen={showLocation} onClose={() => setShowLocation(false)} title="Yaqin e’lonlarni topish">
+        <div className="space-y-4">
+          <p className="text-xs leading-relaxed text-slate-600">Qidirish uchun joy tanlang. Bu nuqta profilingiz yoki e'loningizga joylanmaydi.</p>
+          <LocationPicker value={chosenPoint} onChange={setChosenPoint} label="Qidiruv joylashuvi" description="Bu nuqta faqat yaqin e’lonlarni qidirish uchun ishlatiladi; profilingiz yoki e’loningizga joylanmaydi." />
+          <button
+            type="button"
+            disabled={!hasCoordinates(chosenPoint)}
+            onClick={() => {
+              if (!hasCoordinates(chosenPoint)) return;
+              setLocation(chosenPoint);
+              setShowLocation(false);
+            }}
+            className="min-h-11 w-full rounded-xl bg-[#D84315] px-4 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >Shu joyga yaqin e'lonlar</button>
+        </div>
+      </Modal>
 
       {/* ── Instagram-style Top Upload Status Banner ── */}
       <AnimatePresence>

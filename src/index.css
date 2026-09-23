@@ -117,3 +117,37 @@
   height: 100dvh;
   flex-shrink: 0;
 }
+
+/* Reels use the viewport for media; only the contact row reserves space. */
+.reels-card {
+  width: 100%;
+  height: 100%;
+}
+
+.reels-visual {
+  object-fit: cover;
+}
+
+@media (min-width: 640px) and (min-height: 600px) {
+  .reels-card {
+    width: min(100%, 56.25dvh);
+  }
+}
+
+/* A landscape phone must not become a tiny, cropped portrait card. */
+@media (orientation: landscape) and (max-height: 599px) {
+  .reels-card {
+    max-width: 720px;
+  }
+
+  .reels-visual {
+    object-fit: contain;
+  }
+
+  .reels-actions {
+    top: calc(4.5rem + env(safe-area-inset-top));
+    bottom: auto;
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+}

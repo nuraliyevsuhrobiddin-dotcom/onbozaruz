@@ -45,6 +45,8 @@ import { mapCategoryItemsToCategories } from '../utils/categoryScope';
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
 
+let hydrationVersion = 0;
+
 export type SubView =
   | 'orders'
   | 'saved'
@@ -756,6 +758,8 @@ export const useAgroStore = create<AgroStoreState>()(
           sellerAvatar: newPost.sellerAvatar,
           verified: newPost.verified,
           location: newPost.location,
+          latitude: newPost.latitude ?? null,
+          longitude: newPost.longitude ?? null,
           phone: newPost.phone,
           telegram: newPost.telegram,
           title: newPost.title,
@@ -929,6 +933,7 @@ export const useAgroStore = create<AgroStoreState>()(
         })),
 
       hydrateFromApi: async () => {
+        const requestVersion = ++hydrationVersion;
         // Step 1: Cache dan darhol o'qi (Stale-While-Revalidate)
         const cachedPosts = cacheManager.loadPostsCache();
         const cachedProducts = cacheManager.loadProductsCache();
@@ -956,6 +961,7 @@ export const useAgroStore = create<AgroStoreState>()(
             productsRepository.list(),
             adminRepository.getCategories().catch(() => []),
           ]);
+          if (requestVersion !== hydrationVersion) return;
 
           // DB categories are authoritative (admin-edited name/icon/scope/
           // active-status must win over the static defaults) — the static
@@ -1006,6 +1012,7 @@ export const useAgroStore = create<AgroStoreState>()(
             set({ orders });
           }
         } catch (error: any) {
+          if (requestVersion !== hydrationVersion) return;
           console.warn('Failed to hydrate data:', error?.message || error);
           // Network xatosi: cache ko'rsatilayotgan bo'lsa, foydalanuvchi hech nima sezmaydi
           const isOfflineNow = typeof navigator !== 'undefined' ? !navigator.onLine : false;

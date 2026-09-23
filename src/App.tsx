@@ -30,6 +30,8 @@ import { SellerProfileModal } from './components/SellerProfileModal';
 import { subscribeToAuthState } from './api/authClient';
 import { InstallAppPrompt } from './components/InstallAppPrompt';
 import { PrivacyPolicyView } from './views/PrivacyPolicyView';
+import { postsRepository } from './api/repositories/postsRepository';
+import { useViewerLocation } from './store/useViewerLocation';
 
 
 
@@ -70,10 +72,32 @@ export default function App() {
 
   const isAuthCallback = window.location.pathname === '/auth/callback';
   const isPrivacyPolicy = window.location.pathname === '/privacy-policy' || window.location.hash === '#privacy-policy';
+  const sharedPostId = new URLSearchParams(window.location.search).get('post');
+
+  useEffect(() => {
+    if (!sharedPostId || isAuthCallback || isPrivacyPolicy) return;
+    let cancelled = false;
+    void postsRepository.get(sharedPostId).then(post => {
+      if (cancelled) return;
+      const store = useAgroStore.getState();
+      if (!post || (post.status && post.status !== 'approved') || (post.expiresAt && Date.parse(post.expiresAt) <= Date.now())) {
+        store.showToast("E'lon topilmadi yoki muddati tugagan");
+        return;
+      }
+      if (post.type === 'video') store.openVideoViewer([post], 0);
+      else store.setProductDetail(post);
+    }).catch(() => {
+      if (!cancelled) useAgroStore.getState().showToast("E'lonni ochib bo‘lmadi. Havola yoki internet aloqasini tekshiring.");
+    });
+    return () => { cancelled = true; };
+  }, [sharedPostId, isAuthCallback, isPrivacyPolicy]);
 
   // All hooks MUST run before any early return (Rules of Hooks)
   useEffect(() => {
     hydrateFromApi();
+    return useViewerLocation.subscribe((state, previous) => {
+      if (state.point?.latitude !== previous.point?.latitude || state.point?.longitude !== previous.point?.longitude) void hydrateFromApi();
+    });
   }, [hydrateFromApi]);
 
   // Derives {activeTab, activeSubView/b2bRoute} from window.location.hash —
@@ -88,8 +112,9 @@ export default function App() {
       setActiveTab(tab as NavTab);
       if (tab === 'market') {
         setB2BRoute(parseB2BHash(rest));
-      } else if (rest[0]) {
-        setActiveSubView(rest[0] as SubView);
+      } else {
+        const subView = ['edit-profile', 'orders', 'settings'].includes(rest[0]) ? rest[0] as SubView : null;
+        setActiveSubView(subView);
       }
     } else {
       setActiveTab('home');
@@ -143,7 +168,7 @@ export default function App() {
   // though the store itself already has the new tab, which previously made
   // this push the wrong (stale) tab into history right after a deep link.
   useEffect(() => {
-    if (isAuthCallback) return;
+    if (isAuthCallback || isPrivacyPolicy) return;
 
     const state = useAgroStore.getState();
     const nextHash = state.activeTab === 'market'
@@ -157,7 +182,7 @@ export default function App() {
         nextHash
       );
     }
-  }, [activeTab, activeSubView, b2bRoute, isAuthCallback]);
+  }, [activeTab, activeSubView, b2bRoute, isAuthCallback, isPrivacyPolicy]);
 
   // Handle hardware / browser back button (popstate)
   useEffect(() => {

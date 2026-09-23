@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
 import { Send, Heart, MessageCircle } from 'lucide-react';
@@ -18,9 +18,16 @@ export const CommentSheetModal: React.FC = () => {
   const [newComment, setNewComment] = useState('');
   const storageKey = useMemo(() => commentPost ? `onbozor-comments-${commentPost.id}` : '', [commentPost]);
   const [commentsList, setCommentsList] = useState<CommentItem[]>([]);
+  const [loadedKey, setLoadedKey] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const activePostId = useRef(commentPost?.id);
+  activePostId.current = commentPost?.id;
 
   useEffect(() => {
     if (!storageKey) return;
+    setLoadedKey('');
+    setCommentsList([]);
+    setNewComment('');
     let active = true;
     void (async () => {
       if (isSupabaseConfigured && commentPost) {
@@ -33,6 +40,7 @@ export const CommentSheetModal: React.FC = () => {
               text: row.content,
               time: row.createdAt,
             })));
+            setLoadedKey(storageKey);
           }
           return;
         } catch {
@@ -42,9 +50,13 @@ export const CommentSheetModal: React.FC = () => {
 
       try {
         const saved = window.localStorage.getItem(storageKey);
-        if (active) setCommentsList(saved ? JSON.parse(saved) : []);
+        if (active) {
+          const parsed = saved ? JSON.parse(saved) : [];
+          setCommentsList(Array.isArray(parsed) ? parsed : []);
+          setLoadedKey(storageKey);
+        }
       } catch {
-        if (active) setCommentsList([]);
+        if (active) { setCommentsList([]); setLoadedKey(storageKey); }
       }
     })();
     return () => {
@@ -53,22 +65,23 @@ export const CommentSheetModal: React.FC = () => {
   }, [commentPost, storageKey]);
 
   useEffect(() => {
-    if (!storageKey) return;
+    if (!storageKey || loadedKey !== storageKey) return;
     if (!isSupabaseConfigured) {
-      window.localStorage.setItem(storageKey, JSON.stringify(commentsList));
+      try { window.localStorage.setItem(storageKey, JSON.stringify(commentsList)); } catch { /* Storage may be full or disabled. */ }
     }
-  }, [commentsList, storageKey]);
+  }, [commentsList, storageKey, loadedKey]);
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = newComment.trim();
-    if (!text) return;
+    if (!text || isSubmitting || loadedKey !== storageKey) return;
     const userName = currentUser?.name || currentUser?.handle || 'Foydalanuvchi';
     if (isSupabaseConfigured && (!currentUser || !commentPost)) {
       showToast('Izoh yozish uchun tizimga kiring');
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const created = isSupabaseConfigured && currentUser && commentPost
         ? await commentsRepository.create({
@@ -80,7 +93,7 @@ export const CommentSheetModal: React.FC = () => {
           })
         : null;
 
-      setCommentsList((items) => [
+      if (activePostId.current === commentPost?.id) setCommentsList((items) => [
         ...items,
         {
           id: created?.id || Date.now(),
@@ -90,10 +103,12 @@ export const CommentSheetModal: React.FC = () => {
         },
       ]);
       if (commentPost) addCommentToPost(commentPost.id);
-      setNewComment('');
+      if (activePostId.current === commentPost?.id) setNewComment('');
       showToast('Izoh qo\'shildi');
     } catch (error: unknown) {
       showToast(error instanceof Error ? `Izoh saqlanmadi: ${error.message}` : 'Izoh saqlanmadi');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -152,7 +167,7 @@ export const CommentSheetModal: React.FC = () => {
           />
           <button
             type="submit"
-            disabled={!newComment.trim()}
+            disabled={!newComment.trim() || isSubmitting || loadedKey !== storageKey}
             className="p-2.5 rounded-full bg-[#D84315] text-white hover:bg-[#D32F2F] transition-colors disabled:opacity-50"
           >
             <Send className="w-4 h-4" />

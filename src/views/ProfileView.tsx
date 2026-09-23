@@ -129,7 +129,7 @@ export const ProfileView: React.FC = () => {
           handle: currentUser.handle || (currentUser.email ? currentUser.email.split('@')[0] : 'user'),
           avatar: currentUser.avatar || '',
           cover: currentUser.cover || '',
-          verified: true,
+          verified: ownPosts.some((post) => post.verified),
           location: currentUser.location || "O'zbekiston",
           bio: currentUser.bio || '',
           businessName: currentUser.businessName || '',
@@ -160,4 +160,3 @@ export const ProfileView: React.FC = () => {
     </div>
   );
 };
-

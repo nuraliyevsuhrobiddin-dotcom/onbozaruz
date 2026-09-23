@@ -22,6 +22,7 @@ import { Post } from '../data/mockAgroData';
 import { useAgroStore } from '../store/useAgroStore';
 import confetti from 'canvas-confetti';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useOverlayNavigation } from '../hooks/useOverlayNavigation';
 
 // Official Telegram SVG icon
 const TelegramSVG = () => (
@@ -255,25 +256,13 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
         willChange: 'transform',
       }}
     >
-      {/* Container: full on mobile, centered 9:16 card on desktop */}
+      {/* Edge-to-edge on mobile, full-height portrait surface on desktop. */}
       <div
-        className="relative bg-slate-950 overflow-hidden flex items-center justify-center w-full h-full sm:h-[min(92dvh,760px)] sm:w-auto sm:aspect-[9/16] sm:rounded-[24px] shadow-2xl"
+        className="reels-card relative bg-black overflow-hidden flex flex-col"
         style={{ transform: 'translateZ(0)' }}
       >
-        {/* Blurred background backdrop — vibrant and instant */}
-        {posterSrc ? (
-          <div
-            aria-hidden="true"
-            className="absolute inset-[-24px] hidden bg-cover bg-center opacity-40 blur-3xl scale-110 pointer-events-none sm:block"
-            style={{ backgroundImage: `url(${posterSrc})` }}
-          />
-        ) : (
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#334155,_#020617_72%)] pointer-events-none"
-          />
-        )}
-
+        {/* The video gets all available space above the compact contact footer. */}
+        <div className="reels-media relative min-h-0 w-full flex-1 overflow-hidden">
         {/* Video / Image */}
         {post.type === 'video' ? (
           <>
@@ -299,9 +288,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               onCanPlay={() => { setIsBuffering(false); setHasFrame(true); }}
               onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
               onError={() => { setHasError(true); setIsBuffering(false); }}
-              // Fill the Reels viewport on phones. `contain` leaves black
-              // bars whenever the uploaded video's ratio differs from it.
-              className="relative z-[1] w-full h-full object-cover cursor-pointer"
+              className="reels-visual relative z-[1] w-full h-full cursor-pointer"
             />
 
             {/* Poster / Placeholder Overlay — smoothly covers video until first frame arrives */}
@@ -312,10 +299,10 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                     src={posterSrc}
                     alt={post.title}
                     onError={() => setPosterFailed(true)}
-                    className="w-full h-full object-cover"
+                    className="reels-visual w-full h-full"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-black">
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-black">
                     <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10">
                       <Play className="w-6 h-6 text-white/80 fill-white/80 translate-x-0.5" />
                     </div>
@@ -331,16 +318,16 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             src={post.mediaUrl || post.posterUrl}
             alt={post.title}
             onClick={handleClick}
-            className="relative z-[1] w-full h-full object-cover cursor-pointer"
+            className="reels-visual relative z-[1] w-full h-full cursor-pointer"
           />
         )}
 
-        {/* Bottom gradient overlay */}
+        {/* A local caption scrim keeps text readable without darkening the frame. */}
         <div
-          className="absolute inset-0 pointer-events-none z-10"
+          className="absolute inset-x-0 bottom-0 h-[45%] pointer-events-none z-10"
           style={{
             background:
-              'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 35%, rgba(0,0,0,0.08) 65%, transparent 100%)',
+              'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
           }}
         />
 
@@ -402,12 +389,14 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
 
         {/* Right action bar (Instagram style) */}
         <div
-          className="absolute right-3 bottom-16 sm:right-4 sm:bottom-20 flex flex-col items-center gap-3.5 z-20"
+          className="reels-actions absolute right-3 bottom-4 sm:right-4 flex flex-col items-center gap-3.5 z-20"
         >
           {/* Like */}
           <motion.button
             whileTap={{ scale: 1.3 }}
             onClick={(e) => { e.stopPropagation(); toggleLikePost(post.id); }}
+            aria-label="Yoqtirish"
+            aria-pressed={isLiked}
             className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
@@ -426,6 +415,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
           <motion.button
             whileTap={{ scale: 1.2 }}
             onClick={(e) => { e.stopPropagation(); setCommentPost(post); }}
+            aria-label="Izohlar"
             className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
@@ -440,6 +430,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
           <motion.button
             whileTap={{ scale: 1.2 }}
             onClick={(e) => { e.stopPropagation(); setSharePost(post); }}
+            aria-label="Ulashish"
             className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
@@ -452,6 +443,8 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
           <motion.button
             whileTap={{ scale: 1.2 }}
             onClick={(e) => { e.stopPropagation(); toggleSavePost(post.id); }}
+            aria-label="Saqlash"
+            aria-pressed={isSaved}
             className="flex flex-col items-center gap-1 focus:outline-none group"
           >
             <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/20 flex items-center justify-center transition-transform group-active:scale-90 shadow-lg">
@@ -464,8 +457,8 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
           </motion.button>
         </div>
 
-        {/* Bottom Overlay Information */}
-        <div className="absolute left-3 right-16 bottom-4 sm:left-4 sm:right-20 sm:bottom-6 z-20 flex flex-col gap-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] max-w-[calc(100%-4.75rem)] sm:max-w-[420px]">
+        {/* Compact Instagram-style caption; the action rail has its own right gutter. */}
+        <div className="absolute bottom-3 left-3 right-20 z-20 flex flex-col gap-2 sm:left-4">
           {/* Row 1: Seller Avatar + Name + Obuna Button */}
           <div className="flex items-center gap-2.5">
             {/* Clickable avatar+name opens SellerProfileModal */}
@@ -486,7 +479,11 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             >
               <div className="relative shrink-0">
                 <img
-                  src={post.sellerAvatar}
+                  src={post.sellerAvatar || '/logo.png'}
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = '/logo.png';
+                  }}
                   alt={post.sellerName}
                   className="w-10 h-10 rounded-full border-2 border-white/40 object-cover shadow-md"
                 />
@@ -537,17 +534,19 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
 
           {/* Row 3: Price Tag & Category Badge */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-[#111827]/90 border border-emerald-500/40 px-3 py-1 text-[11px] sm:text-xs font-black text-[#22C55E] shadow-md backdrop-blur-md">
+            <span className="max-w-full truncate rounded-full bg-[#111827]/90 border border-emerald-500/40 px-3 py-1 text-[11px] sm:text-xs font-black text-[#22C55E] shadow-md backdrop-blur-md">
               {post.price}
             </span>
-            <span className="rounded-full bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 text-[11px] font-bold text-white flex items-center gap-1">
-              <Tag className="w-3 h-3 text-emerald-400" />
-              {post.categoryName}
+            <span className="min-w-0 max-w-full rounded-full bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 text-[11px] font-bold text-white flex items-center gap-1">
+              <Tag className="w-3 h-3 shrink-0 text-emerald-400" />
+              <span className="truncate">{post.categoryName}</span>
             </span>
           </div>
+        </div>
+        </div>
 
-          {/* Row 4: Contact Action Buttons */}
-          <div className="flex items-center gap-2 pt-1">
+          {/* Only contact actions sit below the video, with no unused panel space. */}
+          <div className="reels-contact relative z-20 flex shrink-0 items-center gap-2 bg-black px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:px-4">
             <motion.a
               href={currentUser ? telLink : undefined}
               whileTap={{ scale: 0.95 }}
@@ -559,7 +558,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                   setAuthPromptOpen(true);
                 }
               }}
-              className="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-[#D84315] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors cursor-pointer"
+              className="flex-1 min-w-0 min-h-11 px-3.5 py-2 rounded-xl bg-[#D84315] hover:bg-[#d32f2f] text-white font-black text-[12px] flex items-center justify-center gap-2 shadow-lg transition-colors cursor-pointer"
             >
               <PhoneCall className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">Bog'lanish</span>
@@ -579,13 +578,12 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                   }
                 }}
                 title="Telegram orqali bog'lanish"
-                className="w-9 h-9 rounded-xl bg-[#0088cc] hover:bg-[#0077bb] text-white flex items-center justify-center shadow-lg shrink-0 transition-colors cursor-pointer"
+                className="w-11 h-11 rounded-xl bg-[#0088cc] hover:bg-[#0077bb] text-white flex items-center justify-center shadow-lg shrink-0 transition-colors cursor-pointer"
               >
                 <TelegramSVG />
               </motion.a>
             )}
           </div>
-        </div>
       </div>
     </div>
   );
@@ -602,6 +600,7 @@ export const VideoReelsViewer: React.FC = () => {
     closeVideoViewer,
     posts,
   } = useAgroStore();
+  const dismissViewer = useOverlayNavigation(isVideoViewerOpen, closeVideoViewer);
 
   // Feeddagi like/save o'zgarishlari viewer ichidagi post snapshotini ham darhol yangilaydi
   // useMemo: faqat posts yoki videoViewerPosts o'zgarganda qayta hisoblanadi
@@ -701,29 +700,12 @@ export const VideoReelsViewer: React.FC = () => {
 
   // Lock body scroll while viewer is open
   useEffect(() => {
-    if (isVideoViewerOpen) {
-      lockBodyScroll();
-    }
+    if (!isVideoViewerOpen) return;
+    lockBodyScroll();
     return () => {
       unlockBodyScroll();
     };
   }, [isVideoViewerOpen]);
-
-  // History API: push state when reels open so phone back button closes viewer
-  useEffect(() => {
-    if (!isVideoViewerOpen) return;
-
-    history.pushState({ reels: true }, '');
-
-    const handlePopState = () => {
-      closeVideoViewer();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isVideoViewerOpen, closeVideoViewer]);
 
   // IntersectionObserver to detect active slide (threshold 60% visibility).
   // IMPORTANT: This effect does NOT depend on `currentIndex` — it uses the
@@ -828,7 +810,11 @@ export const VideoReelsViewer: React.FC = () => {
   // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') return closeVideoViewer();
+      const state = useAgroStore.getState();
+      const target = e.target as HTMLElement | null;
+      if (state.commentPost || state.sharePost || state.selectedSellerModal || state.productDetail
+        || target?.closest('input, textarea, select, [contenteditable="true"]')
+        || e.altKey || e.ctrlKey || e.metaKey) return;
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         scrollToIndex(currentIndexRef.current + 1);
@@ -876,7 +862,7 @@ export const VideoReelsViewer: React.FC = () => {
         {/* Back button — always visible */}
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={closeVideoViewer}
+          onClick={dismissViewer}
           className="absolute left-4 z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white shadow-lg hover:bg-black/70"
           style={{ top: 'calc(1rem + env(safe-area-inset-top))' }}
           aria-label="Orqaga"
@@ -974,7 +960,7 @@ export const VideoReelsViewer: React.FC = () => {
                     globalMuted={globalMuted}
                   />
                 ) : (
-                  <div className="relative w-full h-full bg-slate-950 flex items-center justify-center overflow-hidden">
+                  <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
                     {post.posterUrl ? (
                       <img
                         src={post.posterUrl}
@@ -982,10 +968,10 @@ export const VideoReelsViewer: React.FC = () => {
                         // loading=lazy: distant slidlar uchun poster yuklanishini kechiktiradi
                         loading="lazy"
                         decoding="async"
-                        className="w-full h-full object-cover opacity-60 filter blur-sm"
+                        className="reels-card reels-visual"
                       />
                     ) : (
-                      <div className="w-full h-full bg-[radial-gradient(circle_at_center,_#1e293b,_#020617)]" />
+                      <div className="w-full h-full bg-black" />
                     )}
                   </div>
                 )}

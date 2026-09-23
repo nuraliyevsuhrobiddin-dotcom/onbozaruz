@@ -4,14 +4,8 @@ import {
   Bell,
   Smartphone,
   Truck,
-  Lock,
-  Phone,
   ShieldCheck,
   Bookmark,
-  Settings,
-  Globe,
-  CreditCard,
-  Moon,
   Save,
   LogOut,
   Trash2,
@@ -47,27 +41,19 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
   // Load saved settings from localStorage or fallback to defaults
   const [settingsForm, setSettingsForm] = useState(() => {
+    const defaults = { pushNotifications: true, orderUpdates: true, marketingMessages: false, autoSaveListings: true };
     try {
       const saved = localStorage.getItem('onbozor-app-settings');
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
+          if (typeof parsed?.[key] === 'boolean') defaults[key] = parsed[key];
+        }
       }
     } catch {
       // Fallback
     }
-    return {
-      pushNotifications: true,
-      orderUpdates: true,
-      marketingMessages: false,
-      darkMode: false,
-      showPhone: true,
-      twoFactor: false,
-      autoSaveListings: true,
-      language: "O'zbekcha",
-      currency: "So'm (UZS)",
-      deliveryRegion: "Butun O'zbekiston",
-      paymentMethod: 'Naqd va karta',
-    };
+    return defaults;
   });
 
   const toggleSetting = async (field: keyof typeof settingsForm) => {
@@ -83,19 +69,12 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       }
     }
 
-    setSettingsForm((prev: any) => {
-      const updated = { ...prev, [field]: !prev[field] };
+    const updated = { ...settingsForm, [field]: !settingsForm[field] };
+    try {
       localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
-      return updated;
-    });
-  };
-
-  const updateSetting = (field: keyof typeof settingsForm, value: string) => {
-    setSettingsForm((prev: any) => {
-      const updated = { ...prev, [field]: value };
-      localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
-      return updated;
-    });
+      if (field === 'autoSaveListings' && !updated.autoSaveListings) localStorage.removeItem('onbozor-create-post-draft');
+      setSettingsForm(updated);
+    } catch { showToast('Sozlamalarni saqlab bo‘lmadi'); }
   };
 
   const handleRequestPermission = async () => {
@@ -124,16 +103,17 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   };
 
   const handleSaveSettings = () => {
-    localStorage.setItem('onbozor-app-settings', JSON.stringify(settingsForm));
-    showToast('Sozlamalar saqlandi!');
-    onBack();
+    try {
+      localStorage.setItem('onbozor-app-settings', JSON.stringify(settingsForm));
+      showToast('Sozlamalar saqlandi!');
+      onBack();
+    } catch { showToast('Sozlamalarni saqlab bo‘lmadi'); }
   };
 
   const handleClearCache = () => {
     try {
       localStorage.removeItem('agro_posts_cache_v1');
       localStorage.removeItem('agro_products_cache_v1');
-      localStorage.removeItem('onbozor-app-settings');
       showToast("Ilova keshi va vaqtinchalik ma'lumotlar tozalandi");
     } catch {
       showToast("Xatolik yuz berdi");
@@ -288,22 +268,10 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {/* Maxfiylik va xavfsizlik */}
       <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm">
         <h3 className="font-black text-sm text-[#111827] mb-2 flex items-center gap-2">
-          <Lock className="w-4 h-4 text-[#D84315]" />
-          Maxfiylik va xavfsizlik
+          <Bookmark className="w-4 h-4 text-[#D84315]" />
+          E'lon qoralamalari
         </h3>
         <div className="divide-y divide-slate-100">
-          <ToggleRow
-            field="showPhone"
-            title="Telefonni ochiq ko'rsatish"
-            text="E'lonlarda barcha xaridorlarga telefon raqamingiz ko'rinadi"
-            icon={Phone}
-          />
-          <ToggleRow
-            field="twoFactor"
-            title="Ikki bosqichli himoya"
-            text="Tizimga kirishda SMS tasdiqlash so'raladi"
-            icon={ShieldCheck}
-          />
           <ToggleRow
             field="autoSaveListings"
             title="Qoralamalarni saqlash"
@@ -313,82 +281,10 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
         </div>
       </div>
 
-      {/* Ilova va savdo sozlamalari */}
-      <div className="bg-white rounded-[24px] border border-slate-200/80 p-4 shadow-sm space-y-3">
-        <h3 className="font-black text-sm text-[#111827] flex items-center gap-2">
-          <Settings className="w-4 h-4 text-[#D84315]" />
-          Ilova parametrlari
-        </h3>
-
-        {[
-          {
-            field: 'language',
-            label: 'Til (Language)',
-            icon: Globe,
-            options: ["O'zbekcha", 'Русский', 'English', 'Қазақша', 'Кыргызча'],
-          },
-          {
-            field: 'currency',
-            label: 'Valyuta',
-            icon: CreditCard,
-            options: ["So'm (UZS)", 'Dollar (USD)', 'Rubl (RUB)'],
-          },
-          {
-            field: 'deliveryRegion',
-            label: 'Asosiy savdo hududi',
-            icon: Truck,
-            options: ["Butun O'zbekiston", "Farg'ona vodiysi", 'Toshkent sh. va viloyati', 'Samarqand/Buxoro', 'Janubiy viloyatlar'],
-          },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <label key={item.field} className="block space-y-1.5">
-              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
-                <Icon className="w-3.5 h-3.5 text-[#D84315]" />
-                {item.label}
-              </span>
-              <select
-                value={settingsForm[item.field as keyof typeof settingsForm] as string}
-                onChange={(e) => updateSetting(item.field as keyof typeof settingsForm, e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-[14px] border border-slate-200 bg-slate-50 text-xs sm:text-sm font-bold text-[#111827] outline-none focus:border-[#D84315] focus:bg-white transition-colors cursor-pointer"
-              >
-                {item.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-          );
-        })}
-      </div>
-
-      {/* Keshni tozalash va tungi rejim */}
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setSettingsForm((prev: any) => {
-              const nextDarkMode = !prev.darkMode;
-              const updated = { ...prev, darkMode: nextDarkMode };
-              localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
-              showToast(nextDarkMode ? 'Tungi rejim yoqildi' : 'Yorug rejim yoqildi');
-              return updated;
-            });
-          }}
-          className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
-        >
-          <Moon className="w-4 h-4 text-[#D84315]" />
-          {settingsForm.darkMode ? 'Yorug rejim' : 'Tungi rejim'}
-        </button>
-        <button
-          type="button"
-          onClick={handleClearCache}
-          className="py-3 rounded-[18px] bg-white border border-slate-200/80 text-slate-800 font-bold text-xs shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
-        >
-          Keshni tozalash
-        </button>
-      </div>
+      <button type="button" onClick={handleClearCache}
+        className="w-full py-3 rounded-[18px] bg-white border border-slate-200 text-slate-800 font-bold text-xs">
+        Keshni tozalash
+      </button>
 
       {/* Save Settings */}
       <button

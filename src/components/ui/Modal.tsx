@@ -1,7 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { lockBodyScroll, unlockBodyScroll } from '../../utils/scrollLock';
+import { useOverlayNavigation } from '../../hooks/useOverlayNavigation';
 
 interface ModalProps {
   isOpen: boolean;
@@ -12,34 +13,18 @@ interface ModalProps {
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const dismiss = useOverlayNavigation(isOpen, onClose);
 
   // Body scroll lock
   useEffect(() => {
-    if (isOpen) {
-      lockBodyScroll();
-      dialogRef.current?.focus();
-    }
+    if (!isOpen) return;
+    lockBodyScroll();
+    dialogRef.current?.focus();
     return () => {
       unlockBodyScroll();
     };
   }, [isOpen]);
-
-  // History API: push state on open so phone "back" button closes modal instead of exiting app
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Push a fake history entry so back button pops here first
-    history.pushState({ modal: true }, '');
-
-    const handlePopState = () => {
-      onClose();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isOpen, onClose]);
 
   return (
     <AnimatePresence>
@@ -50,7 +35,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={dismiss}
             className="fixed inset-0 bg-black/60"
           />
 
@@ -62,17 +47,18 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             transition={{ duration: 0.2 }}
             role="dialog"
             aria-modal="true"
-            aria-labelledby={title ? 'modal-title' : undefined}
+            aria-labelledby={title ? titleId : undefined}
             tabIndex={-1}
             ref={dialogRef}
             className="relative w-full max-w-md bg-white rounded-[20px] shadow-2xl overflow-hidden z-10 flex flex-col max-h-[90vh]"
           >
             {title && (
               <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100">
-                <h3 id="modal-title" className="font-bold text-sm text-[#111827]">{title}</h3>
+                <h3 id={titleId} className="font-bold text-sm text-[#111827]">{title}</h3>
                 <button
-                  onClick={onClose}
-                  className="p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  onClick={dismiss}
+                  aria-label="Yopish"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -85,4 +71,3 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
     </AnimatePresence>
   );
 };
-

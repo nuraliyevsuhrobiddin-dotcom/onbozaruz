@@ -117,18 +117,18 @@ export interface AdminAuditLog {
 export const adminRepository = {
   async getStats(): Promise<AdminStats> {
     const offlineFallback: AdminStats = {
-      totalUsers: 142,
-      totalPosts: 48,
-      activePosts: 42,
-      pendingModeration: 6,
-      totalSuppliers: 12,
-      totalBusinesses: 34,
-      totalB2BProducts: 56,
-      totalOrders: 35,
-      todayOrders: 5,
-      totalSales: 48500000,
-      totalCommission: 1455000,
-      activeSellers: 18,
+      totalUsers: 0,
+      totalPosts: 0,
+      activePosts: 0,
+      pendingModeration: 0,
+      totalSuppliers: 0,
+      totalBusinesses: 0,
+      totalB2BProducts: 0,
+      totalOrders: 0,
+      todayOrders: 0,
+      totalSales: 0,
+      totalCommission: 0,
+      activeSellers: 0,
       weeklyChart: emptyWeeklyChart(),
     };
 
@@ -154,6 +154,9 @@ export const adminRepository = {
         supabase.from('b2b_orders').select('id, created_at, total', { count: 'exact' }),
         supabase.from('commission_ledger').select('commission_amount', { count: 'exact' }),
       ]);
+      for (const result of [usersRes, sellersRes, postsRes, suppliersRes, businessesRes, b2bProductsRes, b2bOrdersRes, ledgerRes]) {
+        if (result.error) throw result.error;
+      }
 
       const totalUsers = usersRes.count || 0;
       const activeSellers = sellersRes.count || 0;
@@ -209,8 +212,8 @@ export const adminRepository = {
         activeSellers,
         weeklyChart,
       };
-    } catch {
-      return offlineFallback;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Statistikani yuklab bo‘lmadi');
     }
   },
 

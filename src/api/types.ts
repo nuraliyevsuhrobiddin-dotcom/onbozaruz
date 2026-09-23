@@ -13,6 +13,8 @@ export interface Post {
   sellerAvatar: string;
   verified: boolean;
   location: string;
+  latitude?: number | null;
+  longitude?: number | null;
   phone: string;
   telegram?: string;
   title: string;
@@ -154,10 +156,11 @@ export interface Notification {
 // =====================================================================
 
 export type BusinessType =
+  | 'farmer' | 'dehqan' | 'wholesaler' | 'processor' | 'exporter' | 'agro_supplier' | 'logistics'
   | 'grocery' | 'minimarket' | 'supermarket' | 'clothing' | 'pharmacy'
   | 'cafe_restaurant' | 'construction' | 'household' | 'other';
 
-export type SupplierType = 'manufacturer' | 'importer' | 'distributor' | 'supplier';
+export type SupplierType = 'farmer' | 'dehqan' | 'cooperative' | 'service_provider' | 'manufacturer' | 'importer' | 'distributor' | 'supplier';
 export type SupplierVerificationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 export type ContractStatus = 'pending' | 'accepted' | 'rejected' | 'terminated';
 export type B2BProductStatus = 'draft' | 'pending' | 'approved' | 'rejected' | 'inactive';
@@ -291,6 +294,13 @@ export interface B2BProduct {
   supplierId: string;
   name: string;
   brand?: string;
+  variety?: string;
+  availability?: 'available' | 'upcoming';
+  availableFrom?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  location?: string;
+  linkedPostId?: string | null;
   category: string;
   description?: string;
   sku?: string;

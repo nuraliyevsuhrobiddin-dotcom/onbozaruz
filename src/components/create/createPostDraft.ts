@@ -3,6 +3,7 @@
  * Foydalanuvchi oynani yopsa ham kiritgan ma'lumotlari yo'qolmaydi.
  */
 import { formatPhone } from './formatting';
+import { hasCoordinates } from '../../utils/geo';
 
 export interface PostDraft {
   title: string;
@@ -10,6 +11,8 @@ export interface PostDraft {
   price: string;
   minOrder: string;
   location: string;
+  latitude?: number;
+  longitude?: number;
   phone: string;
   telegram: string;
   condition: string;
@@ -43,11 +46,16 @@ const EMPTY_DRAFT: Omit<PostDraft, 'updatedAt'> = {
 
 export function loadDraft(): PostDraft | null {
   try {
+    if (JSON.parse(window.localStorage.getItem('onbozor-app-settings') || '{}')?.autoSaveListings === false) return null;
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PostDraft;
     if (!parsed || typeof parsed !== 'object') return null;
-    return parsed;
+    return {
+      ...parsed,
+      latitude: hasCoordinates(parsed) ? parsed.latitude : undefined,
+      longitude: hasCoordinates(parsed) ? parsed.longitude : undefined,
+    };
   } catch {
     return null;
   }
@@ -55,6 +63,10 @@ export function loadDraft(): PostDraft | null {
 
 export function saveDraft(draft: Omit<PostDraft, 'updatedAt'>): void {
   try {
+    if (JSON.parse(window.localStorage.getItem('onbozor-app-settings') || '{}')?.autoSaveListings === false) {
+      clearDraft();
+      return;
+    }
     const value: PostDraft = { ...draft, updatedAt: Date.now() };
     window.localStorage.setItem(DRAFT_KEY, JSON.stringify(value));
   } catch {

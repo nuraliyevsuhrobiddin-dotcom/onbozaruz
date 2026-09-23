@@ -14,12 +14,14 @@ import {
   Edit3,
   Trash2,
   Copy,
-  Flag,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Post } from '../data/mockAgroData';
 import { useAgroStore } from '../store/useAgroStore';
 import { VideoPlayer } from './ui/VideoPlayer';
+import { copyText, getPostShareUrl } from '../utils/sharePost';
+import { useViewerLocation } from '../store/useViewerLocation';
+import { distanceKm, formatDistance, hasCoordinates } from '../utils/geo';
 
 interface FeedCardProps {
   post: Post;
@@ -28,6 +30,9 @@ interface FeedCardProps {
 }
 
 export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 }) => {
+  const viewerPoint = useViewerLocation(state => state.point);
+  const distance = hasCoordinates(viewerPoint) && hasCoordinates(post)
+    ? formatDistance(distanceKm(viewerPoint, post)) : null;
   const {
     toggleLikePost,
     toggleSavePost,
@@ -59,22 +64,26 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
   useEffect(() => {
     const el = cardRef.current;
     if (!el) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    viewedRef.current = false;
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
-        if (entry.isIntersecting && !viewedRef.current) {
-          viewedRef.current = true;
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5 && !viewedRef.current && !timer) {
           // Count view after 1.5 seconds of being visible (not just scroll-past)
-          const timer = setTimeout(() => {
+          timer = setTimeout(() => {
+            viewedRef.current = true;
             incrementPostViews(post.id);
           }, 1500);
-          return () => clearTimeout(timer);
+        } else if (!entry.isIntersecting || entry.intersectionRatio < 0.5) {
+          clearTimeout(timer);
+          timer = undefined;
         }
       },
       { threshold: 0.5 } // 50% of card must be visible
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); clearTimeout(timer); };
   }, [post.id, incrementPostViews]);
 
   const canManage = Boolean(isAdminUser);
@@ -147,6 +156,11 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
               <MapPin className="w-3 h-3 text-[#D84315]" />
               <span>{post.location}</span>
             </div>
+            {distance && (
+              <p className="mt-1 text-[10px] font-semibold text-slate-600">
+                Sizdan {distance} · to'g'ri chiziqda
+              </p>
+            )}
           </div>
         </button>
 
@@ -194,25 +208,19 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
                 ) : (
                   <>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setIsMenuOpen(false);
-                        navigator.clipboard?.writeText(window.location.href);
-                        showToast("E'lon havolasi nusxalandi!");
+                        try {
+                          await copyText(getPostShareUrl(post.id));
+                          showToast("E'lon havolasi nusxalandi!");
+                        } catch {
+                          showToast('Havolani nusxalab bo‘lmadi');
+                        }
                       }}
                       className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2"
                     >
                       <Copy className="w-4 h-4 text-slate-500" />
                       Havolani nusxalash
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        showToast("Shikoyat qabul qilindi");
-                      }}
-                      className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-2 border-t border-slate-100"
-                    >
-                      <Flag className="w-4 h-4 text-slate-400" />
-                      Shikoyat qilish
                     </button>
                   </>
                 )}

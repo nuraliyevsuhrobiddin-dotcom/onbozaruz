@@ -6,8 +6,9 @@ import { useAgroStore } from '../../store/useAgroStore';
 import { REGIONS } from '../../data/mockAgroData';
 import { MEDIA_MAX_SIZE_MB } from './constants';
 import { formatNumeric, formatPhone, isPhoneComplete, parseNumeric } from './formatting';
-import { clearDraft, draftToForm, loadDraft, saveDraft } from './createPostDraft';
+import { clearDraft, createEmptyDraftValues, draftToForm, loadDraft, saveDraft } from './createPostDraft';
 import { deleteListingMedia, uploadListingMedia } from '../../api/authClient';
+import { hasCoordinates, type GeoPoint } from '../../utils/geo';
 
 export const postSchema = z.object({
   title: z.string().min(5, 'Kamida 5 ta belgi kiriting'),
@@ -48,7 +49,8 @@ export function useCreatePostForm() {
   const [durationDays, setDurationDays] = useState<number | null>(30);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const shouldDetectLocationRef = useRef(false);
+  const [locationPoint, setLocationPoint] = useState<GeoPoint | null>(null);
+  const locationRequestRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,11 +81,14 @@ export function useCreatePostForm() {
 
   // ── Draft: modal ochilganda tiklash ──
   useEffect(() => {
+    locationRequestRef.current += 1;
+    setIsDetectingLocation(false);
     if (!isCreateModalOpen) return;
     const draft = loadDraft();
+    setLocationPoint(hasCoordinates(draft) ? { latitude: draft.latitude, longitude: draft.longitude } : null);
+    reset(draftToForm(draft || { ...createEmptyDraftValues(), updatedAt: 0 }));
+    setSelectedRegion(draft?.selectedRegion || DEFAULT_REGION);
     if (draft) {
-      reset(draftToForm(draft));
-      setSelectedRegion(draft.selectedRegion || DEFAULT_REGION);
       // Old drafts may contain base64 media. Do not restore it: it can exceed
       // browser storage limits and must be selected again for a new upload.
       setSelectedMediaUrl('');
@@ -92,9 +97,7 @@ export function useCreatePostForm() {
       setMediaMode(draft.mediaMode || draft.mediaType || 'video');
       setDurationDays(draft.durationDays !== undefined ? draft.durationDays : 30);
     }
-    // Yangi e'lon uchun manzilni foydalanuvchi ruxsati bilan avtomatik olamiz.
-    // Mavjud draftdagi qo'lda yozilgan manzilni hech qachon almashtirmaymiz.
-    shouldDetectLocationRef.current = !draft?.location;
+    // A listing location is only chosen by an explicit map or GPS action.
     setStep(1);
   }, [isCreateModalOpen, reset]);
 
@@ -104,6 +107,8 @@ export function useCreatePostForm() {
     price: formValues.price,
     minOrder: formValues.minOrder,
     location: formValues.location,
+    latitude: locationPoint?.latitude,
+    longitude: locationPoint?.longitude,
     phone: formValues.phone,
     telegram: formValues.telegram || '',
     condition: formValues.condition || '',
@@ -123,7 +128,7 @@ export function useCreatePostForm() {
     const timeout = window.setTimeout(() => saveDraft(draft), 300);
     return () => window.clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCreateModalOpen, selectedMediaUrl, selectedRegion, mediaType, formValues]);
+  }, [isCreateModalOpen, selectedMediaUrl, selectedRegion, mediaType, mediaMode, durationDays, locationPoint, formValues]);
 
   // ── Media tanlash ──
   const handleFileChange = useCallback(
@@ -301,10 +306,15 @@ export function useCreatePostForm() {
       showToast("Brauzeringiz avtomatik manzil olishni qo'llab-quvvatlamaydi");
       return;
     }
+    const requestId = ++locationRequestRef.current;
     setIsDetectingLocation(true);
     try {
       const position = await getCurrentPosition();
+      if (requestId !== locationRequestRef.current) return;
       const { latitude, longitude } = position.coords;
+      const point = { latitude, longitude };
+      if (!hasCoordinates(point)) throw new Error('Invalid location');
+      setLocationPoint(point);
       let locationLabel = '';
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 6000);
@@ -325,13 +335,14 @@ export function useCreatePostForm() {
             (item) =>
               item !== 'Barchasi' && locationLabel.toLowerCase().includes(item.toLowerCase())
           );
-          if (matchedRegion) setSelectedRegion(matchedRegion);
+          if (matchedRegion && requestId === locationRequestRef.current) setSelectedRegion(matchedRegion);
         }
       } catch {
         // Reverse geocoding ishlamadi — manzil bo'sh qoladi, pastda qo'lda kiritish so'raladi.
       } finally {
         window.clearTimeout(timeout);
       }
+      if (requestId !== locationRequestRef.current) return;
       if (locationLabel) {
         setValue('location', locationLabel, { shouldDirty: true, shouldValidate: true });
         showToast('Manzil avtomatik olindi');
@@ -340,6 +351,7 @@ export function useCreatePostForm() {
         showToast("Aniq manzilni avtomatik topib bo'lmadi. Iltimos, qo'lda kiriting");
       }
     } catch (error) {
+      if (requestId !== locationRequestRef.current) return;
       const denied =
         typeof error === 'object' && error !== null && 'code' in error &&
         (error as { code?: number }).code === 1;
@@ -349,23 +361,16 @@ export function useCreatePostForm() {
           : "Manzilni aniqlab bo'lmadi. Qayta urinib ko'ring"
       );
     } finally {
-      setIsDetectingLocation(false);
+      if (requestId === locationRequestRef.current) setIsDetectingLocation(false);
     }
   }, [setValue, showToast]);
 
-  useEffect(() => {
-    if (
-      !isCreateModalOpen ||
-      !shouldDetectLocationRef.current ||
-      isDetectingLocation ||
-      formValues.location
-    ) {
-      return;
-    }
-
-    shouldDetectLocationRef.current = false;
-    void handleDetectLocation();
-  }, [formValues.location, handleDetectLocation, isCreateModalOpen, isDetectingLocation]);
+  const handleLocationPointChange = useCallback((point: GeoPoint) => {
+    if (!hasCoordinates(point)) return;
+    locationRequestRef.current += 1;
+    setIsDetectingLocation(false);
+    setLocationPoint(point);
+  }, []);
 
   // ── Formatlash ──
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -386,6 +391,7 @@ export function useCreatePostForm() {
         formValues.price &&
         formValues.minOrder &&
         formValues.location &&
+        hasCoordinates(locationPoint) &&
         isPhoneComplete(formValues.phone || '')
       );
     }
@@ -397,6 +403,10 @@ export function useCreatePostForm() {
       3: ['title', 'price', 'minOrder', 'location', 'phone', 'telegram'],
     };
     if (step === 3 && !(await trigger(fieldsByStep[3]))) return;
+    if (step === 3 && !hasCoordinates(locationPoint)) {
+      showToast('Mahsulot turgan joyni xaritada belgilang');
+      return;
+    }
     if (step < 4) setStep((s) => (s + 1) as Step);
   };
 
@@ -418,6 +428,10 @@ export function useCreatePostForm() {
         showToast("E'lon uchun akkaunt va media fayl kerak");
         return;
       }
+      if (!hasCoordinates(locationPoint)) {
+        showToast('Mahsulot turgan joyni xaritada belgilang');
+        return;
+      }
 
       // Ikki marta bosishdan himoya: agar allaqachon nashr jarayoni bo'lsa, chiqib ketamiz
       if (isPublishing) return;
@@ -425,6 +439,7 @@ export function useCreatePostForm() {
 
       // Instagram-style UX: Nashr bosilgan zahoti modal yopiladi va Bosh sahifaga o'tiladi
       const postTitle = data.title.trim();
+      const confirmedPoint = { ...locationPoint };
       const fileToUpload = selectedMediaFile || selectedMediaUrl;
       const previewMediaUrl = selectedMediaUrl;
       const posterToUpload = selectedPosterUrl;
@@ -465,6 +480,7 @@ export function useCreatePostForm() {
       setMediaType('image');
       setMediaContentType('image/jpeg');
       setSelectedRegion(DEFAULT_REGION);
+      setLocationPoint(null);
       setDurationDays(30);
 
       // Background upload process
@@ -500,6 +516,8 @@ export function useCreatePostForm() {
           sellerAvatar: currentUserAvatar,
           verified: false,
           location,
+          latitude: confirmedPoint.latitude,
+          longitude: confirmedPoint.longitude,
           phone: data.phone,
           telegram: data.telegram?.trim() || undefined,
           title: postTitle,
@@ -558,6 +576,7 @@ export function useCreatePostForm() {
       currentUser,
       durationDays,
       isPublishing,
+      locationPoint,
       mediaContentType,
       mediaType,
       reset,
@@ -587,6 +606,7 @@ export function useCreatePostForm() {
     if (!values.price || values.price.trim().length < 2) missing.push('Narx');
     if (!values.minOrder || values.minOrder.trim().length < 1) missing.push('Min. buyurtma');
     if (!values.location || values.location.trim().length < 2) missing.push('Joylashuv');
+    if (!hasCoordinates(locationPoint)) missing.push('Xaritadagi joylashuv');
     if (!values.phone || !isPhoneComplete(values.phone)) missing.push('Telefon raqami');
 
     if (missing.length > 0) {
@@ -595,7 +615,7 @@ export function useCreatePostForm() {
     }
 
     void handlePublish(values as PostFormData);
-  }, [getValues, handlePublish, isPublishing, selectedMediaUrl, showToast]);
+  }, [getValues, handlePublish, isPublishing, locationPoint, selectedMediaUrl, showToast]);
 
   return {
     isCreateModalOpen,
@@ -612,6 +632,8 @@ export function useCreatePostForm() {
     durationDays,
     setDurationDays,
     isDetectingLocation,
+    locationPoint,
+    setLocationPoint: handleLocationPointChange,
     isPublishing,
     fileInputRef,
     cameraInputRef,
