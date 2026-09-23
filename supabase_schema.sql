@@ -2421,5 +2421,339 @@ GRANT INSERT (supplier_id, business_id, message, discount_percent, products)
 GRANT UPDATE (status) ON public.b2b_direct_offers TO authenticated;
 
 -- =====================================================================
+-- 15. AGRO SAVDO MODULI (Xarid talablari, Kelishuvlar, Joy asosida qidiruv)
+-- =====================================================================
+
+-- --- 15.1 posts jadvali uchun joylashuv ustunlari ---
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS latitude double precision;
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS longitude double precision;
+ALTER TABLE public.posts DROP CONSTRAINT IF EXISTS posts_coordinates_check;
+ALTER TABLE public.posts ADD CONSTRAINT posts_coordinates_check CHECK (
+  (latitude IS NULL AND longitude IS NULL) OR
+  (latitude IS NOT NULL AND longitude IS NOT NULL AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180)
+);
+
+CREATE OR REPLACE FUNCTION public.sync_profile_to_posts()
+RETURNS TRIGGER AS $
+BEGIN
+  UPDATE public.posts SET seller_name=NEW.name, seller_avatar=COALESCE(NEW.avatar_url,''), phone=COALESCE(NEW.phone,''), updated_at=NOW() WHERE user_id=NEW.id;
+  RETURN NEW;
+END;
+$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- --- 15.2 business_type va supplier_type cheklovlarini yangilash ---
+ALTER TABLE public.business_profiles DROP CONSTRAINT IF EXISTS business_profiles_business_type_check;
+ALTER TABLE public.business_profiles ADD CONSTRAINT business_profiles_business_type_check CHECK (business_type IN (
+  'farmer','dehqan','wholesaler','processor','exporter','agro_supplier','logistics',
+  'grocery','minimarket','supermarket','clothing','pharmacy','cafe_restaurant','construction','household','other'
+));
+ALTER TABLE public.supplier_profiles DROP CONSTRAINT IF EXISTS supplier_profiles_supplier_type_check;
+ALTER TABLE public.supplier_profiles ADD CONSTRAINT supplier_profiles_supplier_type_check CHECK (supplier_type IN (
+  'farmer','dehqan','cooperative','service_provider','manufacturer','importer','distributor','supplier'
+));
+
+-- --- 15.3 register_business_buyer_with_address RPC ---
+CREATE OR REPLACE FUNCTION public.register_business_buyer_with_address(p_input jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path = public AS $
+DECLARE
+  v_profile public.business_profiles; v_address public.business_addresses;
+  v_lat double precision := (p_input->>'latitude')::double precision;
+  v_lng double precision := (p_input->>'longitude')::double precision;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Avval akkauntingizga kiring'; END IF;
+  IF coalesce(trim(p_input->>'storeName'),'')='' OR coalesce(trim(p_input->>'phone'),'')='' OR
+     coalesce(trim(p_input->>'region'),'')='' OR coalesce(trim(p_input->>'district'),'')='' OR
+     coalesce(trim(p_input->>'address'),'')='' THEN RAISE EXCEPTION 'Profil nomi, telefon va to''liq manzil majburiy'; END IF;
+  IF NOT ((v_lat IS NULL AND v_lng IS NULL) OR (v_lat IS NOT NULL AND v_lng IS NOT NULL AND v_lat BETWEEN -90 AND 90 AND v_lng BETWEEN -180 AND 180))
+  THEN RAISE EXCEPTION 'Xarita nuqtasi noto''g''ri'; END IF;
+  INSERT INTO public.business_profiles(user_id,store_name,owner_name,phone,business_type,region,district,description,logo_url)
+  VALUES(auth.uid(),trim(p_input->>'storeName'),coalesce(p_input->>'ownerName',''),p_input->>'phone',p_input->>'businessType',p_input->>'region',p_input->>'district',coalesce(p_input->>'description',''),coalesce(p_input->>'logoUrl',''))
+  RETURNING * INTO v_profile;
+  INSERT INTO public.business_addresses(business_id,store_name,phone,region,district,address,latitude,longitude,is_default)
+  VALUES(v_profile.id,v_profile.store_name,v_profile.phone,v_profile.region,v_profile.district,trim(p_input->>'address'),v_lat,v_lng,true)
+  RETURNING * INTO v_address;
+  RETURN to_jsonb(v_profile)||jsonb_build_object('address',v_address.address,'latitude',v_address.latitude,'longitude',v_address.longitude);
+END $;
+REVOKE ALL ON FUNCTION public.register_business_buyer_with_address(jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.register_business_buyer_with_address(jsonb) TO authenticated;
+
+-- --- 15.4 b2b_products — Agro maydonlari ---
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS variety        text    NOT NULL DEFAULT '';
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS availability   text    NOT NULL DEFAULT 'available';
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS available_from date;
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS latitude       double precision;
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS longitude      double precision;
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS location       text    NOT NULL DEFAULT '';
+ALTER TABLE public.b2b_products ADD COLUMN IF NOT EXISTS linked_post_id uuid REFERENCES public.posts(id) ON DELETE SET NULL;
+ALTER TABLE public.b2b_products DROP CONSTRAINT IF EXISTS b2b_products_agro_check;
+ALTER TABLE public.b2b_products ADD CONSTRAINT b2b_products_agro_check CHECK (
+  availability IN ('available','upcoming')
+  AND (availability <> 'upcoming' OR available_from IS NOT NULL)
+  AND ((latitude IS NULL AND longitude IS NULL)
+       OR (latitude IS NOT NULL AND longitude IS NOT NULL AND latitude BETWEEN -90 AND 90 AND longitude BETWEEN -180 AND 180))
+);
+
+CREATE OR REPLACE FUNCTION public.validate_agro_product_link()
+RETURNS TRIGGER AS $
+BEGIN
+  IF NEW.linked_post_id IS NOT NULL AND (TG_OP='INSERT' OR NEW.linked_post_id IS DISTINCT FROM OLD.linked_post_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM public.posts p JOIN public.supplier_profiles s ON s.user_id=p.user_id
+                   WHERE p.id=NEW.linked_post_id AND s.id=NEW.supplier_id AND p.status='approved')
+    THEN RAISE EXCEPTION 'Faqat o''zingizning tasdiqlangan e''loningizni bog''lang'; END IF;
+  END IF;
+  RETURN NEW;
+END;
+$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+DROP TRIGGER IF EXISTS tr_validate_agro_product_link ON public.b2b_products;
+CREATE TRIGGER tr_validate_agro_product_link BEFORE INSERT OR UPDATE ON public.b2b_products FOR EACH ROW EXECUTE FUNCTION public.validate_agro_product_link();
+
+-- --- 15.5 agro_purchase_requests ---
+CREATE TABLE IF NOT EXISTS public.agro_purchase_requests (
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           uuid        NOT NULL REFERENCES public.profiles(id),
+  buyer_name        text        NOT NULL,
+  title             text        NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 160),
+  category          text        NOT NULL CHECK (length(trim(category)) BETWEEN 1 AND 160),
+  variety           text        NOT NULL DEFAULT '' CHECK (length(variety) <= 160),
+  quantity          numeric     NOT NULL CHECK (quantity > 0 AND quantity <= 1e12),
+  reserved_quantity numeric     NOT NULL DEFAULT 0 CHECK (reserved_quantity >= 0 AND reserved_quantity <= quantity),
+  unit              text        NOT NULL CHECK (length(trim(unit)) BETWEEN 1 AND 30),
+  target_price      numeric     CHECK (target_price > 0 AND target_price <= 1e12),
+  needed_by         date        NOT NULL,
+  location          text        NOT NULL CHECK (length(trim(location)) BETWEEN 1 AND 500),
+  latitude          double precision NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+  longitude         double precision NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+  delivery_method   text        NOT NULL CHECK (delivery_method IN ('pickup','delivery','either')),
+  description       text        NOT NULL DEFAULT '' CHECK (length(description) <= 4000),
+  status            text        NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed')),
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agro_requests_open ON public.agro_purchase_requests(status,needed_by);
+ALTER TABLE public.agro_purchase_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS agro_request_read ON public.agro_purchase_requests;
+CREATE POLICY agro_request_read ON public.agro_purchase_requests FOR SELECT USING (
+  (status='open' AND needed_by>=(now() AT TIME ZONE 'Asia/Tashkent')::date) OR user_id=auth.uid()
+);
+REVOKE ALL ON public.agro_purchase_requests FROM anon,authenticated;
+GRANT SELECT ON public.agro_purchase_requests TO anon,authenticated;
+
+-- --- 15.6 agro_trade_offers ---
+CREATE TABLE IF NOT EXISTS public.agro_trade_offers (
+  id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id      uuid        REFERENCES public.agro_purchase_requests(id),
+  product_id      uuid        REFERENCES public.b2b_products(id),
+  product_name    text        NOT NULL,
+  unit            text        NOT NULL,
+  buyer_user_id   uuid        NOT NULL REFERENCES public.profiles(id),
+  seller_user_id  uuid        NOT NULL REFERENCES public.profiles(id),
+  buyer_name      text        NOT NULL,
+  seller_name     text        NOT NULL,
+  proposed_by     uuid        NOT NULL REFERENCES public.profiles(id),
+  quantity        numeric     NOT NULL CHECK (quantity>0 AND quantity<=1e12),
+  unit_price      numeric     NOT NULL CHECK (unit_price>0 AND unit_price<=1e12),
+  delivery_date   date        NOT NULL,
+  delivery_method text        NOT NULL CHECK (delivery_method IN ('pickup','delivery')),
+  message         text        NOT NULL DEFAULT '' CHECK (length(message)<=2000),
+  status          text        NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed','accepted','ready','delivering','completed','declined','cancelled')),
+  version         integer     NOT NULL DEFAULT 1 CHECK (version>0),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  CHECK (num_nonnulls(request_id,product_id)=1),
+  CHECK (buyer_user_id<>seller_user_id),
+  CHECK (proposed_by IN (buyer_user_id,seller_user_id))
+);
+CREATE INDEX IF NOT EXISTS agro_offers_buyer   ON public.agro_trade_offers(buyer_user_id,  updated_at DESC);
+CREATE INDEX IF NOT EXISTS agro_offers_seller  ON public.agro_trade_offers(seller_user_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS agro_offers_product ON public.agro_trade_offers(product_id);
+CREATE INDEX IF NOT EXISTS agro_offers_request ON public.agro_trade_offers(request_id);
+ALTER TABLE public.agro_trade_offers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS agro_offer_read ON public.agro_trade_offers;
+CREATE POLICY agro_offer_read ON public.agro_trade_offers FOR SELECT USING (auth.uid() IN (buyer_user_id,seller_user_id));
+REVOKE ALL ON public.agro_trade_offers FROM anon,authenticated;
+GRANT SELECT ON public.agro_trade_offers TO authenticated;
+
+-- --- 15.7 Agro savdo RPC funksiyalari ---
+CREATE OR REPLACE FUNCTION public.create_agro_request(p_input jsonb)
+RETURNS public.agro_purchase_requests LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+DECLARE v_row public.agro_purchase_requests; v_name text;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Avval akkauntingizga kiring'; END IF;
+  IF (p_input->>'neededBy')::date<(now() AT TIME ZONE 'Asia/Tashkent')::date THEN RAISE EXCEPTION 'So''rov sanasi o''tgan'; END IF;
+  SELECT name INTO STRICT v_name FROM public.profiles WHERE id=auth.uid();
+  INSERT INTO public.agro_purchase_requests(user_id,buyer_name,title,category,variety,quantity,unit,target_price,needed_by,location,latitude,longitude,delivery_method,description)
+  VALUES(auth.uid(),v_name,trim(p_input->>'title'),p_input->>'category',coalesce(p_input->>'variety',''),
+         (p_input->>'quantity')::numeric,p_input->>'unit',(p_input->>'targetPrice')::numeric,(p_input->>'neededBy')::date,
+         trim(p_input->>'location'),(p_input->>'latitude')::double precision,(p_input->>'longitude')::double precision,
+         p_input->>'deliveryMethod',coalesce(p_input->>'description',''))
+  RETURNING * INTO v_row;
+  RETURN v_row;
+END $;
+
+CREATE OR REPLACE FUNCTION public.close_agro_request(p_id uuid)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+BEGIN
+  UPDATE public.agro_purchase_requests SET status='closed' WHERE id=p_id AND user_id=auth.uid();
+  IF NOT FOUND THEN RAISE EXCEPTION 'Ruxsat yo''q yoki so''rov topilmadi'; END IF;
+END $;
+
+CREATE OR REPLACE FUNCTION public.check_agro_offer_target(p_offer public.agro_trade_offers)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+DECLARE v_request public.agro_purchase_requests; v_product public.b2b_products;
+BEGIN
+  IF p_offer.quantity IS NULL OR p_offer.quantity<=0 OR p_offer.unit_price IS NULL OR p_offer.unit_price<=0
+     OR p_offer.delivery_date IS NULL OR p_offer.delivery_date<(now() AT TIME ZONE 'Asia/Tashkent')::date
+     OR p_offer.delivery_method NOT IN ('pickup','delivery')
+  THEN RAISE EXCEPTION 'Miqdor, narx, sana va yetkazish usulini tekshiring'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.supplier_profiles s WHERE s.user_id=p_offer.seller_user_id AND s.verification_status='approved'
+                 AND EXISTS (SELECT 1 FROM public.contracts c WHERE c.supplier_id=s.id AND c.status='accepted'))
+  THEN RAISE EXCEPTION 'Sotuvchi tasdiqlangan va shartnomani qabul qilgan bo''lishi kerak'; END IF;
+  IF p_offer.request_id IS NOT NULL THEN
+    SELECT * INTO STRICT v_request FROM public.agro_purchase_requests WHERE id=p_offer.request_id FOR UPDATE;
+    IF v_request.status<>'open' OR v_request.needed_by<(now() AT TIME ZONE 'Asia/Tashkent')::date THEN RAISE EXCEPTION 'So''rov yopilgan yoki muddati tugagan'; END IF;
+    IF p_offer.quantity>v_request.quantity-v_request.reserved_quantity THEN RAISE EXCEPTION 'So''rovdagi qolgan miqdor yetarli emas'; END IF;
+    IF p_offer.delivery_date>v_request.needed_by OR (v_request.delivery_method<>'either' AND p_offer.delivery_method<>v_request.delivery_method)
+    THEN RAISE EXCEPTION 'Sana yoki yetkazish usuli so''rovga mos emas'; END IF;
+  ELSE
+    SELECT * INTO STRICT v_product FROM public.b2b_products WHERE id=p_offer.product_id FOR UPDATE;
+    IF v_product.status<>'approved' THEN RAISE EXCEPTION 'Mahsulot sotuvda emas'; END IF;
+    IF v_product.unit IS DISTINCT FROM p_offer.unit THEN RAISE EXCEPTION 'Mahsulot birligi o''zgargan'; END IF;
+    IF p_offer.quantity<>trunc(p_offer.quantity) OR p_offer.quantity<v_product.moq OR p_offer.quantity>v_product.available_qty
+    THEN RAISE EXCEPTION 'Miqdor butun son, MOQ va zaxiraga mos bo''lishi kerak'; END IF;
+    IF v_product.availability='upcoming' AND p_offer.delivery_date<v_product.available_from THEN RAISE EXCEPTION 'Hosil hali tayyor bo''lmaydi'; END IF;
+    IF p_offer.delivery_method='delivery' AND NOT v_product.delivery_available THEN RAISE EXCEPTION 'Yetkazib berish mavjud emas'; END IF;
+  END IF;
+END $;
+
+CREATE OR REPLACE FUNCTION public.send_agro_offer(p_input jsonb)
+RETURNS public.agro_trade_offers LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+DECLARE
+  v_offer public.agro_trade_offers; v_request public.agro_purchase_requests; v_product public.b2b_products;
+BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'Avval akkauntingizga kiring'; END IF;
+  v_offer.request_id:=(p_input->>'requestId')::uuid; v_offer.product_id:=(p_input->>'productId')::uuid;
+  IF num_nonnulls(v_offer.request_id,v_offer.product_id)<>1 THEN RAISE EXCEPTION 'Bitta e''lonni tanlang'; END IF;
+  IF v_offer.request_id IS NOT NULL THEN
+    SELECT * INTO STRICT v_request FROM public.agro_purchase_requests WHERE id=v_offer.request_id;
+    v_offer.buyer_user_id:=v_request.user_id; v_offer.buyer_name:=v_request.buyer_name;
+    v_offer.seller_user_id:=auth.uid(); v_offer.product_name:=v_request.title; v_offer.unit:=v_request.unit;
+  ELSE
+    SELECT * INTO STRICT v_product FROM public.b2b_products WHERE id=v_offer.product_id;
+    v_offer.buyer_user_id:=auth.uid();
+    SELECT user_id INTO STRICT v_offer.seller_user_id FROM public.supplier_profiles WHERE id=v_product.supplier_id;
+    SELECT name INTO STRICT v_offer.buyer_name FROM public.profiles WHERE id=auth.uid();
+    v_offer.product_name:=v_product.name; v_offer.unit:=v_product.unit;
+  END IF;
+  IF v_offer.buyer_user_id=v_offer.seller_user_id THEN RAISE EXCEPTION 'O''z e''loningizga taklif yubora olmaysiz'; END IF;
+  SELECT company_name INTO STRICT v_offer.seller_name FROM public.supplier_profiles WHERE user_id=v_offer.seller_user_id;
+  v_offer.proposed_by:=auth.uid(); v_offer.quantity:=(p_input->>'quantity')::numeric;
+  v_offer.unit_price:=(p_input->>'unitPrice')::numeric; v_offer.delivery_date:=(p_input->>'deliveryDate')::date;
+  v_offer.delivery_method:=p_input->>'deliveryMethod'; v_offer.message:=coalesce(p_input->>'message','');
+  PERFORM public.check_agro_offer_target(v_offer);
+  INSERT INTO public.agro_trade_offers(request_id,product_id,product_name,unit,buyer_user_id,seller_user_id,buyer_name,seller_name,proposed_by,quantity,unit_price,delivery_date,delivery_method,message)
+  VALUES(v_offer.request_id,v_offer.product_id,v_offer.product_name,v_offer.unit,v_offer.buyer_user_id,v_offer.seller_user_id,v_offer.buyer_name,v_offer.seller_name,v_offer.proposed_by,v_offer.quantity,v_offer.unit_price,v_offer.delivery_date,v_offer.delivery_method,v_offer.message)
+  RETURNING * INTO v_offer;
+  RETURN v_offer;
+END $;
+
+CREATE OR REPLACE FUNCTION public.respond_agro_offer(p_id uuid, p_action text, p_version integer, p_terms jsonb DEFAULT NULL)
+RETURNS public.agro_trade_offers LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $
+DECLARE v_offer public.agro_trade_offers; v_delta numeric:=0;
+BEGIN
+  SELECT * INTO STRICT v_offer FROM public.agro_trade_offers WHERE id=p_id FOR UPDATE;
+  IF auth.uid() IS NULL OR auth.uid() NOT IN (v_offer.buyer_user_id,v_offer.seller_user_id) THEN RAISE EXCEPTION 'Ruxsat yo''q'; END IF;
+  IF p_version IS NULL OR v_offer.version<>p_version THEN RAISE EXCEPTION 'Taklif o''zgargan. Sahifani yangilang'; END IF;
+  IF p_action='cancel' AND v_offer.status IN ('proposed','accepted','ready') THEN
+    IF v_offer.status IN ('accepted','ready') THEN v_delta:=-v_offer.quantity; END IF;
+    v_offer.status:='cancelled';
+  ELSIF v_offer.status='proposed' AND auth.uid()<>v_offer.proposed_by AND p_action IN ('accept','decline','counter') THEN
+    IF p_action='decline' THEN v_offer.status:='declined';
+    ELSE
+      IF p_action='counter' THEN
+        v_offer.quantity:=(p_terms->>'quantity')::numeric; v_offer.unit_price:=(p_terms->>'unitPrice')::numeric;
+        v_offer.delivery_date:=(p_terms->>'deliveryDate')::date; v_offer.delivery_method:=p_terms->>'deliveryMethod';
+        v_offer.message:=coalesce(p_terms->>'message',''); v_offer.proposed_by:=auth.uid();
+      END IF;
+      PERFORM public.check_agro_offer_target(v_offer);
+      IF p_action='accept' THEN v_offer.status:='accepted'; v_delta:=v_offer.quantity; END IF;
+    END IF;
+  ELSIF p_action='ready' AND v_offer.status='accepted' AND auth.uid()=v_offer.seller_user_id THEN v_offer.status:='ready';
+  ELSIF p_action='deliver' AND v_offer.status='ready' AND v_offer.delivery_method='delivery' AND auth.uid()=v_offer.seller_user_id THEN v_offer.status:='delivering';
+  ELSIF p_action='complete' AND auth.uid()=v_offer.buyer_user_id AND (v_offer.status='delivering' OR (v_offer.status='ready' AND v_offer.delivery_method='pickup')) THEN v_offer.status:='completed';
+  ELSE RAISE EXCEPTION 'Bu holatda ushbu amalni bajarib bo''lmaydi'; END IF;
+  IF v_delta<>0 THEN
+    IF v_offer.request_id IS NOT NULL THEN
+      UPDATE public.agro_purchase_requests SET reserved_quantity=reserved_quantity+v_delta WHERE id=v_offer.request_id;
+    ELSE UPDATE public.b2b_products SET available_qty=available_qty-v_delta WHERE id=v_offer.product_id; END IF;
+  END IF;
+  UPDATE public.agro_trade_offers SET quantity=v_offer.quantity,unit_price=v_offer.unit_price,delivery_date=v_offer.delivery_date,
+    delivery_method=v_offer.delivery_method,message=v_offer.message,proposed_by=v_offer.proposed_by,
+    status=v_offer.status,version=version+1,updated_at=now() WHERE id=p_id RETURNING * INTO v_offer;
+  RETURN v_offer;
+END $;
+
+CREATE OR REPLACE FUNCTION public.guard_upcoming_checkout() RETURNS TRIGGER AS $
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.b2b_products WHERE id=NEW.product_id AND availability='upcoming')
+  THEN RAISE EXCEPTION 'Kutilayotgan hosil uchun avval sana va shartlarni kelishing'; END IF;
+  RETURN NEW;
+END;
+$ LANGUAGE plpgsql SECURITY DEFINER SET search_path=public;
+DROP TRIGGER IF EXISTS tr_guard_upcoming_checkout ON public.b2b_order_items;
+CREATE TRIGGER tr_guard_upcoming_checkout BEFORE INSERT ON public.b2b_order_items FOR EACH ROW EXECUTE FUNCTION public.guard_upcoming_checkout();
+
+-- --- 15.8 Joy asosida qidiruv RPC'lari ---
+CREATE OR REPLACE FUNCTION public.nearby_posts(p_lat double precision, p_lng double precision, p_limit integer DEFAULT 300)
+RETURNS SETOF public.posts LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $
+BEGIN
+  IF p_lat IS NULL OR p_lng IS NULL OR NOT (p_lat BETWEEN -90 AND 90 AND p_lng BETWEEN -180 AND 180)
+  THEN RAISE EXCEPTION 'Xarita nuqtasi noto''g''ri'; END IF;
+  RETURN QUERY
+   SELECT p.* FROM public.posts p
+   WHERE p.status='approved' AND (p.expires_at IS NULL OR p.expires_at>now())
+   ORDER BY CASE WHEN p.latitude IS NOT NULL AND p.longitude IS NOT NULL THEN
+    power(sin(radians(p.latitude-p_lat)/2),2)+cos(radians(p_lat))*cos(radians(p.latitude))*power(sin(radians(p.longitude-p_lng)/2),2)
+   END ASC NULLS LAST,p.created_at DESC,p.id
+   LIMIT greatest(1,least(coalesce(p_limit,300),1000));
+END $;
+
+CREATE OR REPLACE FUNCTION public.nearby_b2b_products(p_lat double precision, p_lng double precision, p_filters jsonb DEFAULT '{}')
+RETURNS SETOF jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $
+BEGIN
+  IF p_lat IS NULL OR p_lng IS NULL OR NOT (p_lat BETWEEN -90 AND 90 AND p_lng BETWEEN -180 AND 180)
+  THEN RAISE EXCEPTION 'Xarita nuqtasi noto''g''ri'; END IF;
+  RETURN QUERY
+   SELECT to_jsonb(p)||jsonb_build_object('supplier_profiles',jsonb_build_object('company_name',s.company_name,'verification_status',s.verification_status,'region',s.region))
+   FROM public.b2b_products p LEFT JOIN public.supplier_profiles s ON s.id=p.supplier_id
+   WHERE p.status='approved'
+    AND (coalesce(p_filters->>'search','')='' OR position(lower(trim(p_filters->>'search')) IN lower(p.name||' '||coalesce(p.brand,'')||' '||p.variety))>0)
+    AND (coalesce(p_filters->>'category','')='' OR p.category=p_filters->>'category')
+    AND (p_filters->>'minPrice' IS NULL OR p.wholesale_price>=(p_filters->>'minPrice')::numeric)
+    AND (p_filters->>'maxPrice' IS NULL OR p.wholesale_price<=(p_filters->>'maxPrice')::numeric)
+    AND (p_filters->>'minMoq' IS NULL OR p.moq<=(p_filters->>'minMoq')::numeric)
+    AND (NOT coalesce((p_filters->>'deliveryOnly')::boolean,false) OR p.delivery_available)
+    AND (NOT coalesce((p_filters->>'verifiedOnly')::boolean,false) OR s.verification_status='approved')
+    AND (coalesce(p_filters->>'region','')='' OR coalesce(cardinality(p.delivery_regions),0)=0 OR p_filters->>'region'=ANY(p.delivery_regions))
+   ORDER BY CASE WHEN p.latitude IS NOT NULL AND p.longitude IS NOT NULL THEN
+    power(sin(radians(p.latitude-p_lat)/2),2)+cos(radians(p_lat))*cos(radians(p.latitude))*power(sin(radians(p.longitude-p_lng)/2),2)
+   END ASC NULLS LAST,p.created_at DESC,p.id LIMIT 300;
+END $;
+
+CREATE OR REPLACE FUNCTION public.get_public_stores_for_map()
+RETURNS TABLE (id uuid,store_name text,business_type text,region text,district text,address text,latitude numeric,longitude numeric,logo_url text,description text,created_at timestamptz)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $
+ SELECT bp.id,bp.store_name,bp.business_type,bp.region,bp.district,coalesce(ba.address,''),ba.latitude,ba.longitude,bp.logo_url,bp.description,bp.created_at
+ FROM public.business_profiles bp JOIN LATERAL (
+  SELECT a.* FROM public.business_addresses a WHERE a.business_id=bp.id AND a.is_default
+  AND a.latitude BETWEEN -90 AND 90 AND a.longitude BETWEEN -180 AND 180 ORDER BY a.id LIMIT 1
+ ) ba ON true WHERE bp.status='active';
+$;
+
+-- --- 15.9 GRANT / REVOKE ---
+REVOKE ALL ON FUNCTION public.create_agro_request(jsonb), public.close_agro_request(uuid), public.send_agro_offer(jsonb), public.respond_agro_offer(uuid,text,integer,jsonb), public.check_agro_offer_target(public.agro_trade_offers), public.validate_agro_product_link(), public.guard_upcoming_checkout() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_agro_request(jsonb), public.close_agro_request(uuid), public.send_agro_offer(jsonb), public.respond_agro_offer(uuid,text,integer,jsonb) TO authenticated;
+REVOKE ALL ON FUNCTION public.nearby_posts(double precision,double precision,integer), public.get_public_stores_for_map(), public.nearby_b2b_products(double precision,double precision,jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.nearby_posts(double precision,double precision,integer), public.get_public_stores_for_map(), public.nearby_b2b_products(double precision,double precision,jsonb) TO anon, authenticated;
+
+-- =====================================================================
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!
 -- =====================================================================
