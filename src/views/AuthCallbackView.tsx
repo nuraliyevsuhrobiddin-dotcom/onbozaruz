@@ -1,28 +1,35 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { authClient, completeAuthCallback, type AuthUser } from '../api/authClient';
 import { emailService } from '../api/emailService';
 
 interface AuthCallbackViewProps {
-  onSuccess: (user: AuthUser) => void;
+  onSuccess: (user: AuthUser) => void | Promise<void>;
 }
 
 export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
   const [error, setError] = useState('');
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
+  const callbackPromise = useRef<Promise<AuthUser> | null>(null);
 
   useEffect(() => {
     let active = true;
 
     void (async () => {
       try {
-        await completeAuthCallback();
-        const user = await authClient.restoreSession();
-        if (!user) throw new Error('Tasdiqlangan foydalanuvchi sessiyasi olinmadi.');
+        callbackPromise.current ??= (async () => {
+          await completeAuthCallback();
+          const user = await authClient.restoreSession();
+          if (!user) throw new Error('Tasdiqlangan foydalanuvchi sessiyasi olinmadi.');
+          return user;
+        })();
+        const user = await callbackPromise.current;
         if (active) {
           if (user.email && user.email.includes('@')) {
             void emailService.sendWelcomeEmail(user.email, user.name, user.role);
           }
-          onSuccess(user);
+          await onSuccessRef.current(user);
         }
       } catch (callbackError: unknown) {
         if (active) {
@@ -34,7 +41,7 @@ export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
     return () => {
       active = false;
     };
-  }, [onSuccess]);
+  }, []);
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#F8FAFC] px-6">

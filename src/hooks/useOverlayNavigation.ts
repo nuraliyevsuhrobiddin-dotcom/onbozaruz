@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-type Overlay = { id: string; close: () => void; previousState: unknown };
+type Overlay = { id: string; close: () => void; previousState: unknown; url: string };
 const overlays: Overlay[] = [];
 let sequence = 0;
 const marker = '__onbozarOverlay';
@@ -8,9 +8,11 @@ const marker = '__onbozarOverlay';
 function handleBack(event: PopStateEvent) {
   const top = overlays.at(-1);
   if (!top || event.state?.[marker] === top.id) return;
-  event.stopImmediatePropagation();
-  overlays.pop();
-  top.close();
+  // A history jump may cross several stacked dialogs, or leave their page.
+  const destination = overlays.findIndex(overlay => overlay.id === event.state?.[marker]);
+  const dismissed = overlays.splice(destination + 1);
+  dismissed.reverse().forEach(overlay => overlay.close());
+  if (location.href === top.url) event.stopImmediatePropagation();
 }
 
 function dismiss(overlay: Overlay) {
@@ -42,6 +44,7 @@ export function useOverlayNavigation(isOpen: boolean, onClose: () => void) {
         id: `overlay-${++sequence}`,
         close: () => closeRef.current(),
         previousState: history.state,
+        url: location.href,
       };
       entryRef.current = entry;
       if (!overlays.length) {

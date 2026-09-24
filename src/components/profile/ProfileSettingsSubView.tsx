@@ -13,6 +13,8 @@ import {
   Loader2,
   Volume2,
 } from 'lucide-react';
+import { Modal } from '../ui/Modal';
+import { navigateAppRoute } from '../../hooks/useAppNavigation';
 import { useAgroStore } from '../../store/useAgroStore';
 import {
   getDeviceNotificationPermission,
@@ -25,7 +27,7 @@ import { playNotificationSound, unlockAudioContext } from '../../utils/notificat
 interface ProfileSettingsSubViewProps {
   onBack: () => void;
   showToast: (msg: string) => void;
-  onLogout?: () => void;
+  onLogout?: () => void | Promise<void>;
 }
 
 export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
@@ -36,6 +38,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   const { deleteAccount } = useAgroStore();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [permStatus, setPermStatus] = useState<NotificationPermissionStatus>(() => getDeviceNotificationPermission());
 
@@ -130,7 +133,6 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
     try {
       await deleteAccount();
       setIsDeleteModalOpen(false);
-      onBack();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Akkauntni o'chirishda xatolik yuz berdi";
       showToast(msg);
@@ -152,6 +154,8 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   }) => (
     <button
       type="button"
+      role="switch"
+      aria-checked={settingsForm[field]}
       onClick={() => toggleSetting(field)}
       className="w-full flex items-center justify-between gap-3 py-3 text-left cursor-pointer"
     >
@@ -183,6 +187,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
+          aria-label="Orqaga"
           className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -300,10 +305,13 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {onLogout && (
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm("Akkauntdan chiqishni tasdiqlaysizmi?")) {
-              onLogout();
-            }
+          disabled={isLoggingOut}
+          onClick={async () => {
+            if (isLoggingOut || !window.confirm("Akkauntdan chiqishni tasdiqlaysizmi?")) return;
+            setIsLoggingOut(true);
+            try { await onLogout(); }
+            catch (error) { showToast(error instanceof Error ? error.message : "Akkauntdan chiqib bo'lmadi. Qayta urinib ko'ring."); }
+            finally { setIsLoggingOut(false); }
           }}
           className="w-full py-3.5 rounded-[18px] bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs transition-colors border border-slate-200 flex items-center justify-center gap-2 cursor-pointer"
         >
@@ -315,7 +323,8 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       {/* Legal & Privacy Policy */}
       <div className="pt-1 text-center">
         <a
-          href="https://onbozar.uz/privacy-policy"
+          href="#privacy-policy"
+          onClick={(event) => { event.preventDefault(); navigateAppRoute('/#privacy-policy'); }}
           className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-[#D84315] font-bold underline transition-colors"
         >
           <ShieldCheck className="w-4 h-4 text-[#D84315]" />
@@ -327,7 +336,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       <div className="pt-2">
         <button
           type="button"
-          onClick={() => setIsDeleteModalOpen(true)}
+          onClick={() => { setDeleteConfirmText(''); setIsDeleteModalOpen(true); }}
           className="w-full py-3 rounded-[16px] bg-orange-50 hover:bg-orange-100 text-[#D84315] font-extrabold text-xs transition-colors border border-orange-200 flex items-center justify-center gap-2 cursor-pointer"
         >
           <Trash2 className="w-4 h-4" />
@@ -336,9 +345,9 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
       </div>
 
       {/* Delete Account Modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm bg-white rounded-[26px] p-6 space-y-4 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Akkauntni o'chirish">
+        {(dismiss) => (
+          <div className="space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-orange-100 text-[#D84315] flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" />
             </div>
@@ -354,6 +363,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
                 Tasdiqlash uchun <strong>o'chirish</strong> deb yozing:
               </span>
               <input
+                aria-label="O'chirishni tasdiqlash"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder="o'chirish"
@@ -364,7 +374,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setIsDeleteModalOpen(false)}
+                onClick={dismiss}
                 disabled={isDeleting}
                 className="flex-1 py-3 rounded-[16px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
               >
@@ -387,8 +397,8 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };

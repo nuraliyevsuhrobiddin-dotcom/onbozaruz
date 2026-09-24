@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, SlidersHorizontal, Heart, MessageCircle, Play, MapPin, Video, Image as ImageIcon
 } from 'lucide-react';
+import { useVideoPlayback } from '../hooks/useVideoPlayback';
+import { useVideoFrame } from '../hooks/useVideoFrame';
 import { useAgroStore } from '../store/useAgroStore';
 import { REGIONS } from '../data/mockAgroData';
 import { Post } from '../api/types';
@@ -23,103 +25,62 @@ const VideoThumbnail: React.FC<{
   isHovered?: boolean;
 }> = ({ src, poster, alt, isHovered = false }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [capturedPoster, setCapturedPoster] = useState<string>(poster || '');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
+  const viewerOpen = useAgroStore((state) => state.isVideoViewerOpen);
+  const effectivePoster = !posterFailed ? poster : undefined;
+  // A grid previously downloaded each posterless video twice (a detached
+  // canvas capture plus a rendered video), even behind the fullscreen viewer.
+  const activeSrc = !effectivePoster && isNearViewport && !viewerOpen ? src : undefined;
+  const hasFrame = useVideoFrame(videoRef, activeSrc, 0);
+  useVideoPlayback(videoRef, activeSrc, isHovered && Boolean(activeSrc), true, 0);
 
-  // Extract thumbnail frame on video metadata seeked
   useEffect(() => {
-    if (capturedPoster) return;
-    let isCancelled = false;
-    const video = document.createElement('video');
-    video.src = src.includes('#t=') ? src : `${src}#t=0.5`;
-    video.muted = true;
-    video.playsInline = true;
-    video.crossOrigin = 'anonymous';
+    setHasError(false);
+    setPosterFailed(false);
+  }, [src, poster]);
 
-    const capture = () => {
-      if (isCancelled) return;
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth || 360;
-        canvas.height = video.videoHeight || 640;
-        const ctx = canvas.getContext('2d');
-        if (ctx && canvas.width > 0 && canvas.height > 0) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-          if (dataUrl && dataUrl.length > 500 && !isCancelled) {
-            setCapturedPoster(dataUrl);
-          }
-        }
-      } catch {
-        // Ignore capture errors
-      }
-    };
-
-    video.onloadedmetadata = () => {
-      try {
-        video.currentTime = 0.5;
-      } catch {
-        capture();
-      }
-    };
-    video.onseeked = capture;
-    video.onloadeddata = capture;
-
-    return () => {
-      isCancelled = true;
-      video.onloadedmetadata = null;
-      video.onseeked = null;
-      video.onloadeddata = null;
-      video.src = '';
-      video.load();
-    };
-  }, [src, capturedPoster]);
-
-  // Hover play / pause
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video || hasError) return;
-
-    if (isHovered) {
-      const p = video.play();
-      if (p !== undefined) p.catch(() => undefined);
-    } else {
-      video.pause();
-    }
-  }, [isHovered, hasError]);
-
-  if (hasError) {
-    return (
-      <div className="w-full h-full bg-gradient-to-br from-slate-800 via-slate-900 to-slate-800 flex flex-col items-center justify-center p-3 text-center">
-        <Video className="w-7 h-7 text-red-400 mb-1" />
-        <span className="text-[10px] text-slate-300 font-medium truncate max-w-full">{alt}</span>
-      </div>
-    );
-  }
-
-  const effectivePoster = capturedPoster || poster;
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsNearViewport(entry.isIntersecting);
+    }, { rootMargin: '150px 0px' });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="w-full h-full relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
+    <div ref={containerRef} className="w-full h-full relative bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden">
       {effectivePoster ? (
         <img
           src={effectivePoster}
           alt={alt}
           loading="lazy"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          onError={() => setCapturedPoster('')}
+          onError={() => setPosterFailed(true)}
         />
       ) : (
-        <video
-          ref={videoRef}
-          src={src.includes('#t=') ? src : `${src}#t=0.5`}
-          muted
-          loop
-          playsInline
-          preload="auto"
-          onError={() => setHasError(true)}
-          className="w-full h-full object-cover pointer-events-none"
-        />
+        <>
+          <video
+            ref={videoRef}
+            src={activeSrc}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onError={(e) => { if (activeSrc && e.currentTarget.error) setHasError(true); }}
+            className="w-full h-full object-cover pointer-events-none"
+          />
+          {(!hasFrame || hasError) && (
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center p-3 text-center">
+              <Video className="w-7 h-7 text-red-400 mb-1" />
+              <span className="text-[10px] text-slate-300 font-medium truncate max-w-full">{alt}</span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

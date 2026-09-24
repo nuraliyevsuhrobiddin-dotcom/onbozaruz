@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Volume2, VolumeX, Play, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
+import { useVideoFrame } from '../../hooks/useVideoFrame';
+import { useVideoPlayback } from '../../hooks/useVideoPlayback';
 import { useAgroStore } from '../../store/useAgroStore';
 
 interface VideoPlayerProps {
@@ -27,21 +29,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isBuffering, setIsBuffering] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
-  const { isVideoViewerOpen } = useAgroStore();
+  const isVideoViewerOpen = useAgroStore((state) => state.isVideoViewerOpen);
+  const [isVisible, setIsVisible] = useState(false);
+  const [posterFailed, setPosterFailed] = useState(false);
   const [isNearViewport, setIsNearViewport] = useState(false);
   // A feed can contain many VideoPlayer instances. Keep a source attached only
   // for cards near the viewport, and release it while Reels is open. This
   // prevents every feed card from competing for the mobile connection.
   const activeSrc = !isVideoViewerOpen && isNearViewport ? src : undefined;
 
-  const [hasFrame, setHasFrame] = useState(false);
+  const hasFrame = useVideoFrame(videoRef, activeSrc, retryKey);
+  const isActive = isVisible && !isVideoViewerOpen && Boolean(activeSrc);
+  useVideoPlayback(videoRef, activeSrc, isActive, isMuted, retryKey);
 
   // src o'zgarganda xato va play holatini tiklash
   useEffect(() => {
     setHasError(false);
     setIsPlaying(false);
     setIsBuffering(false);
-    setHasFrame(false);
+    setPosterFailed(false);
     setAspectRatio(null);
   }, [src, poster, retryKey, activeSrc]);
 
@@ -66,92 +72,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Cleanup on unmount — fully release Android MediaCodec decoder & network buffers
   useEffect(() => {
-    const video = videoRef.current;
-    return () => {
-      if (video) {
-        video.volume = 0;
-        video.muted = true;
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      }
-    };
-  }, []);
-
-  // When activeSrc is cleared (e.g. out of viewport or Reels opened), release decoder
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (!activeSrc) {
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-    }
-  }, [activeSrc]);
-
-  // Reels ochilganida feed videolarni to'xtatish va mute qilish
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (isVideoViewerOpen || !isNearViewport) {
-      // Reels ochilganida: video mute qil va pause qil
-      video.volume = 0;
-      video.muted = true;
-      video.pause();
-      setIsPlaying(false);
-      setIsBuffering(false);
-    } else {
-      // Reels yopilganida: original mute holatiga qaytarish
-      video.muted = isMuted;
-      video.volume = isMuted ? 0 : 1;
-    }
-  }, [isVideoViewerOpen, isMuted, isNearViewport]);
-
-  // IntersectionObserver — feed da avtomatik ijro/to'xtatish
-  // Pero Reels ochilganida auto-play ishlamaydi
-  useEffect(() => {
-    const video = videoRef.current;
     const container = containerRef.current;
-    if (!video || !container || !activeSrc) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        // Agar Reels viewer ochilgan bo'lsa, videolarni auto-play qilma
-        if (isVideoViewerOpen) {
-          video.pause();
-          setIsPlaying(false);
-          return;
-        }
-
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.4) {
-          video.play().then(() => {
-            setIsPlaying(true);
-            setIsBuffering(false);
-          }).catch(() => {
-            // Muted fallback
-            video.muted = true;
-            setIsMuted(true);
-            video.play().then(() => {
-              setIsPlaying(true);
-              setIsBuffering(false);
-            }).catch(() => {});
-          });
-        } else {
-          video.pause();
-          setIsPlaying(false);
-          // Bufferingni to'xtatish viewport'dan chiqqanda
-          setIsBuffering(false);
-        }
-      },
-      { threshold: 0.4 }
-    );
-
+    if (!container) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setIsVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsVisible(entry.isIntersecting && entry.intersectionRatio >= 0.5);
+    }, { threshold: 0.5 });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [activeSrc, retryKey, isVideoViewerOpen]);
+  }, []);
 
   const handleRetry = useCallback(() => {
     setRetryKey((k) => k + 1);
@@ -224,20 +157,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         src={activeSrc}
         poster={poster}
         loop
-        muted={isMuted}
+        muted={!isActive || isMuted}
         playsInline
-        preload="metadata"
-        onError={() => { setHasError(true); setIsBuffering(false); }}
-        onWaiting={() => setIsBuffering(true)}
-        onStalled={() => setIsBuffering(true)}
+        preload={isActive ? "auto" : "metadata"}
+        onError={(e) => { if (activeSrc && e.currentTarget.error) setHasError(true); setIsBuffering(false); }}
+        onWaiting={() => { if (isActive) setIsBuffering(true); }}
+        onStalled={() => { if (isActive) setIsBuffering(true); }}
         onCanPlay={() => { setIsBuffering(false); }}
-        onPlaying={() => { setIsPlaying(true); setIsBuffering(false); setHasFrame(true); }}
-        onTimeUpdate={(e) => {
-          if (e.currentTarget.currentTime > 0) {
-            setHasFrame(true);
-            setIsBuffering(false);
-          }
-        }}
+        onPlaying={() => { setIsPlaying(true); setIsBuffering(false); }}
         onLoadedMetadata={(event) => {
           const video = event.currentTarget;
           if (video.videoWidth > 0 && video.videoHeight > 0) {
@@ -252,13 +179,16 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       />
 
       {/* Poster overlay until first frame decodes */}
-      {!hasFrame && !hasError && poster && (
-        <div className="absolute inset-0 z-[2] pointer-events-none">
-          <img
+      {!hasFrame && !hasError && (
+        <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none bg-gradient-to-b from-slate-800 to-slate-950">
+          {poster && !posterFailed ? <img
             src={poster}
             alt="Video thumbnail"
+            onError={() => setPosterFailed(true)}
             className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
-          />
+          /> : <div className="w-full h-full flex items-center justify-center text-white/70">
+            {isActive ? <Loader2 className="w-8 h-8 animate-spin" /> : <Play className="w-10 h-10" />}
+          </div>}
         </div>
       )}
 
@@ -281,7 +211,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       )}
 
       {/* Buffering spinner */}
-      {isBuffering && !hasError && (
+      {isActive && hasFrame && isBuffering && !hasError && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
           <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center">
             <Loader2 className="w-6 h-6 text-white animate-spin" />
@@ -290,7 +220,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       )}
 
       {/* Paused indicator overlay */}
-      {!isPlaying && !hasError && !isBuffering && (
+      {!isPlaying && !hasError && !isBuffering && hasFrame && (
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none bg-black/20 backdrop-blur-[1px]">
           <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/20">
             <Play className="w-7 h-7 text-white fill-white translate-x-0.5" />

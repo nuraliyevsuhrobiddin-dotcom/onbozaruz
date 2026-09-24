@@ -104,6 +104,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setErrorMessage(null);
 
     if (!form.name.trim() || form.name.trim().length < 2) {
@@ -120,8 +121,8 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
       return;
     }
 
-    const cleanHandle = form.handle.trim().toLowerCase().replace(/^@/, '').replace(/[^a-z0-9_]/g, '');
-    if (!cleanHandle || cleanHandle.length < 2 || cleanHandle.length > 30) {
+    const cleanHandle = form.handle.trim().toLowerCase().replace(/^@/, '');
+    if (!/^[a-z0-9_]{2,30}$/.test(cleanHandle)) {
       const err = "Username 2–30 ta harf, raqam yoki _ dan iborat bo'lishi kerak";
       setErrorMessage(err);
       showToast(err);
@@ -220,6 +221,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={onBack}
+          aria-label="Orqaga"
           disabled={isSaving}
           className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors disabled:opacity-50 cursor-pointer"
         >
@@ -355,6 +357,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
                   )}
                 </span>
                 <input
+                  disabled={isSaving}
                   type={field.key === 'email' ? 'email' : field.key === 'website' ? 'url' : 'text'}
                   value={form[field.key as keyof typeof form]}
                   onChange={(e) => updateField(field.key as keyof typeof form, e.target.value)}
@@ -383,6 +386,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
             <span>Bio / Sahifa tavsifi (ixtiyoriy)</span>
           </span>
           <textarea
+            disabled={isSaving}
             value={form.bio}
             onChange={(e) => updateField('bio', e.target.value)}
             rows={3}

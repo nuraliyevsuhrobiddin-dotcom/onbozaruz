@@ -8,7 +8,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
-  children: React.ReactNode;
+  children: React.ReactNode | ((dismiss: () => void) => React.ReactNode);
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
@@ -19,10 +19,12 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
   // Body scroll lock
   useEffect(() => {
     if (!isOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
     lockBodyScroll();
     dialogRef.current?.focus();
     return () => {
       unlockBodyScroll();
+      if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, [isOpen]);
 
@@ -50,6 +52,19 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             aria-labelledby={title ? titleId : undefined}
             tabIndex={-1}
             ref={dialogRef}
+            onKeyDown={(event) => {
+              if (event.key !== 'Tab' || (event.target as HTMLElement).closest('[role="dialog"]') !== dialogRef.current) return;
+              const controls = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
+                .filter(element => element.getClientRects().length > 0);
+              const first = controls[0];
+              const last = controls.at(-1);
+              if (!first) { event.preventDefault(); event.currentTarget.focus(); }
+              else if (event.shiftKey && (document.activeElement === first || document.activeElement === event.currentTarget)) {
+                event.preventDefault(); last?.focus();
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault(); first.focus();
+              }
+            }}
             className="relative w-full max-w-md bg-white rounded-[20px] shadow-2xl overflow-hidden z-10 flex flex-col max-h-[90vh]"
           >
             {title && (
@@ -64,7 +79,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
                 </button>
               </div>
             )}
-            <div className="p-4 overflow-y-auto no-scrollbar">{children}</div>
+            <div className="p-4 overflow-y-auto no-scrollbar">{typeof children === 'function' ? children(dismiss) : children}</div>
           </motion.div>
         </div>
       )}

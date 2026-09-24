@@ -21,6 +21,8 @@ import {
 import { Post } from '../data/mockAgroData';
 import { useAgroStore } from '../store/useAgroStore';
 import confetti from 'canvas-confetti';
+import { useVideoFrame } from '../hooks/useVideoFrame';
+import { useVideoPlayback } from '../hooks/useVideoPlayback';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOverlayNavigation } from '../hooks/useOverlayNavigation';
 
@@ -34,14 +36,13 @@ const TelegramSVG = () => (
 // ---------------------------------------------------------------------------
 // Preload strategy helper
 // ---------------------------------------------------------------------------
-type PreloadMode = 'active' | 'next' | 'none';
+type PreloadMode = 'active' | 'next' | 'previous' | 'none';
 
 function getPreloadMode(idx: number, currentIndex: number, isSlowConnection: boolean): PreloadMode {
   if (idx === currentIndex) return 'active';
-  // Only warm up the next video. Preloading both neighbours with `auto` can
-  // start three large video downloads at once and is the main source of Reels
-  // stutter on mid-range phones. On a slow/data-saver connection even the
-  // next video waits until the user actually swipes to it.
+  // Keep the previous decoder/frame for a quick reverse swipe. Only one
+  // upcoming video buffers ahead, and data-saver connections skip that fetch.
+  if (idx === currentIndex - 1) return 'previous';
   if (!isSlowConnection && idx === currentIndex + 1) return 'next';
   return 'none';
 }
@@ -65,8 +66,6 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [showHeart, setShowHeart] = useState(false);
-  // True once the <video> has actually painted a frame for the current src.
-  const [hasFrame, setHasFrame] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
   // Double-tap detection
   const lastTapTime = useRef(0);
@@ -92,114 +91,26 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const isFollowing = followedSellerIds.includes(post.sellerId);
   const isOwnPost = currentUser?.id === post.sellerId;
 
-  // Determine video src: only attach for active + next slides.
+  // At most three media sources are attached; distant slides are unmounted.
   const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
   const posterSrc = post.posterUrl || undefined;
+  const hasFrame = useVideoFrame(videoRef, videoSrc, retryKey);
+  useVideoPlayback(videoRef, videoSrc, isActive, globalMuted, retryKey);
 
-  // Reset error/frame state when retryKey or src changes
+  // Reset playback feedback when the resource changes.
   useEffect(() => {
     setHasError(false);
     setIsBuffering(false);
     setIsPlaying(false);
-    setHasFrame(false);
     setPosterFailed(false);
-  }, [retryKey, post.mediaUrl]);
+  }, [retryKey, videoSrc]);
 
-  // Active slide: play immediately without artificial delay.
-  // Inactive slide: pause + mute completely.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    let isCancelled = false;
-
-    if (isActive) {
-      video.muted = globalMuted;
-      video.volume = globalMuted ? 0 : 1;
-      // Har safar active bo'lganda boshidan boshlaydi — Instagram xatti-harakati
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            if (!isCancelled) {
-              setIsPlaying(true);
-              setIsBuffering(false);
-            }
-          })
-          .catch(() => {
-            if (isCancelled) return;
-            // Browser policies may block autoplay with sound; fallback to muted playback instantly
-            video.muted = true;
-            video.volume = 0;
-            video.play()
-              .then(() => {
-                if (!isCancelled) {
-                  setIsPlaying(true);
-                  setIsBuffering(false);
-                }
-              })
-              .catch(() => {
-                if (!isCancelled) {
-                  setIsPlaying(false);
-                }
-              });
-          });
-      }
-    } else {
-      // Immediately silence and pause inactive slides to prevent audio mixing & conserve RAM/CPU
-      video.volume = 0;
-      video.muted = true;
-      video.pause();
-      setIsPlaying(false);
-      setIsBuffering(false);
-    }
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [isActive, globalMuted, retryKey]);
-
-  // Keep audio state aligned when the viewer mute toggle changes.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !isActive) return;
-
-    video.muted = globalMuted;
-    video.volume = globalMuted ? 0 : 1;
-
-    if (!globalMuted && video.paused) {
-      video.play().catch(() => {
-        video.muted = true;
-        video.volume = 0;
-      });
-    }
-  }, [globalMuted, isActive]);
-
-  // Cleanup on unmount — fully release Android MediaCodec hardware decoder & network stream
-  useEffect(() => {
-    const video = videoRef.current;
-    return () => {
-      if (video) {
-        video.volume = 0;
-        video.muted = true;
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-      }
-    };
-  }, []);
-
-  // When videoSrc is detached (distant slide), explicitly reset media element
-  // so Chromium on Android does not retain the decoder in memory
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (!videoSrc) {
-      video.pause();
-      video.removeAttribute('src');
-      video.load();
-    }
-  }, [videoSrc]);
+  // A delayed single tap must not play the slide after the user swipes away.
+  useEffect(() => () => {
+    if (singleTapTimer.current !== null) window.clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = null;
+    lastTapTime.current = 0;
+  }, [isActive]);
 
   const handleRetry = useCallback(() => {
     setRetryKey((k) => k + 1);
@@ -214,14 +125,14 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
 
   const handleSingleTap = useCallback(() => {
     const video = videoRef.current;
-    if (!video || hasError) return;
+    if (!video || hasError || !isActive) return;
     if (video.paused) {
       video.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
       video.pause();
       setIsPlaying(false);
     }
-  }, [hasError]);
+  }, [hasError, isActive]);
 
   // Double-tap detection: 300ms window
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -250,16 +161,9 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const telLink = `tel:${cleanPhone}`;
 
 
-  // Preload strategy:
-  // - active slide: start buffering immediately
-  // - next slide: request metadata only, never media bytes
-  // - distant slides: no request and no decoder
-  const preloadAttr =
-    preloadMode === 'active'
-      ? 'auto'
-      : preloadMode === 'next'
-        ? 'metadata'
-        : 'none';
+  const preloadAttr = preloadMode === 'active' || preloadMode === 'next'
+    ? 'auto'
+    : preloadMode === 'previous' ? 'metadata' : 'none';
 
   return (
     <div
@@ -287,7 +191,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               src={videoSrc}
               poster={posterSrc}
               loop
-              muted={globalMuted}
+              muted={!isActive || globalMuted}
               playsInline
               preload={preloadAttr}
               onClick={handleClick}
@@ -299,21 +203,14 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               onPlaying={() => {
                 setIsPlaying(true);
                 setIsBuffering(false);
-                setHasFrame(true);
               }}
-              onTimeUpdate={(e) => {
-                if (e.currentTarget.currentTime > 0) {
-                  setHasFrame(true);
-                  setIsBuffering(false);
-                }
-              }}
-              onError={() => { setHasError(true); setIsBuffering(false); }}
+              onError={(e) => { if (videoSrc && e.currentTarget.error) setHasError(true); setIsBuffering(false); }}
               className="reels-visual relative z-[1] w-full h-full cursor-pointer"
             />
 
             {/* Poster / Placeholder Overlay — smoothly covers video until first frame arrives */}
             {!hasFrame && !hasError && (
-              <div className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-slate-950/80 transition-opacity duration-300">
+              <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-slate-950/80 transition-opacity duration-300">
                 {posterSrc && !posterFailed ? (
                   <img
                     src={posterSrc}
@@ -636,7 +533,6 @@ export const VideoReelsViewer: React.FC = () => {
   );
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Ovozli boshlanadi — foydalanuvchi bosib kirdi (user gesture)
   // Starting muted avoids a blocked sound-autoplay attempt and starts the
   // first frame faster on mobile. Users can unmute from the floating control.
   const [globalMuted, setGlobalMuted] = useState(true);
@@ -644,14 +540,9 @@ export const VideoReelsViewer: React.FC = () => {
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const floatingControlsTimer = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const slideRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  const isScrolling = useRef(false);
-  const wheelTimeout = useRef<number | null>(null);
-  const lastWheelTime = useRef(0);
-  const scrollSettleTimer = useRef<number | null>(null);
+  const scrollFrame = useRef<number | null>(null);
   const wasOpenRef = useRef(false);
-  // Keep a ref to currentIndex so the IntersectionObserver callback can read
-  // the latest value without being recreated on every index change.
+  // Scroll and keyboard callbacks share the latest visible index.
   const currentIndexRef = useRef(currentIndex);
   const { isSlowConnection } = useNetworkStatus();
   const requestedStartIndex = Math.max(0, Math.min(videoViewerStartIndex, Math.max(0, liveVideoPosts.length - 1)));
@@ -683,18 +574,12 @@ export const VideoReelsViewer: React.FC = () => {
     setGlobalMuted(true);
     setShowFloatingControls(true);
 
-    isScrolling.current = true;
     const el = containerRef.current;
     const targetChild = el?.children[requestedStartIndex] as HTMLElement | undefined;
     if (el) {
       el.scrollTop = targetChild?.offsetTop ?? requestedStartIndex * (el.clientHeight || window.innerHeight);
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      isScrolling.current = false;
-    });
-
-    return () => window.cancelAnimationFrame(frame);
   }, [isVideoViewerOpen, requestedStartIndex]);
 
   // Floating controls auto-hide timer
@@ -730,127 +615,52 @@ export const VideoReelsViewer: React.FC = () => {
     };
   }, [isVideoViewerOpen]);
 
-  // IntersectionObserver to detect active slide (threshold 60% visibility).
-  // IMPORTANT: This effect does NOT depend on `currentIndex` — it uses the
-  // `currentIndexRef` instead. This prevents the observer from being torn
-  // down and recreated on every scroll step, which caused jitter and missed
-  // updates on slow devices.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !isVideoViewerOpen || liveVideoPosts.length === 0) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isScrolling.current) return;
-        let bestEntry: IntersectionObserverEntry | null = null;
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            if (!bestEntry || entry.intersectionRatio > bestEntry.intersectionRatio) {
-              bestEntry = entry;
-            }
-          }
-        }
-        if (bestEntry) {
-          const idxStr = bestEntry.target.getAttribute('data-index');
-          if (idxStr !== null) {
-            const idx = parseInt(idxStr, 10);
-            if (!isNaN(idx) && idx !== currentIndexRef.current) {
-              currentIndexRef.current = idx;
-              setCurrentIndex(idx);
-            }
-          }
-        }
-      },
-      {
-        root: container,
-        // 0.75 threshold: only commit when the incoming slide covers most of the screen,
-        // preventing jank caused by mid-swipe DOM rebuilds and decoder churn
-        threshold: [0.75],
-      }
-    );
-
-    slideRefs.current.forEach((el) => {
-      if (el) observer.observe(el);
-    });
-
-    return () => {
-      observer.disconnect();
-    };
-    // liveVideoPosts.length is intentionally the only dep: the observer is
-    // rebuilt only when the list grows (infinite scroll), not on every swipe.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVideoViewerOpen, liveVideoPosts.length]);
-
-  // Smoothly scroll to target index (for keyboard, wheel, dot navigation)
-  const scrollToIndex = useCallback((idx: number) => {
+  // Use the actual scroll position, including during momentum and smooth
+  // navigation. Observer batches can contain only the outgoing slide, which
+  // used to select the wrong item and leave the visible video without a src.
+  const syncVisibleIndex = useCallback(() => {
     const el = containerRef.current;
-    if (!el || liveVideoPosts.length === 0) return;
-    const targetIdx = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
-
-    isScrolling.current = true;
-    const viewportHeight = el.clientHeight || window.innerHeight;
-    el.scrollTo({ top: targetIdx * viewportHeight, behavior: 'smooth' });
-    currentIndexRef.current = targetIdx;
-    setCurrentIndex(targetIdx);
-
-    if (wheelTimeout.current) window.clearTimeout(wheelTimeout.current);
-    wheelTimeout.current = window.setTimeout(() => {
-      isScrolling.current = false;
-      wheelTimeout.current = null;
-    }, 500);
+    if (!el || !el.clientHeight || !liveVideoPosts.length) return;
+    const idx = Math.max(0, Math.min(
+      Math.round(el.scrollTop / el.clientHeight), liveVideoPosts.length - 1,
+    ));
+    if (idx !== currentIndexRef.current) {
+      currentIndexRef.current = idx;
+      setCurrentIndex(idx);
+    }
   }, [liveVideoPosts.length]);
 
-  // Native scroll settlement handler for touch & momentum scrolling.
   const handleScroll = useCallback(() => {
     revealControls();
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      syncVisibleIndex();
+    });
+  }, [revealControls, syncVisibleIndex]);
 
-    if (isScrolling.current || !containerRef.current) return;
-
-    if (scrollSettleTimer.current) {
-      window.clearTimeout(scrollSettleTimer.current);
-    }
-    scrollSettleTimer.current = window.setTimeout(() => {
-      if (!containerRef.current || isScrolling.current) return;
-      const el = containerRef.current;
-      const viewportHeight = el.clientHeight || window.innerHeight;
-      if (viewportHeight <= 0) return;
-
-      const settledIdx = Math.max(
-        0,
-        Math.min(Math.round(el.scrollTop / viewportHeight), liveVideoPosts.length - 1)
-      );
-
-      if (settledIdx !== currentIndexRef.current) {
-        currentIndexRef.current = settledIdx;
-        setCurrentIndex(settledIdx);
-      }
-    }, 80);
-  }, [liveVideoPosts.length, revealControls]);
-
-  // Native scrollend event listener — fires as soon as touch/momentum snap rests (Chrome 114+, Safari 17+)
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !isVideoViewerOpen) return;
-
-    const onScrollEnd = () => {
-      if (isScrolling.current) return;
-      const viewportHeight = el.clientHeight || window.innerHeight;
-      if (viewportHeight <= 0) return;
-      const settledIdx = Math.max(
-        0,
-        Math.min(Math.round(el.scrollTop / viewportHeight), liveVideoPosts.length - 1)
-      );
-      if (settledIdx !== currentIndexRef.current) {
-        currentIndexRef.current = settledIdx;
-        setCurrentIndex(settledIdx);
-      }
-    };
-
-    el.addEventListener('scrollend', onScrollEnd);
+    el.addEventListener('scrollend', syncVisibleIndex);
+    const resizeObserver = new ResizeObserver(() => {
+      el.scrollTop = currentIndexRef.current * el.clientHeight;
+    });
+    resizeObserver.observe(el);
     return () => {
-      el.removeEventListener('scrollend', onScrollEnd);
+      el.removeEventListener('scrollend', syncVisibleIndex);
+      resizeObserver.disconnect();
+      if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
     };
-  }, [isVideoViewerOpen, liveVideoPosts.length]);
+  }, [isVideoViewerOpen, syncVisibleIndex]);
+
+  const scrollToIndex = useCallback((idx: number) => {
+    const el = containerRef.current;
+    if (!el || !liveVideoPosts.length) return;
+    const targetIdx = Math.max(0, Math.min(idx, liveVideoPosts.length - 1));
+    el.scrollTo({ top: targetIdx * el.clientHeight, behavior: 'smooth' });
+  }, [liveVideoPosts.length]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -874,21 +684,6 @@ export const VideoReelsViewer: React.FC = () => {
     }
     return () => window.removeEventListener('keydown', onKey);
   }, [closeVideoViewer, isVideoViewerOpen, scrollToIndex]);
-
-  // Mouse wheel navigation (Desktop)
-  const handleWheelNav = useCallback((e: React.WheelEvent) => {
-    revealControls();
-
-    if (isScrolling.current) return;
-    const now = Date.now();
-    if (now - lastWheelTime.current < 400) return;
-    lastWheelTime.current = now;
-    if (e.deltaY > 40) {
-      scrollToIndex(currentIndexRef.current + 1);
-    } else if (e.deltaY < -40) {
-      scrollToIndex(currentIndexRef.current - 1);
-    }
-  }, [revealControls, scrollToIndex]);
 
   if (!isVideoViewerOpen || liveVideoPosts.length === 0) return null;
 
@@ -951,7 +746,6 @@ export const VideoReelsViewer: React.FC = () => {
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          onWheel={handleWheelNav}
           className="w-full h-full overflow-y-auto no-scrollbar"
           style={{
             scrollSnapType: 'y mandatory',
@@ -979,13 +773,6 @@ export const VideoReelsViewer: React.FC = () => {
               <div
                 key={post.id}
                 data-index={idx}
-                ref={(node) => {
-                  if (node) {
-                    slideRefs.current.set(idx, node);
-                  } else {
-                    slideRefs.current.delete(idx);
-                  }
-                }}
                 style={{
                   scrollSnapAlign: 'start',
                   scrollSnapStop: 'always' as const,
@@ -1016,7 +803,10 @@ export const VideoReelsViewer: React.FC = () => {
                         className="reels-card reels-visual"
                       />
                     ) : (
-                      <div className="w-full h-full bg-black" />
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-b from-slate-800 to-slate-950 px-6 text-white/80">
+                        <Play className="w-10 h-10" />
+                        <span className="text-sm text-center">{post.title}</span>
+                      </div>
                     )}
                   </div>
                 )}

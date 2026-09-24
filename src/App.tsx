@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, type Transition } from 'framer-motion';
-import { useAgroStore, type NavTab, type SubView } from './store/useAgroStore';
+import { useAgroStore } from './store/useAgroStore';
 
 import { InstagramHeader } from './components/InstagramHeader';
 import { InstagramBottomNav } from './components/InstagramBottomNav';
@@ -11,7 +11,8 @@ import { HomeFeedView } from './views/HomeFeedView';
 import { SearchExploreView } from './views/SearchExploreView';
 import { B2BView } from './views/B2BView';
 import { ProfileView } from './views/ProfileView';
-import { parseB2BHash, encodeB2BHash } from './utils/b2bRoute';
+import { useAppNavigation, replaceAppRoute } from './hooks/useAppNavigation';
+import { useOverlayNavigation } from './hooks/useOverlayNavigation';
 
 import { CreatePostModal } from './components/CreatePostModal';
 import { CommentSheetModal } from './components/CommentSheetModal';
@@ -55,23 +56,26 @@ export default function App() {
     setSelectedCategoryModalId,
     hydrateFromApi,
     retryHydrate,
-    setActiveTab,
-    setActiveSubView,
     isAuthenticated,
     isAuthPromptOpen,
     loginUser,
     restoreSession,
     clearSession,
     setAuthPromptOpen,
-    setB2BRoute,
     b2bRoute,
-    activeSubView,
   } = useAgroStore();
   const isMarketMap = activeTab === 'market' && b2bRoute.view === 'map';
   const showHeader = activeTab !== 'search' && activeTab !== 'admin' && !isMarketMap;
 
-  const isAuthCallback = window.location.pathname === '/auth/callback';
-  const isPrivacyPolicy = window.location.pathname === '/privacy-policy' || window.location.hash === '#privacy-policy';
+  const { isAuthCallback, isPrivacyPolicy } = useAppNavigation();
+  const dismissAuth = useOverlayNavigation(isAuthPromptOpen && !isAuthenticated, () => setAuthPromptOpen(false));
+  const handleAuthSuccess = useCallback(async (user: Parameters<typeof loginUser>[0], isNewUser = false) => {
+    await loginUser(user);
+    if (useAgroStore.getState().currentUser?.id !== user.id) return;
+    setAuthPromptOpen(false);
+    const isAdmin = useAgroStore.getState().isAdminUser;
+    replaceAppRoute(isAdmin ? '/#admin' : isNewUser ? '/#profile/edit-profile' : '/#profile');
+  }, [loginUser, setAuthPromptOpen]);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
 
   useEffect(() => {
@@ -99,34 +103,6 @@ export default function App() {
       if (state.point?.latitude !== previous.point?.latitude || state.point?.longitude !== previous.point?.longitude) void hydrateFromApi();
     });
   }, [hydrateFromApi]);
-
-  // Derives {activeTab, activeSubView/b2bRoute} from window.location.hash —
-  // shared by the initial mount parse and the popstate "no history state"
-  // fallback, so both agree on what a given hash means instead of the
-  // fallback blindly resetting to home.
-  const applyHashRoute = useCallback(() => {
-    const hash = window.location.hash.slice(1); // Remove '#'
-    if (hash === 'privacy-policy') return;
-    const [tab, ...rest] = hash.split('/');
-    if (tab && (tab === 'home' || tab === 'search' || tab === 'market' || tab === 'profile' || tab === 'admin')) {
-      setActiveTab(tab as NavTab);
-      if (tab === 'market') {
-        setB2BRoute(parseB2BHash(rest));
-      } else {
-        const subView = ['edit-profile', 'orders', 'settings'].includes(rest[0]) ? rest[0] as SubView : null;
-        setActiveSubView(subView);
-      }
-    } else {
-      setActiveTab('home');
-    }
-  }, [setActiveTab, setActiveSubView, setB2BRoute]);
-
-  // ─── Parse initial route from URL hash ──────────────────────────────────
-  useEffect(() => {
-    if (isAuthCallback || isPrivacyPolicy) return;
-    if (!window.location.hash.slice(1)) return;
-    applyHashRoute();
-  }, [isAuthCallback, isPrivacyPolicy, applyHashRoute]);
 
   // Online/Offline holat kuzatuvchisi
   useEffect(() => {
@@ -161,68 +137,12 @@ export default function App() {
   }, [clearSession, isAuthCallback, restoreSession]);
 
   // ─── Single Page App History & Phone Back Button Handler ─────────────────
-  // Push new history state whenever activeTab/activeSubView/b2bRoute changes.
-  // Reads activeTab from getState() (not the destructured hook value) —
-  // when this effect and the hash-parse mount effect fire in the same
-  // commit, the hook value here is still last render's stale snapshot even
-  // though the store itself already has the new tab, which previously made
-  // this push the wrong (stale) tab into history right after a deep link.
-  useEffect(() => {
-    if (isAuthCallback || isPrivacyPolicy) return;
-
-    const state = useAgroStore.getState();
-    const nextHash = state.activeTab === 'market'
-      ? `#market/${encodeB2BHash(state.b2bRoute)}`
-      : (state.activeSubView ? `#${state.activeTab}/${state.activeSubView}` : `#${state.activeTab}`);
-
-    if (window.location.hash !== nextHash) {
-      window.history.pushState(
-        { tab: state.activeTab, subView: state.activeSubView, b2bRoute: state.b2bRoute },
-        '',
-        nextHash
-      );
-    }
-  }, [activeTab, activeSubView, b2bRoute, isAuthCallback, isPrivacyPolicy]);
-
-  // Handle hardware / browser back button (popstate)
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      const state = event.state as { tab?: NavTab; subView?: SubView; b2bRoute?: import('./utils/b2bRoute').B2BRoute } | null;
-
-      // If state is provided from history pop
-      if (state) {
-        const { activeTab: currentTab, activeSubView: currentSubView } = useAgroStore.getState();
-        if (state.tab === 'market' && state.b2bRoute) {
-          setB2BRoute(state.b2bRoute);
-        } else if (state.subView !== currentSubView) {
-          setActiveSubView(state.subView || null);
-        }
-        if (state.tab && state.tab !== currentTab) {
-          setActiveTab(state.tab);
-        }
-        return;
-      }
-
-      // Fallback if no history state (e.g. hash manually changed, a history
-      // entry from before this app pushed state, or a browser/automation
-      // quirk firing popstate on load) — re-derive the route from the
-      // current hash instead of blindly resetting to home, which would
-      // otherwise clobber a valid deep link (e.g. #market/dashboard).
-      applyHashRoute();
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [setActiveSubView, setActiveTab, setB2BRoute, applyHashRoute]);
-
-
   if (isPrivacyPolicy) {
     return (
       <PrivacyPolicyView
         onBack={() => {
-          window.history.pushState(null, '', '/#home');
-          setActiveTab('home');
-          setActiveSubView(null);
+          if (history.state?.__onbozarFrom) history.back();
+          else replaceAppRoute('/#home');
         }}
       />
     );
@@ -231,13 +151,7 @@ export default function App() {
   if (isAuthCallback) {
     return (
       <AuthCallbackView
-        onSuccess={(user) => {
-          void loginUser(user).then(() => {
-            window.history.replaceState(null, '', '/#profile');
-            setActiveTab('profile');
-            setActiveSubView('edit-profile');
-          });
-        }}
+        onSuccess={handleAuthSuccess}
       />
     );
   }
@@ -247,25 +161,8 @@ export default function App() {
   if (isAuthPromptOpen && !isAuthenticated) {
     return (
       <AuthView
-        onSuccess={(user) => {
-          void loginUser(user).then(() => {
-            // DB-sourced isAdmin — check after loginUser updates store
-            const { isAdminUser } = useAgroStore.getState();
-            if (isAdminUser) {
-              setActiveTab('admin');
-            } else {
-              setActiveTab('profile');
-              setActiveSubView('edit-profile');
-            }
-          });
-          setAuthPromptOpen(false);
-        }}
-        onBack={() => {
-          setAuthPromptOpen(false);
-          setActiveSubView(null);
-          setActiveTab('home');
-          window.dispatchEvent(new Event('onbozor:reset-feed'));
-        }}
+        onSuccess={handleAuthSuccess}
+        onBack={dismissAuth}
       />
     );
   }

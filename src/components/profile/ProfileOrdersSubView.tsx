@@ -75,6 +75,7 @@ export const ProfileOrdersSubView: React.FC<ProfileOrdersSubViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
+            aria-label="Orqaga"
             className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-5 h-5" />

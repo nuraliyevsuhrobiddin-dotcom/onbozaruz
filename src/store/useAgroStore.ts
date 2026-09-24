@@ -303,13 +303,18 @@ export const useAgroStore = create<AgroStoreState>()(
         ? Boolean(initialUser.isAdmin) || initialUser.email?.toLowerCase().trim() === ADMIN_EMAIL
         : !isSupabaseConfigured; // Enable admin mode by default in mock/development mode
 
+      let sessionRevision = 0;
+      let restorePromise: Promise<void> | null = null;
+
       async function loadUserInteractions(user: AuthUser) {
+        const revision = sessionRevision;
         try {
           const [savedPostIds, likedPostIds] = await Promise.all([
             userInteractionsRepository.listSavedPostIds(user.id),
             userInteractionsRepository.listLikedPostIds(user.id),
           ]);
 
+          if (revision !== sessionRevision || get().currentUser?.id !== user.id) return;
           set((state) => ({
             savedPostIds,
             likedPostIds,
@@ -350,8 +355,10 @@ export const useAgroStore = create<AgroStoreState>()(
       }
 
       async function fetchNotificationsList() {
+        const revision = sessionRevision;
         try {
           const rows = await notificationsRepository.list();
+          if (revision !== sessionRevision) return;
           set((state) => {
             const notifications = mergeNotifications(state.notifications, rows);
             return {
@@ -446,6 +453,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
         // --- Auth actions ---
         loginUser: async (user: AuthUser) => {
+          const revision = ++sessionRevision;
           // isAdmin comes from DB profiles.is_admin field (set in authClient restoreSession/signIn)
           const isAdmin = Boolean(user.isAdmin) || (!isSupabaseConfigured && user.email.toLowerCase().trim() === ADMIN_EMAIL);
 
@@ -486,6 +494,7 @@ export const useAgroStore = create<AgroStoreState>()(
             loadUserInteractions(user),
             get().hydrateFromApi(),
           ]);
+          if (revision !== sessionRevision || get().currentUser?.id !== user.id) return;
           startNotificationsSubscription(user.id);
           void fetchNotificationsList();
           void get().fetchOwnB2BProfiles();
@@ -493,59 +502,73 @@ export const useAgroStore = create<AgroStoreState>()(
         },
 
         restoreSession: async () => {
-          const restoredUser = await authClient.restoreSession();
+          if (restorePromise) return restorePromise;
+          const revision = sessionRevision;
+          const operation = (async () => {
+            try {
+              const restoredUser = await authClient.restoreSession();
+              if (revision !== sessionRevision) return;
 
-          if (!restoredUser) {
-            // No valid session on the server. If the app still thinks someone
-            // is logged in (e.g. a stale/expired session persisted from a
-            // previous visit), that stale identity must not keep showing —
-            // clear it the same way an explicit logout would.
-            if (get().isAuthenticated) {
-              get().clearSession();
-            }
-            set({ isAuthLoading: false });
-            return;
-          }
-
-          // isAdmin sourced from profiles.is_admin in Supabase DB — not from email string
-          const isAdmin = Boolean(restoredUser.isAdmin) || (!isSupabaseConfigured && restoredUser.email.toLowerCase().trim() === ADMIN_EMAIL);
-          const isNewUser = get().currentUser?.id !== restoredUser.id;
-
-          set({
-            currentUser: restoredUser,
-            isAuthenticated: true,
-            isAdminUser: isAdmin,
-            isAuthLoading: false,
-            ...(isNewUser
-              ? {
-                  savedPostIds: [],
-                  likedPostIds: [],
-                  followedSellerIds: [],
-                  viewedPostIds: [],
-                  orders: [],
-                  notifications: [],
-                  unreadNotificationsCount: 0,
-                  b2bCart: {},
-                  businessProfile: null,
-                  supplierProfile: null,
-                  b2bContract: null,
-                  b2bOrders: [],
-                  supplierB2BOrders: [],
-                  ownB2BProducts: [],
-                  supplierFinanceSummary: null,
-                  b2bRoute: { view: 'home' as const },
+              if (!restoredUser) {
+                // No valid session on the server. If the app still thinks someone
+                // is logged in (e.g. a stale/expired session persisted from a
+                // previous visit), that stale identity must not keep showing —
+                // clear it the same way an explicit logout would.
+                if (get().isAuthenticated) {
+                  get().clearSession();
                 }
-              : {}),
-          });
+                set({ isAuthLoading: false });
+                return;
+              }
 
-          await loadUserInteractions(restoredUser);
-          if (get().posts.length === 0) {
-            void get().hydrateFromApi();
-          }
-          startNotificationsSubscription(restoredUser.id);
-          void fetchNotificationsList();
-          void get().fetchOwnB2BProfiles();
-          void syncWebPushSubscription();
+              // isAdmin sourced from profiles.is_admin in Supabase DB — not from email string
+              const isAdmin = Boolean(restoredUser.isAdmin) || (!isSupabaseConfigured && restoredUser.email.toLowerCase().trim() === ADMIN_EMAIL);
+              const isNewUser = get().currentUser?.id !== restoredUser.id;
+
+              set({
+                currentUser: restoredUser,
+                isAuthenticated: true,
+                isAdminUser: isAdmin,
+                isAuthLoading: false,
+                ...(isNewUser
+                  ? {
+                      savedPostIds: [],
+                      likedPostIds: [],
+                      followedSellerIds: [],
+                      viewedPostIds: [],
+                      orders: [],
+                      notifications: [],
+                      unreadNotificationsCount: 0,
+                      b2bCart: {},
+                      businessProfile: null,
+                      supplierProfile: null,
+                      b2bContract: null,
+                      b2bOrders: [],
+                      supplierB2BOrders: [],
+                      ownB2BProducts: [],
+                      supplierFinanceSummary: null,
+                      b2bRoute: { view: 'home' as const },
+                    }
+                  : {}),
+              });
+
+              await loadUserInteractions(restoredUser);
+              if (revision !== sessionRevision) return;
+              if (get().posts.length === 0) {
+                void get().hydrateFromApi();
+              }
+              startNotificationsSubscription(restoredUser.id);
+              void fetchNotificationsList();
+              void get().fetchOwnB2BProfiles();
+              void syncWebPushSubscription();
+            } catch {
+              if (revision === sessionRevision) set({ toastMessage: "Sessiyani tekshirib bo'lmadi. Internetni tekshirib, qayta urinib ko'ring." });
+            } finally {
+              if (revision === sessionRevision) set({ isAuthLoading: false });
+            }
+          })();
+          restorePromise = operation;
+          try { await operation; } finally { if (restorePromise === operation) restorePromise = null; }
         },
 
         logoutUser: async () => {
@@ -560,10 +583,13 @@ export const useAgroStore = create<AgroStoreState>()(
         },
 
         clearSession: () => {
+          sessionRevision += 1;
+          restorePromise = null;
           notificationsUnsubscribe?.();
           notificationsUnsubscribe = null;
 
           try {
+            localStorage.removeItem('onbozor-create-post-draft');
             // Clean user draft & profile keys in localStorage
             for (let i = localStorage.length - 1; i >= 0; i--) {
               const key = localStorage.key(i);
@@ -580,6 +606,11 @@ export const useAgroStore = create<AgroStoreState>()(
             isAuthenticated: false,
             isAdminUser: false,
             isAuthLoading: false,
+            isAuthPromptOpen: false,
+            isCreateModalOpen: false,
+            isNotificationsOpen: false,
+            pushNotification: null,
+            ...(state.activeTab === 'admin' ? { activeTab: 'home' as const } : {}),
             // Reset user-specific state on logout
             savedPostIds: [],
             likedPostIds: [],
@@ -589,6 +620,7 @@ export const useAgroStore = create<AgroStoreState>()(
             notifications: [],
             unreadNotificationsCount: 0,
             b2bCart: {},
+            b2bCashbackBalance: 0,
             businessProfile: null,
             supplierProfile: null,
             b2bContract: null,
@@ -607,8 +639,12 @@ export const useAgroStore = create<AgroStoreState>()(
         },
 
         updateUserProfile: async (updatedFields) => {
+          const userId = get().currentUser?.id;
+          const revision = sessionRevision;
+          if (!userId) throw new Error("Profilni saqlash uchun tizimga kiring.");
           const updatedUser = await authClient.updateUser(updatedFields);
-          if (isSupabaseConfigured && !updatedUser) {
+          if (revision !== sessionRevision || get().currentUser?.id !== userId) throw new Error("Sessiya o'zgardi. Profilni qayta oching.");
+          if (!updatedUser) {
             throw new Error("Profil ma'lumotlarini serverda saqlab bo'lmadi");
           }
           set((state) => {
@@ -1142,11 +1178,13 @@ export const useAgroStore = create<AgroStoreState>()(
       supplierProfile: null,
       fetchOwnB2BProfiles: async () => {
         if (!get().isAuthenticated) return;
+        const revision = sessionRevision;
         try {
           const [businessProfile, supplierProfile] = await Promise.all([
             b2bRepository.fetchOwnBusinessProfile(),
             b2bRepository.fetchOwnSupplierProfile(),
           ]);
+          if (revision !== sessionRevision) return;
           set({
             businessProfile,
             supplierProfile,

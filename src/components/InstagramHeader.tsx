@@ -19,6 +19,7 @@ export const InstagramHeader: React.FC = () => {
         <div className="flex items-center gap-2 absolute right-4">
           <button
             onClick={() => setNotificationsOpen(true)}
+            aria-label="Bildirishnomalar"
             className="relative p-2 rounded-full text-[#111111] hover:bg-slate-100 transition-colors"
           >
             <Heart className="w-5 h-5 stroke-[1.75]" />

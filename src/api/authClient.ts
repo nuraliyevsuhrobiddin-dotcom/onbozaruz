@@ -552,33 +552,39 @@ function mockGetCurrentUser(): AuthUser | null {
 async function supabaseRestoreSession(): Promise<AuthUser | null> {
   if (!supabase) return null;
   const { data, error } = await supabase.auth.getUser();
+  if (error && (error.name === 'AuthRetryableFetchError' || (error.status ?? 0) >= 500)) {
+    throw new Error(translateAuthError(error.message));
+  }
   if (error || !data.user) return null;
 
   const user = data.user;
   const meta = user.user_metadata as Record<string, string> | undefined;
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .maybeSingle();
+  const { data: existingProfile, error: profileError } = await supabase
+    .from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (profileError) throw new Error(translateAuthError(profileError.message));
+  let profile = existingProfile;
 
-  // If profile is missing in DB, auto-create
+  // A failed read is not a missing profile. Never overwrite an existing row
+  // with stale signup metadata after a transient network/RLS failure.
   if (!profile) {
-    try {
-      const cleanHandle = meta?.handle || (user.email || '').split('@')[0];
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        email: user.email || '',
-        name: meta?.name || (user.email || '').split('@')[0],
-        handle: cleanHandle,
-        phone: meta?.phone || '',
-        location: meta?.location || '',
-        business_name: meta?.businessName || '',
-        role: meta?.role || 'seller',
-        updated_at: new Date().toISOString(),
-      });
-    } catch {
-      // Ignore fallback insert error
+    const { data: createdProfile, error: createError } = await supabase.from('profiles').insert({
+      id: user.id,
+      email: user.email || '',
+      name: meta?.name || (user.email || '').split('@')[0],
+      handle: meta?.handle || (user.email || '').split('@')[0],
+      phone: meta?.phone || '',
+      location: meta?.location || '',
+      business_name: meta?.businessName || '',
+      role: meta?.role || 'seller',
+      updated_at: new Date().toISOString(),
+    }).select('*').single();
+    if (createError?.code === '23505') {
+      const retry = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      if (retry.error) throw new Error(translateAuthError(retry.error.message));
+      profile = retry.data;
+    } else {
+      if (createError) throw new Error(translateAuthError(createError.message));
+      profile = createdProfile;
     }
   }
 
@@ -597,7 +603,7 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
     website: profile?.website || '',
     telegram: profile?.telegram || '',
     createdAt: user.created_at || new Date().toISOString(),
-    isAdmin: profile?.is_admin ?? (user.email?.toLowerCase().trim() === 'nuraliyevsuhrobiddin@gmail.com'),
+    isAdmin: Boolean(profile?.is_admin),
     status: (profile?.status as 'active' | 'banned') || 'active',
   };
 }
@@ -822,11 +828,8 @@ async function supabaseResendConfirmation(email: string): Promise<AuthResult> {
 
 async function supabaseSignOut(): Promise<void> {
   if (!supabase) return;
-  try {
-    await supabase.auth.signOut();
-  } catch {
-    // Ignore signout errors
-  }
+  const { error } = await supabase.auth.signOut();
+  if (error) throw new Error(translateAuthError(error.message));
 }
 
 async function supabaseDeleteAccount(): Promise<void> {
@@ -838,35 +841,15 @@ async function supabaseDeleteAccount(): Promise<void> {
     throw new Error("Akkauntni o'chirish uchun qaytadan tizimga kiring.");
   }
 
-  let serverSuccess = false;
-  try {
-    const response = await fetch('/api/account/delete', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const result = await response.json().catch(() => ({})) as { ok?: boolean; error?: string };
-    if ((response.ok && result.ok) || response.status === 200) {
-      serverSuccess = true;
-    } else if (response.status !== 404 && response.status !== 503) {
-      // A definitive server error (not "endpoint missing") — surface it.
-      throw new Error(result.error || "Akkauntni o'chirib bo'lmadi.");
-    }
-  } catch (err: unknown) {
-    // Network error or endpoint not deployed — fall through to client fallback.
-    const isNetworkError = err instanceof TypeError;
-    if (!isNetworkError) throw err;
-  }
-
-  if (!serverSuccess) {
-    // Fallback: delete the profile row directly. ON DELETE CASCADE in auth.users
-    // and profiles removes all related application records.
-    const { error: delError } = await supabase
-      .from('profiles')
-      .delete()
-      .eq('id', userId);
-    if (delError) {
-      throw new Error(`Akkauntni o'chirib bo'lmadi: ${delError.message}`);
-    }
+  const response = await fetch('/api/account/delete', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const result = await response.json().catch(() => ({})) as { ok?: boolean; error?: string };
+  // Only the authenticated server can delete auth.users and its dependants.
+  // Deleting profiles locally neither deletes the login nor proves success.
+  if (!response.ok || result.ok !== true) {
+    throw new Error(result.error || "Akkauntni o'chirib bo'lmadi. Keyinroq qayta urinib ko'ring.");
   }
 
   await supabase.auth.signOut();

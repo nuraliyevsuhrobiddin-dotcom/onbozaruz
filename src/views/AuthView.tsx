@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AlertCircle,
@@ -13,10 +13,10 @@ import {
   Phone,
   User,
 } from 'lucide-react';
-import { authClient, type AuthUser, type SignUpFields } from '../api/authClient';
+import { authClient, type AuthUser, type SignUpFields, translateAuthError } from '../api/authClient';
 
 interface AuthViewProps {
-  onSuccess: (user: AuthUser) => void;
+  onSuccess: (user: AuthUser, isNewUser?: boolean) => void | Promise<void>;
   onBack?: () => void;
 }
 
@@ -64,23 +64,42 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   const [success, setSuccess] = useState('');
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  const busyRef = useRef(false);
+  const requestVersion = useRef(0);
+  const busy = loading || googleLoading || resending;
+  useEffect(() => () => { requestVersion.current += 1; }, []);
+
   const resetMessages = () => { setError(''); setSuccess(''); };
 
   // Google OAuth navigates the whole page away to Google's consent screen,
   // then back to /auth/callback — there's nothing further to do here on
   // success, only the (rare) case where the redirect itself fails to start.
   const handleGoogleSignIn = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const version = ++requestVersion.current;
     resetMessages();
     setGoogleLoading(true);
-    const result = await authClient.signInWithProvider('google');
-    if (!result.ok) {
-      setError(result.error || "Google orqali kirishda xatolik yuz berdi.");
-      setGoogleLoading(false);
+    try {
+      const result = await authClient.signInWithProvider('google');
+      if (version !== requestVersion.current) return;
+      if (!result.ok) setError(result.error || "Google orqali kirishda xatolik yuz berdi.");
+    } catch (error) {
+      if (version === requestVersion.current) setError(translateAuthError(error instanceof Error ? error.message : 'Tarmoq xatosi'));
+    } finally {
+      if (version === requestVersion.current) {
+        busyRef.current = false;
+        setGoogleLoading(false);
+      }
     }
   };
-  const switchMode = (next: AuthMode) => { setMode(next); resetMessages(); };
+  const switchMode = (next: AuthMode) => {
+    if (busyRef.current) return;
+    setMode(next); setShowPassword(false); resetMessages();
+  };
 
   const validate = () => {
+    if (mode === 'signup' && name.trim().length > 80) return 'Ism 80 belgidan oshmasligi kerak.';
     if (mode === 'signup' && name.trim().length < 2) return 'Ism yoki biznes nomingizni kiriting.';
     if (contactMode === 'email' && !emailRegex.test(identifier.trim())) return "To'g'ri email manzilini kiriting.";
     if (contactMode === 'phone' && !phoneRegex.test(identifier.replace(/\s/g, ''))) return '+998 XX XXX XX XX formatida telefon kiriting.';
@@ -101,9 +120,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busyRef.current) return;
     resetMessages();
     const validationError = validate();
     if (validationError) { setError(validationError); return; }
+    busyRef.current = true;
+    const version = ++requestVersion.current;
     setLoading(true);
     try {
       const normalizedIdentifier = contactMode === 'phone'
@@ -123,9 +145,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
           } satisfies SignUpFields)
         : await authClient.signIn(normalizedIdentifier, password);
 
+      if (version !== requestVersion.current) return;
       if (result.ok && result.user) {
         // Muvaffaqiyatli kirdi yoki ro'yxatdan o'tdi va sessiya ochildi
-        onSuccess(result.user);
+        await onSuccess(result.user, mode === 'signup');
       } else if (result.requiresConfirmation) {
         // Supabase email tasdiqlash talab qilmoqda
         setMode('confirmation_pending');
@@ -141,20 +164,31 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
         }
       }
     } catch (err: unknown) {
+      if (version !== requestVersion.current) return;
       const msg = err instanceof Error ? err.message : 'Tarmoq xatosi yuz berdi.';
       setError(msg.includes('Failed to fetch') || msg.includes('NetworkError')
         ? "Internet aloqasi yo'q. Iltimos ulanishingizni tekshiring."
         : msg);
-    } finally { setLoading(false); }
+    } finally {
+      if (version === requestVersion.current) { busyRef.current = false; setLoading(false); }
+    }
   };
 
   const resend = async () => {
-    if (!identifier || contactMode !== 'email') return;
+    if (!identifier || contactMode !== 'email' || busyRef.current) return;
+    busyRef.current = true;
+    const version = ++requestVersion.current;
     setResending(true); resetMessages();
-    const result = await authClient.resendConfirmationEmail(identifier);
-    if (result.ok) setSuccess(result.successMessage || 'Xat qayta yuborildi.');
-    else setError(result.error || 'Xatni yuborib bo\'lmadi.');
-    setResending(false);
+    try {
+      const result = await authClient.resendConfirmationEmail(identifier.trim().toLowerCase());
+      if (version !== requestVersion.current) return;
+      if (result.ok) setSuccess(result.successMessage || 'Xat qayta yuborildi.');
+      else setError(result.error || "Xatni yuborib bo'lmadi.");
+    } catch (error) {
+      if (version === requestVersion.current) setError(translateAuthError(error instanceof Error ? error.message : 'Tarmoq xatosi'));
+    } finally {
+      if (version === requestVersion.current) { busyRef.current = false; setResending(false); }
+    }
   };
 
   return (
@@ -180,9 +214,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
               <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-[#ede9fe] text-[#5b35f5]">{contactMode === 'email' ? <Mail className="h-8 w-8" /> : <Phone className="h-8 w-8" />}</div>
               <h1 className="text-2xl font-black tracking-[-.03em]">{contactMode === 'email' ? 'Emailni tasdiqlang' : 'SMS kodni tasdiqlang'}</h1>
               <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-[#766b61]">{contactMode === 'email' ? `${identifier} manziliga yuborilgan havolani bosing.` : `${normalizePhone(identifier)} raqamiga yuborilgan SMS kodni kiriting.`}</p>
-              {success && <div className="mt-5 flex items-start gap-2 rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-left text-xs font-semibold leading-5 text-[#28643a]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</div>}
-              <button onClick={() => switchMode('login')} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>Tasdiqladim, kirish <ArrowRight className="h-4 w-4" /></button>
-              {contactMode === 'email' && <button onClick={resend} disabled={resending} className={`mt-3 min-h-11 px-3 text-xs font-bold text-[#766b61] transition hover:text-[#5b35f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}>{resending ? 'Yuborilmoqda...' : 'Xat kelmadimi? Qayta yuborish'}</button>}
+              {error && <div role="alert" className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+              {success && <div role="status" className="mt-5 flex items-start gap-2 rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-left text-xs font-semibold leading-5 text-[#28643a]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</div>}
+              <button disabled={busy} onClick={() => switchMode('login')} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>Tasdiqladim, kirish <ArrowRight className="h-4 w-4" /></button>
+              {contactMode === 'email' && <button onClick={resend} disabled={busy} className={`mt-3 min-h-11 px-3 text-xs font-bold text-[#766b61] transition hover:text-[#5b35f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}>{resending ? 'Yuborilmoqda...' : 'Xat kelmadimi? Qayta yuborish'}</button>}
             </div>
           ) : <>
             <div className="mb-6">
@@ -192,14 +227,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </div>
 
             <div className="mb-6 grid grid-cols-2 rounded-2xl border border-[#e8dfd5] bg-[#f4eee6] p-1">
-              <button type="button" onClick={() => switchMode('login')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'login' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Kirish</button>
-              <button type="button" onClick={() => switchMode('signup')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'signup' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Ro'yxatdan o'tish</button>
+              <button type="button" disabled={busy} onClick={() => switchMode('login')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'login' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Kirish</button>
+              <button type="button" disabled={busy} onClick={() => switchMode('signup')} className={`min-h-11 rounded-xl px-3 text-sm font-black transition ${mode === 'signup' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-[0_2px_7px_rgba(63,43,25,.10)]' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Ro'yxatdan o'tish</button>
             </div>
 
             <button
               type="button"
               onClick={handleGoogleSignIn}
-              disabled={googleLoading}
+              disabled={busy}
               className={`mb-5 flex min-h-12 w-full items-center justify-center gap-2.5 rounded-2xl border border-[#e4d9cd] bg-white px-4 py-3.5 text-sm font-black text-[#26231f] shadow-[0_1px_2px_rgba(49,38,26,.05)] transition hover:border-[#c9bbae] hover:bg-[#faf7f2] disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}
             >
               {googleLoading ? <Loader2 className="h-4.5 w-4.5 animate-spin" /> : <GoogleSVG />}
@@ -213,18 +248,18 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki Do'kon nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Baraka Market" className={inputClass} /></div></label>}
+              {mode === 'signup' && <label className="block" htmlFor="auth-name"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Ism yoki Do'kon nomi</span><div className="relative"><User className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-name" autoComplete="name" disabled={busy} maxLength={80} value={name} onChange={e => setName(e.target.value)} placeholder="Masalan, Baraka Market" className={inputClass} /></div></label>}
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
                   <span className="text-xs font-bold text-[#4c433b]">{contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'}</span>
                   {PHONE_SIGNUP_ENABLED && <div className="flex shrink-0 rounded-lg bg-[#f4eee6] p-0.5 text-[10px] font-black"><button type="button" onClick={() => { setContactMode('email'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'email' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Email</button><button type="button" onClick={() => { setContactMode('phone'); setIdentifier(''); }} className={`min-h-8 rounded-md px-2.5 transition ${contactMode === 'phone' ? 'bg-[#fffdfa] text-[#5b35f5] shadow-sm' : 'text-[#84796e] hover:text-[#4c433b]'} ${focusRing}`}>Telefon</button></div>}
                 </div>
-                <div className="relative"><span className={`absolute left-4 top-4 ${iconClass}`}>{contactMode === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}</span><input id={`auth-${contactMode}`} aria-label={contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'} type={contactMode === 'email' ? 'email' : 'tel'} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={contactMode === 'email' ? 'sizning@emailingiz.uz' : '+998 90 123 45 67'} className={inputClass} /></div>
+                <div className="relative"><span className={`absolute left-4 top-4 ${iconClass}`}>{contactMode === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}</span><input id={`auth-${contactMode}`} disabled={busy} autoComplete={contactMode === 'email' ? 'email' : 'tel'} aria-label={contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'} type={contactMode === 'email' ? 'email' : 'tel'} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={contactMode === 'email' ? 'sizning@emailingiz.uz' : '+998 90 123 45 67'} className={inputClass} /></div>
               </div>
-              <label className="block" htmlFor="auth-password"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parol</span><div className="relative"><Lock className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-password" aria-label="Parol" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Kamida 6 ta belgi" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword(v => !v)} className={`absolute right-2 top-1/2 flex min-h-9 min-w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#93887d] transition hover:bg-[#f4eee6] hover:text-[#4c433b] ${focusRing}`} aria-label="Parolni ko'rsatish">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></label>
+              <label className="block" htmlFor="auth-password"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parol</span><div className="relative"><Lock className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-password" disabled={busy} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} aria-label="Parol" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Kamida 6 ta belgi" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword(v => !v)} className={`absolute right-2 top-1/2 flex min-h-9 min-w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#93887d] transition hover:bg-[#f4eee6] hover:text-[#4c433b] ${focusRing}`} aria-label={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"} aria-pressed={showPassword}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></label>
               {error && <div role="alert" className="flex items-start gap-2 rounded-2xl border border-[#f1c9c3] bg-[#fff3f1] p-3 text-xs font-semibold leading-5 text-[#a33229]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
               {success && <div role="status" className="rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-xs font-semibold leading-5 text-[#28643a]">{success}</div>}
-              <button disabled={loading} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>
+              <button disabled={busy} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>
             </form>
           </>}
         </motion.section>

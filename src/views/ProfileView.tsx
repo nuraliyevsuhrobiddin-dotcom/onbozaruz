@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LogIn, Loader2 } from 'lucide-react';
+import { backToProfile } from '../hooks/useAppNavigation';
 import { useAgroStore } from '../store/useAgroStore';
 import { Post } from '../data/mockAgroData';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
@@ -94,7 +95,7 @@ export const ProfileView: React.FC = () => {
     return (
       <EditProfileSubView
         currentUser={currentUser}
-        onBack={() => setActiveSubView(null)}
+        onBack={backToProfile}
         updateUserProfile={updateUserProfile}
         showToast={showToast}
       />
@@ -104,7 +105,7 @@ export const ProfileView: React.FC = () => {
   if (activeSubView === 'orders') {
     return (
       <ProfileOrdersSubView
-        onBack={() => setActiveSubView(null)}
+        onBack={backToProfile}
         showToast={showToast}
       />
     );
@@ -113,7 +114,7 @@ export const ProfileView: React.FC = () => {
   if (activeSubView === 'settings') {
     return (
       <ProfileSettingsSubView
-        onBack={() => setActiveSubView(null)}
+        onBack={backToProfile}
         showToast={showToast}
         onLogout={logoutUser}
       />

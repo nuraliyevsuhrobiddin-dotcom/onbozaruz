@@ -144,7 +144,7 @@ export const NotificationsDrawerModal: React.FC = () => {
       if (post) setProductDetail(post);
     } else if (notification.targetType === 'order') {
       const order = orders.find((o) => o.id === notification.targetId);
-      if (order) setActiveSubView('orders');
+      if (order) { setActiveTab('profile'); setActiveSubView('orders'); }
     } else if (notification.targetType === 'b2b_order' && notification.targetId) {
       setActiveTab('market');
       setB2BRoute({ view: 'order', id: notification.targetId });

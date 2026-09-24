@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onbozor-shell-v2';
+const CACHE_NAME = 'onbozor-shell-v3';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.png', '/favicon.svg', '/notification.wav'];
 
 self.addEventListener('install', (event) => {
@@ -9,22 +9,36 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(keys.filter((key) => key.startsWith('onbozor-shell-') && key !== CACHE_NAME).map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) return;
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Auth/API responses and partial media downloads must never enter the shell cache.
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')
+    || event.request.headers.has('range') || ['video', 'audio'].includes(event.request.destination)) return;
+  const isNavigation = event.request.mode === 'navigate';
+  const isShellAsset = APP_SHELL.includes(url.pathname) || url.pathname.startsWith('/assets/');
+  if (!isNavigation && !isShellAsset) return;
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok && response.status === 200) {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME)
+            .then((cache) => cache.put(isNavigation ? '/index.html' : event.request, copy))
+            .catch(() => {}));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/index.html')))
+      .catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return await cache.match(isNavigation ? '/index.html' : event.request) || Response.error();
+      })
   );
 });
 
