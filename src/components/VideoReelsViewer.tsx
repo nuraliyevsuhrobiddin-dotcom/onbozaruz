@@ -205,21 +205,21 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
                 setIsBuffering(false);
               }}
               onError={(e) => { if (videoSrc && e.currentTarget.error) setHasError(true); setIsBuffering(false); }}
-              className="reels-visual relative z-[1] w-full h-full cursor-pointer"
+              className="reels-visual relative z-[1] cursor-pointer"
             />
 
             {/* Poster / Placeholder Overlay — smoothly covers video until first frame arrives */}
             {!hasFrame && !hasError && (
-              <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-slate-950/80 transition-opacity duration-300">
+              <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-black/35 backdrop-blur-[1px] transition-opacity duration-300">
                 {posterSrc && !posterFailed ? (
                   <img
                     src={posterSrc}
                     alt={post.title}
                     onError={() => setPosterFailed(true)}
-                    className="reels-visual w-full h-full"
+                    className="reels-visual absolute inset-0"
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-gradient-to-b from-slate-900 via-black to-slate-950">
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-[radial-gradient(circle_at_center,_rgba(51,65,85,0.88),_rgba(2,6,23,0.96)_58%,_rgba(0,0,0,1)_100%)]">
                     <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10">
                       <Play className="w-7 h-7 text-white/80 fill-white/80 translate-x-0.5" />
                     </div>
@@ -238,7 +238,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             src={post.mediaUrl || post.posterUrl}
             alt={post.title}
             onClick={handleClick}
-            className="reels-visual relative z-[1] w-full h-full cursor-pointer"
+            className="reels-visual relative z-[1] cursor-pointer"
           />
         )}
 

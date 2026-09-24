@@ -122,10 +122,23 @@
 .reels-card {
   width: 100%;
   height: 100%;
+  background: #000;
+}
+
+.reels-media {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
 }
 
 .reels-visual {
+  display: block;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
+  object-position: center;
+  background: radial-gradient(circle at center, #1f2937 0%, #020617 58%, #000 100%);
 }
 
 @media (min-width: 640px) and (min-height: 600px) {
