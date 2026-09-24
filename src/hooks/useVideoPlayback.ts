@@ -7,10 +7,12 @@ export function useVideoPlayback(
   active: boolean,
   muted: boolean,
   retryKey: number,
+  onAutoplayMuted?: () => void,
 ) {
   const prevMutedRef = useRef(muted);
   const mutedRef = useRef(muted);
-  const playPromiseRef = useRef<Promise<void> | null>(null);
+  const onAutoplayMutedRef = useRef(onAutoplayMuted);
+  onAutoplayMutedRef.current = onAutoplayMuted;
 
   // Sync muted and volume states; when unmuting while active, trigger play.
   useEffect(() => {
@@ -26,11 +28,7 @@ export function useVideoPlayback(
 
     // Unmute while active and video is paused → resume playback immediately
     if (active && wasMuted && !muted && video.paused && !document.hidden) {
-      const promise = video.play();
-      playPromiseRef.current = promise;
-      promise
-        .then(() => { playPromiseRef.current = null; })
-        .catch(() => { playPromiseRef.current = null; });
+      void video.play().catch(() => {});
     }
   }, [ref, active, muted]);
 
@@ -56,17 +54,9 @@ export function useVideoPlayback(
     let cancelled = false;
 
     const pause = () => {
-      if (playPromiseRef.current) {
-        playPromiseRef.current
-          .then(() => {
-            if (cancelled || !active) {
-              video.pause();
-            }
-          })
-          .catch(() => {});
-      } else {
-        video.pause();
-      }
+      // Pause immediately, aborting any pending play. A deferred pause from
+      // an old effect can otherwise stop a newly active StrictMode player.
+      video.pause();
     };
 
     const play = async () => {
@@ -77,11 +67,8 @@ export function useVideoPlayback(
       video.volume = isMutedNow ? 0 : 1;
 
       try {
-        const promise = video.play();
-        playPromiseRef.current = promise;
-        await promise;
+        await video.play();
       } catch (error) {
-        playPromiseRef.current = null;
         if (cancelled || document.hidden) return;
 
         const err = error as DOMException;
@@ -89,12 +76,11 @@ export function useVideoPlayback(
         if (err?.name === 'NotAllowedError') {
           video.muted = true;
           video.volume = 0;
+          onAutoplayMutedRef.current?.();
           try {
-            const fallbackPromise = video.play();
-            playPromiseRef.current = fallbackPromise;
-            await fallbackPromise;
+            await video.play();
           } catch {
-            playPromiseRef.current = null;
+            // A swipe or teardown can abort the muted fallback as well.
           }
         }
       }

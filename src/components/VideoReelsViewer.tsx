@@ -55,11 +55,12 @@ interface SlideProps {
   isActive: boolean;
   preloadMode: PreloadMode;
   globalMuted: boolean;
+  onAutoplayMuted: () => void;
 }
 
 // memo prevents re-renders when the parent's state changes but this slide's
 // props haven't changed (e.g. globalMuted toggle causes full list re-render).
-const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted }) => {
+const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted, onAutoplayMuted }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -95,7 +96,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
   const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
   const posterSrc = post.posterUrl || undefined;
   const hasFrame = useVideoFrame(videoRef, videoSrc, retryKey);
-  useVideoPlayback(videoRef, videoSrc, isActive, globalMuted, retryKey);
+  useVideoPlayback(videoRef, videoSrc, isActive, globalMuted, retryKey, onAutoplayMuted);
 
   // Reset playback feedback when the resource changes.
   useEffect(() => {
@@ -536,9 +537,10 @@ export const VideoReelsViewer: React.FC = () => {
   );
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  // Starting muted avoids a blocked sound-autoplay attempt and starts the
-  // first frame faster on mobile. Users can unmute from the floating control.
-  const [globalMuted, setGlobalMuted] = useState(true);
+  // Let device media volume control sound. Fall back to mute only when the
+  // browser rejects audible playback, with the audio button kept in sync.
+  const [globalMuted, setGlobalMuted] = useState(false);
+  const handleAutoplayMuted = useCallback(() => setGlobalMuted(true), []);
   // Floating control visibility: appears on scroll, hides after inactivity
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const floatingControlsTimer = useRef<number | null>(null);
@@ -573,9 +575,7 @@ export const VideoReelsViewer: React.FC = () => {
     wasOpenRef.current = true;
     setCurrentIndex(requestedStartIndex);
     currentIndexRef.current = requestedStartIndex;
-    // Muted playback is allowed immediately on mobile. Starting with sound
-    // first causes a rejected autoplay attempt and a second, slower attempt.
-    setGlobalMuted(true);
+    setGlobalMuted(false);
     setShowFloatingControls(true);
 
     const el = containerRef.current;
@@ -609,6 +609,27 @@ export const VideoReelsViewer: React.FC = () => {
   const revealControls = useCallback(() => {
     setShowFloatingControls(true);
   }, []);
+
+  const changeMuted = useCallback((muted: boolean) => {
+    const video = containerRef.current
+      ?.querySelector<HTMLVideoElement>(`[data-index="${currentIndexRef.current}"] video`);
+    // Run inside the gesture: deferring unmute/play to an effect can lose
+    // Safari's user activation and leave a paused, silent video.
+    if (video) {
+      video.muted = muted;
+      video.volume = muted ? 0 : 1;
+      if (!muted) {
+        void video.play().catch((error: DOMException) => {
+          if (error.name === 'NotAllowedError' && video.isConnected && !video.muted) {
+            video.muted = true;
+            setGlobalMuted(true);
+          }
+        });
+      }
+    }
+    setGlobalMuted(muted);
+    revealControls();
+  }, [revealControls]);
 
   // Lock body scroll while viewer is open
   useEffect(() => {
@@ -681,6 +702,9 @@ export const VideoReelsViewer: React.FC = () => {
       if (state.commentPost || state.sharePost || state.selectedSellerModal || state.productDetail
         || target?.closest('input, textarea, select, [contenteditable="true"]')
         || e.altKey || e.ctrlKey || e.metaKey) return;
+      // Some browsers expose media keys; mobile OSes may handle them without
+      // a DOM event. Do not prevent the native system-volume adjustment.
+      if (e.key === 'AudioVolumeUp') changeMuted(false);
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         scrollToIndex(currentIndexRef.current + 1);
@@ -694,7 +718,7 @@ export const VideoReelsViewer: React.FC = () => {
       window.addEventListener('keydown', onKey);
     }
     return () => window.removeEventListener('keydown', onKey);
-  }, [closeVideoViewer, isVideoViewerOpen, scrollToIndex]);
+  }, [closeVideoViewer, isVideoViewerOpen, scrollToIndex, changeMuted]);
 
   if (!isVideoViewerOpen || liveVideoPosts.length === 0) return null;
 
@@ -723,7 +747,7 @@ export const VideoReelsViewer: React.FC = () => {
 
         {/* Floating Audio Control — appears on scroll/interaction, auto-hides after inactivity */}
         <AnimatePresence>
-          {showFloatingControls && (
+          {(showFloatingControls || globalMuted) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9, y: -10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -735,10 +759,7 @@ export const VideoReelsViewer: React.FC = () => {
               {/* Mute toggle */}
               <motion.button
                 whileTap={{ scale: 0.9 }}
-                onClick={() => {
-                  setGlobalMuted((prev) => !prev);
-                  revealControls();
-                }}
+                onClick={() => changeMuted(!globalMuted)}
                 className="flex h-10 w-10 items-center justify-center rounded-full bg-black/50 backdrop-blur-md border border-white/20 text-white shadow-lg hover:bg-black/70 transition-colors"
                 title={globalMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
                 aria-label={globalMuted ? 'Ovozni yoqish' : "Ovozni o'chirish"}
@@ -801,6 +822,7 @@ export const VideoReelsViewer: React.FC = () => {
                     isActive={idx === renderedIndex}
                     preloadMode={preloadMode}
                     globalMuted={globalMuted}
+                    onAutoplayMuted={handleAutoplayMuted}
                   />
                 ) : (
                   <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
