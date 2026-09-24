@@ -22,8 +22,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  // Start muted so the first viewport video can play on iOS/Android without
-  // waiting for a failed sound-autoplay attempt.
   const [isMuted, setIsMuted] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -32,56 +30,65 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const isVideoViewerOpen = useAgroStore((state) => state.isVideoViewerOpen);
   const [isVisible, setIsVisible] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
-  const [isNearViewport, setIsNearViewport] = useState(false);
-  // A feed can contain many VideoPlayer instances. Keep a source attached only
-  // for cards near the viewport, and release it while Reels is open. This
-  // prevents every feed card from competing for the mobile connection.
-  const activeSrc = !isVideoViewerOpen && isNearViewport ? src : undefined;
+  const [hasBeenNear, setHasBeenNear] = useState(false);
+
+  // Lazy-attach source once near viewport (within 600px).
+  // Once loaded, keep source attached so video frame does not turn black or re-request.
+  const activeSrc = hasBeenNear ? src : undefined;
+  const isActive = isVisible && !isVideoViewerOpen && Boolean(activeSrc);
 
   const hasFrame = useVideoFrame(videoRef, activeSrc, retryKey);
-  const isActive = isVisible && !isVideoViewerOpen && Boolean(activeSrc);
   useVideoPlayback(videoRef, activeSrc, isActive, isMuted, retryKey);
 
-  // src o'zgarganda xato va play holatini tiklash
+  // Reset state on new source or retry
   useEffect(() => {
     setHasError(false);
     setIsPlaying(false);
     setIsBuffering(false);
     setPosterFailed(false);
     setAspectRatio(null);
-  }, [src, poster, retryKey, activeSrc]);
+  }, [src, poster, retryKey]);
 
-  // Load only the current card and the cards just before/after it. The margin
-  // gives the next card enough time to fetch metadata without loading a whole
-  // feed of videos at page start.
+  // Viewport proximity observer
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     if (typeof IntersectionObserver === 'undefined') {
-      setIsNearViewport(true);
+      setHasBeenNear(true);
       return;
     }
 
     const observer = new IntersectionObserver(
-      ([entry]) => setIsNearViewport(entry.isIntersecting),
-      { rootMargin: '300px 0px', threshold: 0 }
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasBeenNear(true);
+        }
+      },
+      { rootMargin: '600px 0px', threshold: 0 }
     );
 
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
 
+  // 50% visibility observer for feed autoplay
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
     if (typeof IntersectionObserver === 'undefined') {
       setIsVisible(true);
       return;
     }
-    const observer = new IntersectionObserver(([entry]) => {
-      setIsVisible(entry.isIntersecting && entry.intersectionRatio >= 0.5);
-    }, { threshold: 0.5 });
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting && entry.intersectionRatio >= 0.5);
+      },
+      { threshold: 0.5 }
+    );
+
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
@@ -136,7 +143,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         minHeight: '280px',
       }}
     >
-      {/* Blurred poster or video background so 9:16 or 16:9 videos never have pitch black side bars */}
+      {/* Blurred poster background so videos never have harsh pitch-black borders */}
       {bgPoster ? (
         <div
           aria-hidden="true"
@@ -150,7 +157,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         />
       )}
 
-      {/* Video Element — key={retryKey} forces a clean element on retry */}
+      {/* Video Element */}
       <video
         key={retryKey}
         ref={videoRef}
@@ -159,8 +166,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         loop
         muted={!isActive || isMuted}
         playsInline
-        preload={isActive ? "auto" : "metadata"}
-        onError={(e) => { if (activeSrc && e.currentTarget.error) setHasError(true); setIsBuffering(false); }}
+        webkit-playsinline="true"
+        x5-playsinline="true"
+        x5-video-player-type="h5-page"
+        preload={isActive ? 'auto' : hasBeenNear ? 'metadata' : 'none'}
+        onError={(e) => {
+          if (activeSrc && e.currentTarget.error) setHasError(true);
+          setIsBuffering(false);
+        }}
         onWaiting={() => { if (isActive) setIsBuffering(true); }}
         onStalled={() => { if (isActive) setIsBuffering(true); }}
         onCanPlay={() => { setIsBuffering(false); }}
@@ -180,15 +193,25 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {/* Poster overlay until first frame decodes */}
       {!hasFrame && !hasError && (
-        <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none bg-gradient-to-b from-slate-800 to-slate-950">
-          {poster && !posterFailed ? <img
-            src={poster}
-            alt="Video thumbnail"
-            onError={() => setPosterFailed(true)}
-            className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
-          /> : <div className="w-full h-full flex items-center justify-center text-white/70">
-            {isActive ? <Loader2 className="w-8 h-8 animate-spin" /> : <Play className="w-10 h-10" />}
-          </div>}
+        <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-slate-900/60 backdrop-blur-[1px]">
+          {poster && !posterFailed ? (
+            <img
+              src={poster}
+              alt="Video thumbnail"
+              onError={() => setPosterFailed(true)}
+              className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-white/70 bg-gradient-to-b from-slate-900 via-slate-800 to-slate-950">
+              {isActive || isBuffering ? (
+                <Loader2 className="w-8 h-8 text-[#D84315] animate-spin" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center border border-white/20 shadow-lg">
+                  <Play className="w-6 h-6 text-white/90 fill-white/90 translate-x-0.5" />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

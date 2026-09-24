@@ -193,6 +193,9 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               loop
               muted={!isActive || globalMuted}
               playsInline
+              webkit-playsinline="true"
+              x5-playsinline="true"
+              x5-video-player-type="h5-page"
               preload={preloadAttr}
               onClick={handleClick}
               onPlay={() => { setIsPlaying(true); setIsBuffering(false); }}
@@ -541,6 +544,7 @@ export const VideoReelsViewer: React.FC = () => {
   const floatingControlsTimer = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollFrame = useRef<number | null>(null);
+  const scrollSettleTimer = useRef<number | null>(null);
   const wasOpenRef = useRef(false);
   // Scroll and keyboard callbacks share the latest visible index.
   const currentIndexRef = useRef(currentIndex);
@@ -632,11 +636,16 @@ export const VideoReelsViewer: React.FC = () => {
 
   const handleScroll = useCallback(() => {
     revealControls();
-    if (scrollFrame.current !== null) return;
-    scrollFrame.current = window.requestAnimationFrame(() => {
-      scrollFrame.current = null;
+    // Debounce: only update the active index once scrolling settles.
+    // Firing on every rAF during a swipe causes rapid play/pause cycling
+    // and black frames on mobile hardware decoders.
+    if (scrollSettleTimer.current !== null) {
+      window.clearTimeout(scrollSettleTimer.current);
+    }
+    scrollSettleTimer.current = window.setTimeout(() => {
+      scrollSettleTimer.current = null;
       syncVisibleIndex();
-    });
+    }, 150);
   }, [revealControls, syncVisibleIndex]);
 
   useEffect(() => {
@@ -652,6 +661,8 @@ export const VideoReelsViewer: React.FC = () => {
       resizeObserver.disconnect();
       if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
       scrollFrame.current = null;
+      if (scrollSettleTimer.current !== null) window.clearTimeout(scrollSettleTimer.current);
+      scrollSettleTimer.current = null;
     };
   }, [isVideoViewerOpen, syncVisibleIndex]);
 

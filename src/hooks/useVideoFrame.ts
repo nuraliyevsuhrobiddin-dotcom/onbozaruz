@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 
 /** Keep the poster visible until this media element has presented a frame. */
 export function useVideoFrame(
@@ -8,41 +8,70 @@ export function useVideoFrame(
 ) {
   const [hasFrame, setHasFrame] = useState(false);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const video = ref.current;
-    setHasFrame(false);
-    if (!video || !src) return;
+    if (!video || !src) {
+      setHasFrame(false);
+      return;
+    }
 
     let cancelled = false;
-    let frameId: number | undefined;
-    const supportsFrameCallback = typeof video.requestVideoFrameCallback === 'function';
-    const markFrame = () => {
-      frameId = undefined;
-      if (!cancelled && video.readyState >= 2 && video.videoWidth > 0) setHasFrame(true);
-    };
-    const watchFrame = () => {
-      if (supportsFrameCallback) {
-        if (frameId === undefined) frameId = video.requestVideoFrameCallback(markFrame);
-      } else if (video.readyState >= 2) {
-        markFrame();
+    let rfcId: number | undefined;
+
+    const markFrameReady = () => {
+      if (cancelled) return;
+      // readyState >= 2 (HAVE_CURRENT_DATA) or currentTime > 0 means a valid frame is ready
+      if ((video.readyState >= 2 && video.videoWidth > 0) || video.currentTime > 0) {
+        setHasFrame(true);
       }
     };
-    const reset = () => {
-      setHasFrame(false);
-      if (frameId !== undefined) video.cancelVideoFrameCallback(frameId);
-      frameId = undefined;
-      watchFrame();
+
+    // 1. Initial check (if video is already cached or decoded)
+    markFrameReady();
+
+    // 2. Hardware paint turn detection via requestVideoFrameCallback if available
+    if (typeof video.requestVideoFrameCallback === 'function') {
+      const onFrame = () => {
+        rfcId = undefined;
+        if (!cancelled && video.videoWidth > 0) {
+          setHasFrame(true);
+        }
+      };
+      rfcId = video.requestVideoFrameCallback(onFrame);
+    }
+
+    // 3. Fallback to standard HTML5 media events
+    const onLoadedMetadata = () => {
+      // Force mobile Safari to decode the first frame if paused at 0
+      if (video.paused && video.currentTime === 0) {
+        try {
+          video.currentTime = 0.001;
+        } catch {
+          // Ignore if seek not allowed yet
+        }
+      }
+      markFrameReady();
     };
-    video.addEventListener('emptied', reset);
-    video.addEventListener('loadeddata', watchFrame);
-    video.addEventListener('playing', watchFrame);
-    watchFrame();
+
+    const mediaEvents = ['loadeddata', 'canplay', 'playing', 'timeupdate', 'seeked'];
+    mediaEvents.forEach((evt) => video.addEventListener(evt, markFrameReady));
+    video.addEventListener('loadedmetadata', onLoadedMetadata);
+
+    const onReset = () => {
+      if (!cancelled) setHasFrame(false);
+    };
+    video.addEventListener('emptied', onReset);
+    video.addEventListener('error', onReset);
+
     return () => {
       cancelled = true;
-      if (frameId !== undefined) video.cancelVideoFrameCallback(frameId);
-      video.removeEventListener('emptied', reset);
-      video.removeEventListener('loadeddata', watchFrame);
-      video.removeEventListener('playing', watchFrame);
+      if (rfcId !== undefined && typeof video.cancelVideoFrameCallback === 'function') {
+        video.cancelVideoFrameCallback(rfcId);
+      }
+      mediaEvents.forEach((evt) => video.removeEventListener(evt, markFrameReady));
+      video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('emptied', onReset);
+      video.removeEventListener('error', onReset);
     };
   }, [ref, src, retryKey]);
 
