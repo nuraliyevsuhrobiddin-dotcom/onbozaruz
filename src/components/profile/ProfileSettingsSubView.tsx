@@ -18,6 +18,7 @@ import { navigateAppRoute } from '../../hooks/useAppNavigation';
 import { useAgroStore } from '../../store/useAgroStore';
 import {
   getDeviceNotificationPermission,
+  getNotificationSetupMessage,
   requestDeviceNotificationPermission,
   showDeviceNotification,
   type NotificationPermissionStatus,
@@ -70,6 +71,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
           : "Bu brauzer tizim bildirishnomalarini qo'llab-quvvatlamaydi");
         return;
       }
+      showToast(await getNotificationSetupMessage());
     }
 
     const updated = { ...settingsForm, [field]: !settingsForm[field] };
@@ -85,7 +87,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
     const result = await requestDeviceNotificationPermission();
     setPermStatus(result);
     if (result === 'granted') {
-      showToast('Telefon bildirishnomalari va ovozi yoqildi');
+      showToast(await getNotificationSetupMessage());
     } else if (result === 'denied') {
       showToast('Brauzer sozlamalaridan ruxsat bering');
     }
@@ -93,10 +95,11 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
   const handleTestSoundAndNotification = async () => {
     unlockAudioContext();
+    setPermStatus(await requestDeviceNotificationPermission());
     playNotificationSound();
     const delivered = await showDeviceNotification({
       title: 'OnBozar bildirishnomasi',
-      body: 'Telefon ovozi, vibratsiya va tizim bildirishnomasi muvaffaqiyatli ishlayapti!',
+      body: 'Sinov bildirishnomasi. Ovoz va vibratsiya telefon sozlamalariga bog‘liq.',
       tag: 'onbozar-notification-test',
       url: '#home',
     });

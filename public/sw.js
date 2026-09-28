@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onbozor-shell-v3';
+const CACHE_NAME = 'onbozor-shell-v4';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.png', '/favicon.svg', '/notification.wav'];
 
 self.addEventListener('install', (event) => {
@@ -10,14 +10,20 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((key) => key.startsWith('onbozor-shell-') && key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Recover old notification links without ever caching worker source as HTML.
+  if (url.pathname === '/sw.js') {
+    if (event.request.mode === 'navigate') {
+      event.respondWith(Promise.resolve(Response.redirect(`${url.origin}/${url.hash}`, 302)));
+    }
+    return;
+  }
   // Auth/API responses and partial media downloads must never enter the shell cache.
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')
     || event.request.headers.has('range') || ['video', 'audio'].includes(event.request.destination)) return;
@@ -27,7 +33,11 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.ok && response.status === 200) {
+        const isHtml = (response.headers.get('content-type') || '').includes('text/html');
+        const isAppPage = url.pathname === '/' || url.pathname === '/index.html'
+          || !/\.[^/]+$/.test(url.pathname);
+        if (response.ok && response.status === 200 && !response.redirected
+          && (!isNavigation || (isHtml && isAppPage))) {
           const copy = response.clone();
           event.waitUntil(caches.open(CACHE_NAME)
             .then((cache) => cache.put(isNavigation ? '/index.html' : event.request, copy))
@@ -64,7 +74,8 @@ self.addEventListener('push', (event) => {
   let data = { title: 'OnBozar bildirishnomasi', body: 'Yangi xabar keldi' };
   if (event.data) {
     try {
-      data = event.data.json();
+      const parsed = event.data.json();
+      if (parsed && typeof parsed === 'object') data = { ...data, ...parsed };
     } catch {
       data = { title: 'OnBozar', body: event.data.text() };
     }
@@ -75,7 +86,7 @@ self.addEventListener('push', (event) => {
     icon: data.icon || '/logo.png',
     badge: '/favicon.svg',
     vibrate: [200, 100, 200],
-    data: data.data || { url: '/' },
+    data: { ...data.data, url: notificationUrl(data.data?.url) },
     tag: data.tag || 'onbozar-push',
     renotify: true,
   };
@@ -87,17 +98,19 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+  const targetUrl = notificationUrl(event.notification.data?.url);
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
       // Agar ilova ochiq bo'lsa, o'sha oynani faollashtiramiz va yo'naltiramiz
       for (const client of clientList) {
-        if ('focus' in client) {
-          if (targetUrl && targetUrl !== '/') {
-            client.navigate(targetUrl);
+        if ('focus' in client && new URL(client.url).origin === self.location.origin) {
+          try {
+            const navigated = await client.navigate(targetUrl);
+            if (navigated) return await navigated.focus();
+          } catch {
+            // A closing tab must not swallow a notification click.
           }
-          return client.focus();
         }
       }
       // Agar barcha oynalar yopiq bo'lsa, yangi oynada ochamiz
@@ -107,3 +120,17 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+function notificationUrl(value) {
+  const root = `${self.location.origin}/`;
+  try {
+    // Hash-only URLs otherwise resolve relative to /sw.js in a worker.
+    const url = new URL(typeof value === 'string' ? value : '/', root);
+    if (url.origin !== self.location.origin) return root;
+    if (url.pathname === '/sw.js') return `${root}${url.hash}`;
+    if (url.pathname !== '/' && url.pathname !== '/index.html') return root;
+    return url.href;
+  } catch {
+    return root;
+  }
+}

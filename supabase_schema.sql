@@ -2755,5 +2755,20 @@ REVOKE ALL ON FUNCTION public.nearby_posts(double precision,double precision,int
 GRANT EXECUTE ON FUNCTION public.nearby_posts(double precision,double precision,integer), public.get_public_stores_for_map(), public.nearby_b2b_products(double precision,double precision,jsonb) TO anon, authenticated;
 
 -- =====================================================================
+-- Web Push: delivery trigger/Vault setup is in
+-- supabase/migrations/202609280001_web_push.sql and docs/notifications.md.
+-- Browser endpoints are server-only; authenticated clients use /api/push/subscribe.
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+  endpoint text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  p256dh text NOT NULL,
+  auth text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions(user_id);
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.push_subscriptions FROM anon, authenticated;
+GRANT ALL ON public.push_subscriptions TO service_role;
+
 -- TUGADI — Supabase SQL Editor'da ishga tushiring!
 -- =====================================================================

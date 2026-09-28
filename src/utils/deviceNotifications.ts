@@ -10,6 +10,7 @@
 
 import { unlockAudioContext } from './notificationSound';
 import { syncWebPushSubscription } from './webPush';
+import { ensureServiceWorker } from './serviceWorker';
 
 export type NotificationPermissionStatus = 'granted' | 'denied' | 'default' | 'unsupported';
 
@@ -38,11 +39,17 @@ export async function requestDeviceNotificationPermission(): Promise<Notificatio
     // Calling during a user gesture also unlocks audio
     unlockAudioContext();
     const result = await Notification.requestPermission();
-    if (result === 'granted') void syncWebPushSubscription();
     return result;
   } catch {
     return 'denied';
   }
+}
+
+export async function getNotificationSetupMessage(): Promise<string> {
+  const connected = await syncWebPushSubscription();
+  return connected
+    ? 'Telefon bildirishnomalari ulandi'
+    : 'Bildirishnomaga ruxsat berildi. Ilova yopiq paytdagi xabarlar hali ulanmagan.';
 }
 
 export interface DeviceNotificationPayload {
@@ -69,8 +76,8 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
 
   const title = payload.title || 'OnBozar';
   const body = payload.body || '';
-  const tag = payload.tag || payload.id || `onbozar-${Date.now()}`;
-  const url = payload.url || '/';
+  const tag = payload.tag || (payload.id ? `onbozar-${payload.id}` : `onbozar-${Date.now()}`);
+  const url = new URL(payload.url || '/', `${window.location.origin}/`).href;
 
   const options: ExtendedNotificationOptions = {
     body,
@@ -85,10 +92,7 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
   // 1. Try Service Worker showNotification (vital for Mobile Android & iOS PWA background notifications)
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await Promise.race<ServiceWorkerRegistration | null>([
-        navigator.serviceWorker.ready,
-        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 2500)),
-      ]);
+      const registration = await ensureServiceWorker();
       if (registration && 'showNotification' in registration) {
         await registration.showNotification(title, options);
         return true;
@@ -112,7 +116,7 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
       window.focus();
       notif.close();
       if (url && url !== '/') {
-        window.location.hash = url.startsWith('#') ? url : `#${url}`;
+        window.location.assign(url);
       }
     };
     return true;

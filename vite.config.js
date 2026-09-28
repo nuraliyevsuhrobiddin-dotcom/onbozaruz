@@ -12,6 +12,10 @@ function apiDevServerPlugin() {
         const pathname = url.pathname
 
         try {
+          if (pathname === '/api/push/subscribe' || pathname === '/api/push/deliver') {
+            const mod = await server.ssrLoadModule(`${pathname}.ts`)
+            return await mod.default(req, res)
+          }
           if (pathname === '/api/health') {
             const mod = await server.ssrLoadModule('/api/health.ts')
             return await mod.default(req, res)
@@ -54,6 +58,11 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   process.env.RESEND_API_KEY = process.env.RESEND_API_KEY || env.RESEND_API_KEY
   process.env.RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || env.RESEND_FROM_EMAIL
+  for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY',
+    'VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'WEB_PUSH_VAPID_PUBLIC_KEY',
+    'WEB_PUSH_VAPID_PRIVATE_KEY', 'WEB_PUSH_VAPID_SUBJECT', 'WEB_PUSH_DELIVERY_SECRET']) {
+    process.env[key] = process.env[key] || env[key]
+  }
 
   return {
     plugins: [react(), tailwindcss(), apiDevServerPlugin()],

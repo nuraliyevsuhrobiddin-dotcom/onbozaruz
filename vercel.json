@@ -1,4 +1,11 @@
 {
+  "headers": [
+    { "source": "/sw.js", "headers": [
+      { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+      { "key": "Content-Type", "value": "application/javascript; charset=utf-8" },
+      { "key": "Service-Worker-Allowed", "value": "/" }
+    ] }
+  ],
   "rewrites": [
     { "source": "/privacy-policy", "destination": "/privacy-policy.html" },
     { "source": "/auth/callback", "destination": "/" },

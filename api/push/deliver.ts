@@ -108,16 +108,18 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     tag: `onbozar-${notification.id}`,
     data: {
       url: notification.target_type === 'b2b_order' && notification.target_id
-        ? `#market/order/${notification.target_id}`
+        ? `/#market/order/${encodeURIComponent(notification.target_id)}`
         : notification.target_type === 'b2b_product' && notification.target_id
-          ? `#market/product/${notification.target_id}`
+          ? `/#market/product/${encodeURIComponent(notification.target_id)}`
           : notification.target_type === 'order'
-            ? '#profile/orders'
-            : '#home',
+            ? '/#profile/orders'
+            : notification.target_type === 'supplier_profile' ? '/#market/dashboard' : '/#home',
     },
   });
 
   let delivered = 0;
+  let failed = 0;
+  let expired = 0;
   await Promise.all((subscriptions || []).map(async (subscription) => {
     try {
       await webpush.sendNotification({
@@ -130,9 +132,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       // slowed by the same permanent Web Push failure.
       if (error?.statusCode === 404 || error?.statusCode === 410) {
         await adminClient.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
+        expired += 1;
+      } else {
+        failed += 1;
+        console.error('[Push] Delivery failed', { statusCode: error?.statusCode || null });
       }
     }
   }));
 
-  sendApiJson(res, 200, { ok: true, delivered });
+  sendApiJson(res, failed ? 502 : 200, { ok: failed === 0, delivered, failed, expired });
 }

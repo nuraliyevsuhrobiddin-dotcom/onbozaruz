@@ -1,4 +1,5 @@
 import { getSupabaseAccessToken } from '../api/authClient';
+import { ensureServiceWorker } from './serviceWorker';
 
 const VAPID_PUBLIC_KEY = String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || '').trim();
 
@@ -18,15 +19,16 @@ export async function syncWebPushSubscription(): Promise<boolean> {
     || typeof window === 'undefined'
     || !('serviceWorker' in navigator)
     || !('PushManager' in window)
+    || !('Notification' in window)
     || Notification.permission !== 'granted') {
     return false;
   }
 
-  const token = await getSupabaseAccessToken();
-  if (!token) return false;
-
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const token = await getSupabaseAccessToken();
+    if (!token) return false;
+    const registration = await ensureServiceWorker();
+    if (!registration) return false;
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
@@ -37,14 +39,17 @@ export async function syncWebPushSubscription(): Promise<boolean> {
 
     const response = await fetch('/api/push/subscribe', {
       method: 'POST',
+      signal: AbortSignal.timeout(10000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(subscription.toJSON()),
     });
-    return response.ok;
-  } catch {
+    const result = await response.json();
+    return response.ok && result.ok === true;
+  } catch (error) {
+    console.warn('[Notifications] Push subscription failed:', error);
     return false;
   }
 }

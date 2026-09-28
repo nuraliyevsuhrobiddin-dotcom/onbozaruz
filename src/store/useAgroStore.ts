@@ -305,6 +305,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       let sessionRevision = 0;
       let restorePromise: Promise<void> | null = null;
+      let notificationsLoadedRevision = -1;
 
       async function loadUserInteractions(user: AuthUser) {
         const revision = sessionRevision;
@@ -330,6 +331,7 @@ export const useAgroStore = create<AgroStoreState>()(
       }
 
       function receiveNotification(notification: Notification) {
+        if (notification.userId !== get().currentUser?.id) return;
         const presentOnDevice = shouldPresentNotification(notification);
         let isNew = false;
 
@@ -343,7 +345,7 @@ export const useAgroStore = create<AgroStoreState>()(
           };
         });
 
-        if (isNew && presentOnDevice) {
+        if (isNew && presentOnDevice && !notification.isRead) {
           playNotificationSound();
           void showDeviceNotification({
             title: notification.title,
@@ -359,6 +361,11 @@ export const useAgroStore = create<AgroStoreState>()(
         try {
           const rows = await notificationsRepository.list();
           if (revision !== sessionRevision) return;
+          if (notificationsLoadedRevision === revision) {
+            // Present only new unread rows; historical rows on login stay quiet.
+            rows.filter((row) => !row.isRead).reverse().forEach(receiveNotification);
+          }
+          notificationsLoadedRevision = revision;
           set((state) => {
             const notifications = mergeNotifications(state.notifications, rows);
             return {
@@ -373,7 +380,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       function startNotificationsSubscription(userId: string) {
         notificationsUnsubscribe?.();
-        notificationsUnsubscribe = subscribeToNotifications(userId, receiveNotification);
+        notificationsUnsubscribe = subscribeToNotifications(userId, receiveNotification, fetchNotificationsList);
       }
 
       const cachedPostsResult = cacheManager.loadPostsCache();

@@ -21,6 +21,7 @@ import {
 import { Notification, NotificationType } from '../api/types';
 import {
   getDeviceNotificationPermission,
+  getNotificationSetupMessage,
   requestDeviceNotificationPermission,
   showDeviceNotification,
   type NotificationPermissionStatus,
@@ -111,7 +112,7 @@ export const NotificationsDrawerModal: React.FC = () => {
     playNotificationSound();
     const delivered = await showDeviceNotification({
       title: 'OnBozar bildirishnomasi',
-      body: 'Telefon ovozi, vibratsiya va tizim bildirishnomasi muvaffaqiyatli ishlayapti!',
+      body: 'Sinov bildirishnomasi. Ovoz va vibratsiya telefon sozlamalariga bog‘liq.',
       tag: 'onbozar-notification-test',
       url: '#home',
     });
@@ -126,13 +127,15 @@ export const NotificationsDrawerModal: React.FC = () => {
     setPermStatus(result);
 
     if (result === 'granted') {
-      await sendDeviceTest('Telefon bildirishnomalari va ovozi yoqildi');
+      await sendDeviceTest(await getNotificationSetupMessage());
     } else if (result === 'denied') {
       showToast('Brauzer sozlamalaridan bildirishnomani yoqing');
     }
   };
 
   const handleTestSound = async () => {
+    const permission = await requestDeviceNotificationPermission();
+    setPermStatus(permission);
     await sendDeviceTest('Sinov ovozi va bildirishnomasi yuborildi');
   };
 

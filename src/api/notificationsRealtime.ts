@@ -5,7 +5,7 @@
  * server-side). No-ops when Supabase isn't configured (mock mode).
  */
 import { supabaseClient } from './authClient';
-import { Notification } from './types';
+import type { Notification } from './types';
 
 function mapRowToNotification(row: Record<string, unknown>): Notification {
   return {
@@ -28,10 +28,20 @@ function mapRowToNotification(row: Record<string, unknown>): Notification {
 
 export function subscribeToNotifications(
   userId: string,
-  onInsert: (notification: Notification) => void
+  onInsert: (notification: Notification) => void,
+  onRefresh: () => Promise<void> = async () => undefined
 ): () => void {
   if (!supabaseClient) return () => undefined;
   const client = supabaseClient;
+  let disposed = false;
+  let refreshing = false;
+  const refresh = async () => {
+    if (disposed || refreshing || document.visibilityState === 'hidden' || !navigator.onLine) return;
+    refreshing = true;
+    try { await onRefresh(); }
+    catch (error) { console.warn('[RealtimeNotifications] Refresh failed:', error); }
+    finally { refreshing = false; }
+  };
 
   const channel = client
     .channel(`notifications:${userId}`)
@@ -39,18 +49,28 @@ export function subscribeToNotifications(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
       (payload: { new: Record<string, unknown> }) => {
-        if (payload.new) {
+        if (!disposed && payload.new) {
           onInsert(mapRowToNotification(payload.new));
         }
       }
     )
     .subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') void refresh();
       if (err || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn(`[RealtimeNotifications] Channel status '${status}' for user ${userId}:`, err);
       }
     });
 
+  // Recover missed inserts after mobile suspension or a broken websocket.
+  const interval = window.setInterval(() => void refresh(), 30000);
+  window.addEventListener('online', refresh);
+  document.addEventListener('visibilitychange', refresh);
+
   return () => {
+    disposed = true;
+    window.clearInterval(interval);
+    window.removeEventListener('online', refresh);
+    document.removeEventListener('visibilitychange', refresh);
     void client.removeChannel(channel);
   };
 }
