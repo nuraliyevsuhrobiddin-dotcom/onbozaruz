@@ -282,7 +282,7 @@ export const B2BCashbackWalletModal: React.FC<Props> = ({ onClose }) => {
               {[
                 {
                   title: '1. Keshbek qachon hisoblanadi?',
-                  text: `OnBozar orqali ulgurji xarid qilganingizda, yetkazib beruvchi to'lovni tasdiqlagach avtomatik tarzda buyurtma summasining ${b2bCashbackRate}% miqdorida keshbek hamyoningizga o'tkaziladi.`,
+                  text: `MollBazar orqali ulgurji xarid qilganingizda, yetkazib beruvchi to'lovni tasdiqlagach avtomatik tarzda buyurtma summasining ${b2bCashbackRate}% miqdorida keshbek hamyoningizga o'tkaziladi.`,
                 },
                 {
                   title: '2. Keshbekni qanday ishlatish mumkin?',

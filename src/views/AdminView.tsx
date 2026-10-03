@@ -188,7 +188,7 @@ export const AdminView: React.FC = () => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <span className="font-black text-sm text-[#111827]">OnBozar Admin</span>
+          <span className="font-black text-sm text-[#111827]">MollBazar Admin</span>
           <span className="ml-auto px-2 py-0.5 rounded-full bg-[#D84315] text-white text-[9px] font-black">
             {currentUser.email}
           </span>

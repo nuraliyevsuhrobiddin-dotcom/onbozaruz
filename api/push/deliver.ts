@@ -37,7 +37,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   const deliverySecret = (process.env.WEB_PUSH_DELIVERY_SECRET || '').trim();
-  const requestSecret = req.headers['x-onbozar-push-secret'];
+  const requestSecret = req.headers['x-mollbazar-push-secret'] ?? req.headers['x-onbozar-push-secret'];
   const secret = Array.isArray(requestSecret) ? requestSecret[0] : requestSecret;
   if (!deliverySecret || !secretsMatch(deliverySecret, secret)) {
     sendApiJson(res, 401, { ok: false, error: 'Ruxsat berilmadi.' });
@@ -97,7 +97,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   }
 
   webpush.setVapidDetails(
-    (process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:support@onbozar.uz').trim(),
+    (process.env.WEB_PUSH_VAPID_SUBJECT || 'mailto:support@mollbazar.uz').trim(),
     publicKey,
     privateKey
   );
@@ -105,7 +105,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const message = JSON.stringify({
     title: notification.title,
     body: notification.body || '',
-    tag: `onbozar-${notification.id}`,
+    tag: `mollbazar-${notification.id}`,
     data: {
       url: notification.target_type === 'b2b_order' && notification.target_id
         ? `/#market/order/${encodeURIComponent(notification.target_id)}`

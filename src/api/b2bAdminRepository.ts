@@ -10,13 +10,13 @@ import { mapSupplierProfile, mapB2BProduct, mapB2BOrder, mapB2BOrderItem, mapBus
 const supabase = supabaseClient;
 
 const MOCK_KEYS = {
-  business: 'onbozor-b2b-business-profiles',
-  supplier: 'onbozor-b2b-supplier-profiles',
-  products: 'onbozor-b2b-products',
-  orders: 'onbozor-b2b-orders',
-  orderItems: 'onbozor-b2b-order-items',
-  ledger: 'onbozor-b2b-commission-ledger',
-  contracts: 'onbozor-b2b-contracts',
+  business: 'mollbazar-b2b-business-profiles',
+  supplier: 'mollbazar-b2b-supplier-profiles',
+  products: 'mollbazar-b2b-products',
+  orders: 'mollbazar-b2b-orders',
+  orderItems: 'mollbazar-b2b-order-items',
+  ledger: 'mollbazar-b2b-commission-ledger',
+  contracts: 'mollbazar-b2b-contracts',
 };
 
 function readMock<T>(key: string, fallback: T): T {

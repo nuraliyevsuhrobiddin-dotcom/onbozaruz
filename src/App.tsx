@@ -141,7 +141,7 @@ export default function App() {
     return (
       <PrivacyPolicyView
         onBack={() => {
-          if (history.state?.__onbozarFrom) history.back();
+          if (history.state?.__mollbazarFrom) history.back();
           else replaceAppRoute('/#home');
         }}
       />

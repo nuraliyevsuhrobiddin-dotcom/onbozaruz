@@ -3,12 +3,12 @@ import { Resend } from 'resend';
 const apiKey = process.env.RESEND_API_KEY;
 
 export const DEFAULT_FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL || 'OnBozar <noreply@onbozar.uz>';
+  process.env.RESEND_FROM_EMAIL || 'MollBazar <noreply@mollbazar.uz>';
 
 export const APP_URL =
   process.env.VITE_APP_URL ||
   process.env.APP_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://onbozar.uz');
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://mollbazar.uz');
 
 export function getResendClient(): Resend {
   if (!apiKey) {

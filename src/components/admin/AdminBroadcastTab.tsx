@@ -29,7 +29,7 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
 
   const loadHistory = () => {
     try {
-      const raw = localStorage.getItem('onbozor-admin-broadcasts');
+      const raw = localStorage.getItem('mollbazar-admin-broadcasts');
       if (raw) {
         setHistory(JSON.parse(raw));
       }
@@ -198,7 +198,7 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
                 <p className="text-[11px] text-slate-500 font-medium line-clamp-2 mt-0.5">
                   {message.trim() || "Xabarnoma matni bu yerda ko'rinadi..."}
                 </p>
-                <span className="text-[9px] text-slate-400 font-bold block mt-1">Hozirgina · OnBozar Admin</span>
+                <span className="text-[9px] text-slate-400 font-bold block mt-1">Hozirgina · MollBazar Admin</span>
               </div>
             </div>
           </div>

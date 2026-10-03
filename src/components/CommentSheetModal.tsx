@@ -16,7 +16,7 @@ type CommentItem = {
 export const CommentSheetModal: React.FC = () => {
   const { commentPost, setCommentPost, showToast, addCommentToPost, currentUser } = useAgroStore();
   const [newComment, setNewComment] = useState('');
-  const storageKey = useMemo(() => commentPost ? `onbozor-comments-${commentPost.id}` : '', [commentPost]);
+  const storageKey = useMemo(() => commentPost ? `mollbazar-comments-${commentPost.id}` : '', [commentPost]);
   const [commentsList, setCommentsList] = useState<CommentItem[]>([]);
   const [loadedKey, setLoadedKey] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -132,10 +132,10 @@ async function run() {
   let finishRestore!: (user: AuthUser | null) => void;
   authClient.restoreSession = () => new Promise(resolve => { finishRestore = resolve; });
   const pending = useAgroStore.getState().restoreSession();
-  localStorage.setItem('onbozor-create-post-draft', 'private draft');
+  localStorage.setItem('mollbazar-create-post-draft', 'private draft');
   useAgroStore.getState().clearSession(); finishRestore(account); await pending;
   assert(!useAgroStore.getState().currentUser && !useAgroStore.getState().isAuthenticated, 'Late restore resurrected the old account');
-  assert(!localStorage.getItem('onbozor-create-post-draft'), 'Logout retained the old account draft');
+  assert(!localStorage.getItem('mollbazar-create-post-draft'), 'Logout retained the old account draft');
   authClient.restoreSession = async () => { throw new Error('offline'); };
   useAgroStore.setState({ isAuthLoading: true });
   await useAgroStore.getState().restoreSession();

@@ -461,7 +461,7 @@ export const SearchExploreView: React.FC = () => {
         >
           <img
             src="/logo.png"
-            alt="OnBozar"
+            alt="MollBazar"
             className="w-16 h-16 rounded-[20px] object-cover shadow-sm ring-1 ring-slate-200/80 mb-1"
           />
           <h3 className="text-sm font-black text-[#111827]">

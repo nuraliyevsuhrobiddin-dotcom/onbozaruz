@@ -118,7 +118,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
           <div className="p-4 overflow-y-auto space-y-3 flex-1">
             {categoryPosts.length === 0 ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
-                <img src="/logo.png" alt="OnBozar" className="w-12 h-12 rounded-[14px] mx-auto opacity-70" />
+                <img src="/logo.png" alt="MollBazar" className="w-12 h-12 rounded-[14px] mx-auto opacity-70" />
                 <p className="text-sm font-bold text-[#111111]">Ushbu kategoriyada e'lon topilmadi</p>
               </div>
             ) : (

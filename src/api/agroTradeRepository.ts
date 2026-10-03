@@ -2,8 +2,8 @@ import { supabaseClient } from './authClient';
 import type { AgroOffer, AgroOfferAction, AgroOfferTerms, AgroPurchaseRequest, CreateAgroOfferInput, CreateAgroRequestInput } from './agroTradeTypes';
 import { hasCoordinates } from '../utils/geo';
 
-const KEY = 'onbozor-agro-trades-v1';
-const PRODUCTS = 'onbozor-b2b-products';
+const KEY = 'mollbazar-agro-trades-v1';
+const PRODUCTS = 'mollbazar-b2b-products';
 type Row = Record<string, unknown>;
 type State = { requests: AgroPurchaseRequest[]; offers: AgroOffer[] };
 function read<T>(key: string, fallback: T): T {
@@ -11,7 +11,7 @@ function read<T>(key: string, fallback: T): T {
   return raw ? JSON.parse(raw) as T : fallback;
 }
 function actor() {
-  const session = read<{ id?: string; name?: string } | null>('onbozor-auth-session', null);
+  const session = read<{ id?: string; name?: string } | null>('mollbazar-auth-session', null);
   if (!session?.id) throw new Error('Avval akkauntingizga kiring.');
   return { id: session.id, name: session.name || 'Foydalanuvchi' };
 }
@@ -45,11 +45,11 @@ async function rpc<T>(name: string, args: Row): Promise<T> {
 }
 // Local demo only. Web Locks serialize changes across tabs; production uses SQL row locks.
 async function mutate<T>(run: () => T): Promise<T> {
-  return navigator.locks ? navigator.locks.request('onbozor-agro-trade', run) : run();
+  return navigator.locks ? navigator.locks.request('mollbazar-agro-trade', run) : run();
 }
 function supplierFor(userId: string) {
-  const supplier = read<Row[]>('onbozor-b2b-supplier-profiles', []).find(row => row.user_id === userId);
-  const contracts = read<Row[]>('onbozor-b2b-contracts', []);
+  const supplier = read<Row[]>('mollbazar-b2b-supplier-profiles', []).find(row => row.user_id === userId);
+  const contracts = read<Row[]>('mollbazar-b2b-contracts', []);
   if (!supplier || supplier.verification_status !== 'approved' || !contracts.some(row => row.supplier_id === supplier.id && row.status === 'accepted')) throw new Error('Sotuvchi tasdiqlangan va hamkorlik shartnomasini qabul qilgan bo‘lishi kerak.');
   return supplier;
 }
@@ -90,7 +90,7 @@ export const agroTradeRepository = {
       if (error) throw new Error(error.message);
       return (data || []).map(row => camel<AgroPurchaseRequest>(row));
     }
-    const user = read<{ id?: string } | null>('onbozor-auth-session', null);
+    const user = read<{ id?: string } | null>('mollbazar-auth-session', null);
     return state().requests.filter(row => (row.status === 'open' && row.neededBy >= today()) || row.userId === user?.id);
   },
   async createRequest(input: CreateAgroRequestInput): Promise<AgroPurchaseRequest> {
@@ -128,7 +128,7 @@ export const agroTradeRepository = {
       if (!!input.requestId === !!input.productId) throw new Error('Bitta e’lonni tanlang.');
       const request = db.requests.find(row => row.id === input.requestId);
       const product = read<Row[]>(PRODUCTS, []).find(row => row.id === input.productId);
-      const supplier = input.productId ? read<Row[]>('onbozor-b2b-supplier-profiles', []).find(row => row.id === product?.supplier_id) : supplierFor(user.id);
+      const supplier = input.productId ? read<Row[]>('mollbazar-b2b-supplier-profiles', []).find(row => row.id === product?.supplier_id) : supplierFor(user.id);
       if ((!request && !product) || !supplier) throw new Error('E’lon topilmadi.');
       const offer: AgroOffer = {
         quantity: input.quantity, unitPrice: input.unitPrice, deliveryDate: input.deliveryDate, deliveryMethod: input.deliveryMethod, message: input.message,

@@ -1,5 +1,5 @@
 /**
- * Device Push & System Notifications Integration for OnBozar.
+ * Device Push & System Notifications Integration for MollBazar.
  *
  * Connects the web application to the smartphone / desktop OS notification system:
  * - Native lockscreen & notification shade banner
@@ -74,9 +74,9 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
   const permission = Notification.permission;
   if (permission !== 'granted') return false;
 
-  const title = payload.title || 'OnBozar';
+  const title = payload.title || 'MollBazar';
   const body = payload.body || '';
-  const tag = payload.tag || (payload.id ? `onbozar-${payload.id}` : `onbozar-${Date.now()}`);
+  const tag = payload.tag || (payload.id ? `mollbazar-${payload.id}` : `mollbazar-${Date.now()}`);
   const url = new URL(payload.url || '/', `${window.location.origin}/`).href;
 
   const options: ExtendedNotificationOptions = {

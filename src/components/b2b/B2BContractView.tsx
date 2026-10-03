@@ -67,7 +67,7 @@ export const B2BContractView: React.FC = () => {
           </div>
           <div>
             <h1 className="font-black text-base text-slate-900">Elektron hamkorlik shartnomasi</h1>
-            <p className="text-[10px] text-slate-500 font-medium">OnBozar B2B platformasi shartnomasi</p>
+            <p className="text-[10px] text-slate-500 font-medium">MollBazar B2B platformasi shartnomasi</p>
           </div>
         </div>
       </div>

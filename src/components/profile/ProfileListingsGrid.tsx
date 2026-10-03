@@ -439,7 +439,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                 {activeGridTab === 'posts'
                   ? selectedCategoryFilter !== 'all'
                     ? "Boshqa filtrlarni tekshirib ko'ring yoki barchasini tanlang."
-                    : "Yangi hosil, texnika yoki mahsulotlaringizni OnBozarga joylashtiring."
+                    : "Yangi hosil, texnika yoki mahsulotlaringizni MollBazarga joylashtiring."
                   : "Yoqqan e'lonlarni saqlab qo'ying va keyinroq ularga tezda qayting."}
               </p>
             </div>

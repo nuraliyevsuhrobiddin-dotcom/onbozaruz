@@ -47,7 +47,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
   const [settingsForm, setSettingsForm] = useState(() => {
     const defaults = { pushNotifications: true, orderUpdates: true, marketingMessages: false, autoSaveListings: true };
     try {
-      const saved = localStorage.getItem('onbozor-app-settings');
+      const saved = localStorage.getItem('mollbazar-app-settings');
       if (saved) {
         const parsed = JSON.parse(saved);
         for (const key of Object.keys(defaults) as (keyof typeof defaults)[]) {
@@ -76,8 +76,8 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
     const updated = { ...settingsForm, [field]: !settingsForm[field] };
     try {
-      localStorage.setItem('onbozor-app-settings', JSON.stringify(updated));
-      if (field === 'autoSaveListings' && !updated.autoSaveListings) localStorage.removeItem('onbozor-create-post-draft');
+      localStorage.setItem('mollbazar-app-settings', JSON.stringify(updated));
+      if (field === 'autoSaveListings' && !updated.autoSaveListings) localStorage.removeItem('mollbazar-create-post-draft');
       setSettingsForm(updated);
     } catch { showToast('Sozlamalarni saqlab bo‘lmadi'); }
   };
@@ -98,9 +98,9 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
     setPermStatus(await requestDeviceNotificationPermission());
     playNotificationSound();
     const delivered = await showDeviceNotification({
-      title: 'OnBozar bildirishnomasi',
+      title: 'MollBazar bildirishnomasi',
       body: 'Sinov bildirishnomasi. Ovoz va vibratsiya telefon sozlamalariga bog‘liq.',
-      tag: 'onbozar-notification-test',
+      tag: 'mollbazar-notification-test',
       url: '#home',
     });
     showToast(delivered
@@ -110,7 +110,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
   const handleSaveSettings = () => {
     try {
-      localStorage.setItem('onbozor-app-settings', JSON.stringify(settingsForm));
+      localStorage.setItem('mollbazar-app-settings', JSON.stringify(settingsForm));
       showToast('Sozlamalar saqlandi!');
       onBack();
     } catch { showToast('Sozlamalarni saqlab bo‘lmadi'); }
@@ -238,7 +238,7 @@ export const ProfileSettingsSubView: React.FC<ProfileSettingsSubViewProps> = ({
 
         {permStatus === 'denied' && (
           <div className="mb-3 rounded-2xl bg-rose-50 border border-rose-200 p-2.5 text-[11px] text-rose-700 font-medium">
-            ⚠️ Telefonda bildirishnoma bloklangan. Brauzer sozlamalaridan OnBozar uchun ruxsat bering.
+            ⚠️ Telefonda bildirishnoma bloklangan. Brauzer sozlamalaridan MollBazar uchun ruxsat bering.
           </div>
         )}
 

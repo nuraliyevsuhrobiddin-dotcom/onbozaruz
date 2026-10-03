@@ -54,7 +54,7 @@ export const ProfileView: React.FC = () => {
         <div className="space-y-2">
           <h2 className="text-xl font-black text-[#111827]">Profilingizga kiring</h2>
           <p className="text-xs text-slate-500 font-medium max-w-sm mx-auto leading-relaxed">
-            E'lon joylashtirish, saqlangan e'lonlarni ko'rish va xaridlaringizni kuzatish uchun OnBozar akkauntingizga kiring.
+            E'lon joylashtirish, saqlangan e'lonlarni ko'rish va xaridlaringizni kuzatish uchun MollBazar akkauntingizga kiring.
           </p>
         </div>
         <div className="flex items-center justify-center gap-3 pt-2">

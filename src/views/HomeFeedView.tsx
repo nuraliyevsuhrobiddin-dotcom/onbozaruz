@@ -34,8 +34,8 @@ export const HomeFeedView: React.FC = () => {
   // Auth modal/profile flowdan qaytganda eski story filter feedni bo'sh qoldirmasin.
   useEffect(() => {
     const resetFeed = () => setSelectedSeller(null);
-    window.addEventListener('onbozor:reset-feed', resetFeed);
-    return () => window.removeEventListener('onbozor:reset-feed', resetFeed);
+    window.addEventListener('mollbazar:reset-feed', resetFeed);
+    return () => window.removeEventListener('mollbazar:reset-feed', resetFeed);
   }, []);
 
   // Verified farmers list for StoryBar
@@ -265,12 +265,12 @@ export const HomeFeedView: React.FC = () => {
               Barcha agro e'lonlar ko'rib chiqildi
             </p>
             <a
-              href="https://onbozar.uz/privacy-policy"
+              href="https://mollbazar.uz/privacy-policy"
               className="text-[11px] text-slate-400 hover:text-[#D84315] font-bold underline transition-colors mt-1"
             >
               Maxfiylik siyosati · Privacy Policy
             </a>
-            <p className="text-[10px] text-slate-300 font-medium">© 2026 OBOX (OnBozar)</p>
+            <p className="text-[10px] text-slate-300 font-medium">© 2026 MollBazar</p>
           </div>
         </div>
       ) : isFilterEmpty ? (

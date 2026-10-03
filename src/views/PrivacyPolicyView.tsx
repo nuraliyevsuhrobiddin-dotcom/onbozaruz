@@ -25,7 +25,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.title = 'Privacy Policy — OBOX (OnBozar)';
+    document.title = 'Privacy Policy — MollBazar';
   }, []);
 
   const handleGoHome = () => {
@@ -60,16 +60,16 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
             <a
               href="/"
               className="flex items-center gap-2.5 group"
-              title="OBOX (OnBozar) Homepage"
+              title="MollBazar Homepage"
             >
               <img
                 src="/logo.png"
-                alt="OBOX OnBozar Logo"
+                alt="MollBazar Logo"
                 className="w-8 h-8 rounded-xl object-cover shadow-xs group-hover:scale-105 transition-transform"
               />
               <div className="flex flex-col">
                 <span className="text-sm font-black tracking-tight text-slate-900 leading-tight">
-                  OBOX <span className="text-[#D84315]">(OnBozar)</span>
+                  MollBazar
                 </span>
                 <span className="text-[10px] text-slate-400 font-semibold leading-tight">
                   Marketplace Platform
@@ -132,8 +132,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
 
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl mb-6 font-medium">
             {lang === 'en'
-              ? 'This Privacy Policy explains how OBOX (OnBozar), operating at onbozar.uz, collects, uses, stores, and protects your information when you access our marketplace platform and services.'
-              : 'Ushbu Maxfiylik Siyosati OBOX (OnBozar) platformasi (onbozar.uz) sizning shaxsiy ma\'lumotlaringizni qanday to\'plashi, ishlatishi, saqlashi va himoya qilishini tushuntiradi.'}
+              ? 'This Privacy Policy explains how MollBazar, operating at mollbazar.uz, collects, uses, stores, and protects your information when you access our marketplace platform and services.'
+              : 'Ushbu Maxfiylik Siyosati MollBazar platformasi (mollbazar.uz) sizning shaxsiy ma\'lumotlaringizni qanday to\'plashi, ishlatishi, saqlashi va himoya qilishini tushuntiradi.'}
           </p>
 
           <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-500 pt-4 border-t border-slate-100">
@@ -147,8 +147,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
               <Globe className="w-4 h-4 text-slate-400" />
               <span>
                 {lang === 'en' ? 'Official Domain:' : 'Rasmiy domen:'}{' '}
-                <a href="https://onbozar.uz" className="text-[#D84315] font-bold underline">
-                  https://onbozar.uz
+                <a href="https://mollbazar.uz" className="text-[#D84315] font-bold underline">
+                  https://mollbazar.uz
                 </a>
               </span>
             </div>
@@ -167,11 +167,11 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                 </h2>
                 <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
                   <p>
-                    Welcome to <strong>OBOX (OnBozar)</strong> ("we", "our", "us", or "Platform"), available at{' '}
-                    <a href="https://onbozar.uz" className="text-[#D84315] font-bold hover:underline">
-                      https://onbozar.uz
+                    Welcome to <strong>MollBazar</strong> ("we", "our", "us", or "Platform"), available at{' '}
+                    <a href="https://mollbazar.uz" className="text-[#D84315] font-bold hover:underline">
+                      https://mollbazar.uz
                     </a>
-                    . OBOX is a modern digital marketplace connecting agricultural producers, suppliers, business stores, and buyers across Uzbekistan.
+                    . MollBazar is a modern digital marketplace connecting agricultural producers, suppliers, business stores, and buyers across Uzbekistan.
                   </p>
                   <p>
                     We are deeply committed to protecting the privacy, confidentiality, and security of all personal data provided to us by users ("you" or "User"). By accessing or using our website, web application, API, or services, you agree to the collection and use of information in accordance with this Privacy Policy.
@@ -227,16 +227,16 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
 
                 <div className="space-y-4 text-sm text-slate-800 leading-relaxed">
                   <p>
-                    OBOX provides an optional one-click sign-in mechanism via <strong>Google OAuth 2.0</strong> to deliver a seamless, secure authentication experience.
+                    MollBazar provides an optional one-click sign-in mechanism via <strong>Google OAuth 2.0</strong> to deliver a seamless, secure authentication experience.
                   </p>
 
                   <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2.5">
                     <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      What Google Shares with OBOX (OnBozar):
+                      What Google Shares with MollBazar:
                     </h3>
                     <p className="text-xs text-slate-600 leading-relaxed">
-                      When you choose to register or log in using Google OAuth, Google asks for your consent to share limited, basic account information with OBOX:
+                      When you choose to register or log in using Google OAuth, Google asks for your consent to share limited, basic account information with MollBazar:
                     </p>
                     <ul className="list-disc list-inside space-y-1 text-xs text-slate-700 font-medium">
                       <li><strong>Your Full Name:</strong> Used to display your name on your marketplace profile and seller listings.</li>
@@ -251,7 +251,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                       Google API Services User Data Policy — Limited Use Disclosure
                     </h3>
                     <p className="text-xs text-amber-900 leading-relaxed">
-                      OBOX's use and transfer to any other app of information received from Google APIs will adhere to the{' '}
+                      MollBazar's use and transfer to any other app of information received from Google APIs will adhere to the{' '}
                       <a
                         href="https://developers.google.com/terms/api-services-user-data-policy"
                         target="_blank"
@@ -280,7 +280,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                   4. How We Use Your Information
                 </h2>
                 <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
-                  <p>OBOX processes personal data strictly for legitimate operational purposes:</p>
+                  <p>MollBazar processes personal data strictly for legitimate operational purposes:</p>
                   <ul className="list-disc list-inside space-y-2 text-xs sm:text-sm text-slate-700">
                     <li><strong>Account Management:</strong> Creating, maintaining, and securing your buyer or seller account.</li>
                     <li><strong>Marketplace Transactions:</strong> Enabling communication between buyers and sellers, managing orders, and facilitating B2B wholesale agreements.</li>
@@ -334,7 +334,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                 </h2>
                 <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
                   <p>
-                    OBOX uses essential cookies and browser <code>localStorage</code> solely to maintain your active authentication session, remember language preferences, and provide offline-first caching for fast page loads.
+                    MollBazar uses essential cookies and browser <code>localStorage</code> solely to maintain your active authentication session, remember language preferences, and provide offline-first caching for fast page loads.
                   </p>
                   <p className="text-xs text-slate-600">
                     We do not use invasive third-party cross-site tracking cookies. You can manage or disable cookies through your browser settings, though logging in requires active session storage.
@@ -363,8 +363,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                     <ol className="list-decimal list-inside space-y-1 text-xs text-red-900 font-medium">
                       <li><strong>In-App:</strong> Log in, go to <em>Profile → Settings → Delete Account</em>.</li>
                       <li><strong>Via Email:</strong> Send a deletion request to{' '}
-                        <a href="mailto:support@onbozar.uz" className="font-bold underline">
-                          support@onbozar.uz
+                        <a href="mailto:support@mollbazar.uz" className="font-bold underline">
+                          support@mollbazar.uz
                         </a>{' '}
                         from your registered email address.
                       </li>
@@ -388,7 +388,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                     <li><strong>Access:</strong> Request a copy of the personal information we hold about you.</li>
                     <li><strong>Correction:</strong> Update or correct inaccurate or incomplete profile data directly in your profile settings.</li>
                     <li><strong>Erasure:</strong> Request the total erasure of your personal data ("Right to be forgotten").</li>
-                    <li><strong>Revoke Google Access:</strong> You can revoke OBOX's access to your Google account at any time via{' '}
+                    <li><strong>Revoke Google Access:</strong> You can revoke MollBazar's access to your Google account at any time via{' '}
                       <a
                         href="https://myaccount.google.com/permissions"
                         target="_blank"
@@ -431,10 +431,10 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                     If you have questions, concerns, or requests regarding this Privacy Policy or our data handling practices, please contact us:
                   </p>
                   <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1 text-xs sm:text-sm text-slate-800">
-                    <p><strong>Platform:</strong> OBOX (OnBozar Marketplace)</p>
-                    <p><strong>Official Website:</strong> <a href="https://onbozar.uz" className="text-[#D84315] font-bold underline">https://onbozar.uz</a></p>
-                    <p><strong>Privacy Email:</strong> <a href="mailto:support@onbozar.uz" className="text-[#D84315] font-bold underline">support@onbozar.uz</a></p>
-                    <p><strong>Administrative Contact:</strong> <a href="mailto:admin@onbozar.uz" className="text-[#D84315] font-bold underline">admin@onbozar.uz</a></p>
+                    <p><strong>Platform:</strong> MollBazar Marketplace</p>
+                    <p><strong>Official Website:</strong> <a href="https://mollbazar.uz" className="text-[#D84315] font-bold underline">https://mollbazar.uz</a></p>
+                    <p><strong>Privacy Email:</strong> <a href="mailto:support@mollbazar.uz" className="text-[#D84315] font-bold underline">support@mollbazar.uz</a></p>
+                    <p><strong>Administrative Contact:</strong> <a href="mailto:admin@mollbazar.uz" className="text-[#D84315] font-bold underline">admin@mollbazar.uz</a></p>
                     <p><strong>Location:</strong> Tashkent, Republic of Uzbekistan</p>
                   </div>
                 </div>
@@ -450,11 +450,11 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                 </h2>
                 <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
                   <p>
-                    <strong>OBOX (OnBozar)</strong> platformasiga ({' '}
-                    <a href="https://onbozar.uz" className="text-[#D84315] font-bold hover:underline">
-                      https://onbozar.uz
+                    <strong>MollBazar</strong> platformasiga ({' '}
+                    <a href="https://mollbazar.uz" className="text-[#D84315] font-bold hover:underline">
+                      https://mollbazar.uz
                     </a>
-                    ) xush kelibsiz. OBOX — qishloq xo‘jaligi mahsulotlari ishlab chiqaruvchilari, do‘konlar va xaridorlarni birlashtiruvchi zamonaviy B2B va B2C marketplace platformasidir.
+                    ) xush kelibsiz. MollBazar — qishloq xo‘jaligi mahsulotlari ishlab chiqaruvchilari, do‘konlar va xaridorlarni birlashtiruvchi zamonaviy B2B va B2C marketplace platformasidir.
                   </p>
                   <p>
                     Biz foydalanuvchilarimizning shaxsiy ma'lumotlari maxfiyligini qat'iy himoya qilamiz. Platformadan foydalanish orqali siz ushbu Maxfiylik Siyosatida ko'rsatilgan qoidalarga rozilik bildirasiz.
@@ -474,13 +474,13 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
 
                 <div className="space-y-4 text-sm text-slate-800 leading-relaxed">
                   <p>
-                    OBOX foydalanuvchilarga qulaylik yaratish maqsadida Google hisobi orqali bitta tugma bilan ro'yxatdan o'tish va kirish imkoniyatini taqdim etadi.
+                    MollBazar foydalanuvchilarga qulaylik yaratish maqsadida Google hisobi orqali bitta tugma bilan ro'yxatdan o'tish va kirish imkoniyatini taqdim etadi.
                   </p>
 
                   <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2.5">
                     <h3 className="font-black text-slate-900 text-sm flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      Google tomonidan OBOX ga taqdim etiladigan ma'lumotlar:
+                      Google tomonidan MollBazar ga taqdim etiladigan ma'lumotlar:
                     </h3>
                     <ul className="list-disc list-inside space-y-1 text-xs text-slate-700 font-medium">
                       <li><strong>Ism va Familiya:</strong> Profilingiz va e'lonlaringizda sotuvchi/xaridor nomini ko'rsatish uchun.</li>
@@ -494,7 +494,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                       Google API Services User Data Policy talablariga rioya qilish
                     </h3>
                     <p className="text-xs text-amber-900 leading-relaxed">
-                      OBOX Google API orqali olingan barcha ma'lumotlarni faqatgina{' '}
+                      MollBazar Google API orqali olingan barcha ma'lumotlarni faqatgina{' '}
                       <a
                         href="https://developers.google.com/terms/api-services-user-data-policy"
                         target="_blank"
@@ -529,8 +529,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                 <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
                   <p>
                     Foydalanuvchi istalgan vaqtda o'z profilini va unga bog'liq barcha ma'lumotlarni to'liq o'chirish huquqiga ega. Buni profilingizdagi <em>Sozlamalar → Akkauntni o'chirish</em> bo'limi orqali yoki{' '}
-                    <a href="mailto:support@onbozar.uz" className="text-[#D84315] font-bold underline">
-                      support@onbozar.uz
+                    <a href="mailto:support@mollbazar.uz" className="text-[#D84315] font-bold underline">
+                      support@mollbazar.uz
                     </a>{' '}
                     emailiga xat yozish orqali amalga oshirishingiz mumkin.
                   </p>
@@ -543,9 +543,9 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                   5. Bog'lanish ma'lumotlari
                 </h2>
                 <div className="space-y-2 text-xs sm:text-sm text-slate-800 p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                  <p><strong>Loyiha:</strong> OBOX (OnBozar Marketplace)</p>
-                  <p><strong>Veb-sayt:</strong> <a href="https://onbozar.uz" className="text-[#D84315] font-bold underline">https://onbozar.uz</a></p>
-                  <p><strong>Elektron pochta:</strong> <a href="mailto:support@onbozar.uz" className="text-[#D84315] font-bold underline">support@onbozar.uz</a></p>
+                  <p><strong>Loyiha:</strong> MollBazar Marketplace</p>
+                  <p><strong>Veb-sayt:</strong> <a href="https://mollbazar.uz" className="text-[#D84315] font-bold underline">https://mollbazar.uz</a></p>
+                  <p><strong>Elektron pochta:</strong> <a href="mailto:support@mollbazar.uz" className="text-[#D84315] font-bold underline">support@mollbazar.uz</a></p>
                   <p><strong>Manzil:</strong> Toshkent, O'zbekiston Respublikasi</p>
                 </div>
               </section>
@@ -556,8 +556,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
         {/* ── Footer ── */}
         <footer className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="OBOX Logo" className="w-6 h-6 rounded-lg object-cover" />
-            <span className="font-bold text-slate-700">© 2026 OBOX (OnBozar). Barcha huquqlar himoyalangan.</span>
+            <img src="/logo.png" alt="MollBazar Logo" className="w-6 h-6 rounded-lg object-cover" />
+            <span className="font-bold text-slate-700">© 2026 MollBazar. Barcha huquqlar himoyalangan.</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -568,8 +568,8 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
               Asosiy sahifa
             </button>
             <span>•</span>
-            <a href="mailto:support@onbozar.uz" className="hover:text-slate-900">
-              support@onbozar.uz
+            <a href="mailto:support@mollbazar.uz" className="hover:text-slate-900">
+              support@mollbazar.uz
             </a>
           </div>
         </footer>

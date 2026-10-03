@@ -1,5 +1,5 @@
 /**
- * Notification chime & Sound System for OnBozar.
+ * Notification chime & Sound System for MollBazar.
  *
  * Optimized for mobile phone speakers (loud, crystal clear, pleasant)
  * with haptic vibration support and instant audio unlocking.

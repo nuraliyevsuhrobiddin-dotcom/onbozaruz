@@ -1,5 +1,5 @@
 /**
- * OnBozar Auth Client
+ * MollBazar Auth Client
  *
  * Supabase URL va ANON KEY bo'lsa — Supabase Auth ishlatiladi.
  * Bo'lmasa — localStorage asosidagi mock auth ishlatiladi.
@@ -39,7 +39,7 @@ const supabase = supabaseClient;
 // posts can be up to 100 MB, so use the regular API only for small media.
 const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
 
-const PRODUCTION_AUTH_CALLBACK_URL = 'https://onbozar.uz/auth/callback';
+const PRODUCTION_AUTH_CALLBACK_URL = 'https://mollbazar.uz/auth/callback';
 
 export function getAuthCallbackUrl(): string {
   if (typeof window === 'undefined') return PRODUCTION_AUTH_CALLBACK_URL;
@@ -441,8 +441,8 @@ export interface AuthResult {
 export type OAuthProvider = 'google' | 'oneid';
 
 // ---------- Mock Auth (localStorage) ----------
-const MOCK_USERS_KEY = 'onbozor-auth-users';
-const MOCK_SESSION_KEY = 'onbozor-auth-session';
+const MOCK_USERS_KEY = 'mollbazar-auth-users';
+const MOCK_SESSION_KEY = 'mollbazar-auth-session';
 
 function getMockUsers(): Record<string, { password: string; user: AuthUser }> {
   try {

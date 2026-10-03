@@ -72,7 +72,7 @@ export const B2BHomeView: React.FC = () => {
             <ShoppingBag className="w-4.5 h-4.5" />
           </div>
           <div>
-            <h1 className="font-black text-sm text-slate-900 leading-tight">OnBozar B2B</h1>
+            <h1 className="font-black text-sm text-slate-900 leading-tight">MollBazar B2B</h1>
             <p className="text-[10px] text-slate-500 font-semibold">Ulgurji savdo maydoni</p>
           </div>
         </div>

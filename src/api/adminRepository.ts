@@ -1,5 +1,5 @@
 /**
- * OnBozar Admin Repository
+ * MollBazar Admin Repository
  * Supabase DB va Realtime RLS orqali admin ma'lumotlarini boshqaruvchi repository
  */
 
@@ -8,8 +8,8 @@ import { supabaseClient } from './authClient';
 
 const supabase = supabaseClient;
 
-const MOCK_CATEGORIES_KEY = 'onbozor-admin-categories';
-const MOCK_AUDIT_KEY = 'onbozor-admin-audit-logs';
+const MOCK_CATEGORIES_KEY = 'mollbazar-admin-categories';
+const MOCK_AUDIT_KEY = 'mollbazar-admin-audit-logs';
 
 function readMock<T>(key: string, fallback: T): T {
   if (typeof localStorage === 'undefined') return fallback;
@@ -219,7 +219,7 @@ export const adminRepository = {
 
   async getUsers(search = '', page = 1, pageSize = 20): Promise<{ users: AdminUserItem[]; total: number }> {
     if (!supabase) {
-      const raw = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
+      const raw = readMock<Record<string, { user: AdminUserItem; password: string }>>('mollbazar-auth-users', {});
       const all = Object.values(raw).map((record) => ({
         ...record.user,
         postsCount: 0,
@@ -266,14 +266,14 @@ export const adminRepository = {
 
   async updateUserStatus(userId: string, status: 'active' | 'banned', role?: string): Promise<void> {
     if (!supabase) {
-      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
+      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('mollbazar-auth-users', {});
       for (const key of Object.keys(users)) {
         if (users[key].user.id === userId) {
           users[key].user.status = status;
           if (role) users[key].user.role = role;
         }
       }
-      writeMock('onbozor-auth-users', users);
+      writeMock('mollbazar-auth-users', users);
       return;
     }
     const updatePayload: Record<string, any> = { status, updated_at: new Date().toISOString() };
@@ -285,14 +285,14 @@ export const adminRepository = {
 
   async updateUserRole(userId: string, role: string, isAdmin = false): Promise<void> {
     if (!supabase) {
-      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('onbozor-auth-users', {});
+      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('mollbazar-auth-users', {});
       for (const key of Object.keys(users)) {
         if (users[key].user.id === userId) {
           users[key].user.role = role;
           users[key].user.isAdmin = isAdmin;
         }
       }
-      writeMock('onbozor-auth-users', users);
+      writeMock('mollbazar-auth-users', users);
       return;
     }
     const { error } = await supabase.from('profiles').update({
@@ -313,8 +313,8 @@ export const adminRepository = {
     };
 
     // Save to mock storage / local broadcasts
-    const history = readMock<any[]>('onbozor-admin-broadcasts', []);
-    writeMock('onbozor-admin-broadcasts', [payload, ...history]);
+    const history = readMock<any[]>('mollbazar-admin-broadcasts', []);
+    writeMock('mollbazar-admin-broadcasts', [payload, ...history]);
 
     if (!supabase) {
       // In mock mode, insert notification for current user or mock users

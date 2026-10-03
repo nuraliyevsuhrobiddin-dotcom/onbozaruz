@@ -175,7 +175,7 @@ async function delivery({ statusCode, secret = 'shared-secret' } = {}) {
       sendApiJson: (_res, status, body) => { response = { status, body }; },
     },
   });
-  await api.default({ method: 'POST', headers: { 'x-onbozar-push-secret': secret } }, { setHeader() {} });
+  await api.default({ method: 'POST', headers: { 'x-mollbazar-push-secret': secret } }, { setHeader() {} });
   return { response, sent, deleted };
 }
 

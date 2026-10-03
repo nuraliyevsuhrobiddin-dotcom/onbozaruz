@@ -52,7 +52,7 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
   const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [bonusAmount, setBonusAmount] = useState<string>('50000');
-  const [bonusNote, setBonusNote] = useState<string>('Yangi do\'kon uchun OnBozar maxsus rag\'batlantirish bonusi');
+  const [bonusNote, setBonusNote] = useState<string>('Yangi do\'kon uchun MollBazar maxsus rag\'batlantirish bonusi');
   const [isGrantingBonus, setIsGrantingBonus] = useState(false);
 
   const load = useCallback(async () => {
@@ -191,7 +191,7 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
           <span className="font-black text-sm sm:text-base text-[#111827]">{formatMoney(totalGross)}</span>
         </div>
         <div className="bg-white rounded-[18px] border border-slate-200/80 p-3">
-          <span className="text-[10px] font-bold text-slate-400 uppercase block">Onbozar komissiyasi</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase block">MollBazar komissiyasi</span>
           <span className="font-black text-sm sm:text-base text-[#DB2777]">{formatMoney(totalCommission)}</span>
         </div>
         <div className="bg-white rounded-[18px] border border-slate-200/80 p-3">
@@ -413,7 +413,7 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
                         <div className="bg-amber-600/30 rounded-xs" />
                       </div>
                     </div>
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">OnBozar B2B</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-300">MollBazar B2B</span>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-xs text-[10px] font-black text-white">
                     UzCard / Humo
@@ -431,7 +431,7 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
                   <div>
                     <span className="text-[9px] text-slate-400 uppercase font-bold block">Karta egasi</span>
                     <span className="font-bold text-slate-100 uppercase text-xs truncate max-w-[180px] block">
-                      {reqForm.adminCardHolder || 'ONBOZAR RASMIY HISOBI'}
+                      {reqForm.adminCardHolder || 'MOLLBAZAR RASMIY HISOBI'}
                     </span>
                   </div>
                   <div className="text-right">
@@ -495,7 +495,7 @@ export const AdminB2BCommissionTab: React.FC<AdminB2BCommissionTabProps> = ({ on
                     <input
                       value={reqForm.adminCardHolder}
                       onChange={(e) => setReqForm({ ...reqForm, adminCardHolder: e.target.value })}
-                      placeholder="Masalan: ONBOZAR MCHJ"
+                      placeholder="Masalan: MOLLBAZAR MCHJ"
                       className="w-full bg-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold outline-none focus:ring-2 focus:ring-[#DB2777]/30 uppercase"
                     />
                   </div>

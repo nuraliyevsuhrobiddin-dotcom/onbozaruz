@@ -18,10 +18,11 @@ ham kerak; faqat brauzer ruxsatining o‘zi yetmaydi.
    `VITE_` bilan boshlamang va repoga yozmang.
 3. Supabase SQL Editor orqali
    `supabase/migrations/202609280001_web_push.sql` ni bajaring.
+   Keyin `supabase/migrations/202610020001_mollbazar_brand.sql` ni bajaring.
    Bu mavjud loyihaga endpoint jadvali va INSERT triggerini qo‘shadi.
 4. Supabase Vault ichida quyidagi ikkita secret yarating:
-   - `onbozar_push_delivery_url`: `https://onbozar.uz/api/push/deliver`
-   - `onbozar_push_delivery_secret`: serverdagi `WEB_PUSH_DELIVERY_SECRET`
+   - `mollbazar_push_delivery_url`: `https://mollbazar.uz/api/push/deliver`
+   - `mollbazar_push_delivery_secret`: serverdagi `WEB_PUSH_DELIVERY_SECRET`
      bilan ayni qiymat.
 5. Yangi frontend/server buildini deploy qiling. Telefonda saytni oching,
    akkauntga kiring va Bildirishnomalar → ruxsat berish tugmasini bosing.

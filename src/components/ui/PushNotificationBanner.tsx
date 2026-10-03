@@ -175,7 +175,7 @@ export const PushNotificationBanner: React.FC = () => {
                 <div className="relative shrink-0">
                   <img
                     src="/logo.png"
-                    alt="OnBozar"
+                    alt="MollBazar"
                     className="w-6 h-6 rounded-lg object-cover shadow-xs border border-slate-100 dark:border-slate-800"
                   />
                   <div
@@ -185,7 +185,7 @@ export const PushNotificationBanner: React.FC = () => {
                   </div>
                 </div>
                 <span className="font-black text-[12px] tracking-tight text-slate-900 dark:text-white truncate">
-                  OnBozar {activeItem.actorName ? `• ${activeItem.actorName}` : ''}
+                  MollBazar {activeItem.actorName ? `• ${activeItem.actorName}` : ''}
                 </span>
                 <span className="text-[10px] text-slate-400 font-medium shrink-0">• Hozirgina</span>
               </div>

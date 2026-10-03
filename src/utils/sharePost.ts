@@ -1,5 +1,5 @@
 export function getPostShareUrl(postId: string) {
-  const origin = typeof window === 'undefined' ? 'https://onbozar.uz' : window.location.origin;
+  const origin = typeof window === 'undefined' ? 'https://mollbazar.uz' : window.location.origin;
   return `${origin}/?post=${encodeURIComponent(postId)}`;
 }
 

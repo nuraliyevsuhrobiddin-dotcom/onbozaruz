@@ -141,7 +141,7 @@ export const B2BBusinessRegisterForm: React.FC = () => {
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=uz`,
-            { headers: { 'User-Agent': 'OnBozar/1.0' } }
+            { headers: { 'User-Agent': 'MollBazar/1.0' } }
           );
           const data = await res.json();
           const addr = data?.address || {};

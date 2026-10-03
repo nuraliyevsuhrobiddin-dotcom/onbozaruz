@@ -1,5 +1,5 @@
-const CACHE_NAME = 'onbozor-shell-v4';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.png', '/favicon.svg', '/notification.wav'];
+const CACHE_NAME = 'mollbazar-shell-v6';
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.png', '/favicon.svg', '/favicon.png', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png', '/notification.wav'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -9,7 +9,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key.startsWith('onbozor-shell-') && key !== CACHE_NAME).map((key) => caches.delete(key)))
+      Promise.all(keys.filter((key) => (key.startsWith('mollbazar-shell-') || key.startsWith('onbozor-shell-')) && key !== CACHE_NAME).map((key) => caches.delete(key)))
     ).then(() => self.clients.claim())
   );
 });
@@ -59,7 +59,7 @@ self.addEventListener('message', (event) => {
   if (event.data.type === 'SHOW_NOTIFICATION') {
     const { title, options } = event.data;
     event.waitUntil(
-      self.registration.showNotification(title || 'OnBozar', {
+      self.registration.showNotification(title || 'MollBazar', {
         icon: '/logo.png',
         badge: '/favicon.svg',
         vibrate: [200, 100, 200, 100, 200],
@@ -71,13 +71,13 @@ self.addEventListener('message', (event) => {
 
 // Standart Web Push hodisasi
 self.addEventListener('push', (event) => {
-  let data = { title: 'OnBozar bildirishnomasi', body: 'Yangi xabar keldi' };
+  let data = { title: 'MollBazar bildirishnomasi', body: 'Yangi xabar keldi' };
   if (event.data) {
     try {
       const parsed = event.data.json();
       if (parsed && typeof parsed === 'object') data = { ...data, ...parsed };
     } catch {
-      data = { title: 'OnBozar', body: event.data.text() };
+      data = { title: 'MollBazar', body: event.data.text() };
     }
   }
 
@@ -87,7 +87,7 @@ self.addEventListener('push', (event) => {
     badge: '/favicon.svg',
     vibrate: [200, 100, 200],
     data: { ...data.data, url: notificationUrl(data.data?.url) },
-    tag: data.tag || 'onbozar-push',
+    tag: data.tag || 'mollbazar-push',
     renotify: true,
   };
 

@@ -338,7 +338,7 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
             { key: 'name', label: 'Ism / Sotuvchi nomi', icon: Edit3, placeholder: 'Masalan: Anvar Savdo', required: true },
             { key: 'handle', label: 'Username (@handle)', icon: KeyRound, placeholder: 'anvar_agro', required: true },
             { key: 'phone', label: 'Telefon raqam', icon: Phone, placeholder: '+998 90 123 45 67' },
-            { key: 'email', label: 'Email manzil', icon: Mail, placeholder: 'namuna@onbozar.uz' },
+            { key: 'email', label: 'Email manzil', icon: Mail, placeholder: 'namuna@mollbazar.uz' },
             { key: 'location', label: 'Hudud / Manzil', icon: MapPin, placeholder: 'Farg\'ona viloyati, Quva' },
             { key: 'businessName', label: 'Biznes nomi (ixtiyoriy)', icon: Building2, placeholder: 'Agro Brend MCHJ' },
             { key: 'website', label: 'Veb-sayt (ixtiyoriy)', icon: Globe, placeholder: 'https://mysite.uz' },

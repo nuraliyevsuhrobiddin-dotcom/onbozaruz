@@ -142,7 +142,7 @@ export const ProductDetailModal: React.FC = () => {
           )}
           {isProductItem && (
             <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-black text-white shadow-md flex items-center gap-1">
-              <Truck className="w-3 h-3" /> OnBozar Yetkazadi
+              <Truck className="w-3 h-3" /> MollBazar Yetkazadi
             </span>
           )}
         </div>
@@ -220,7 +220,7 @@ export const ProductDetailModal: React.FC = () => {
                 <Truck className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <h4 className="font-black text-xs text-emerald-900">OnBozar Rasmiy do'koni</h4>
+                <h4 className="font-black text-xs text-emerald-900">MollBazar Rasmiy do'koni</h4>
                 <p className="text-[11px] text-emerald-700 font-medium leading-snug">
                   100% kafolatlangan va 1 kunda eshigingizgacha yetkazib beriladi
                 </p>

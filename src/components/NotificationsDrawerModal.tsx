@@ -111,9 +111,9 @@ export const NotificationsDrawerModal: React.FC = () => {
     unlockAudioContext();
     playNotificationSound();
     const delivered = await showDeviceNotification({
-      title: 'OnBozar bildirishnomasi',
+      title: 'MollBazar bildirishnomasi',
       body: 'Sinov bildirishnomasi. Ovoz va vibratsiya telefon sozlamalariga bog‘liq.',
-      tag: 'onbozar-notification-test',
+      tag: 'mollbazar-notification-test',
       url: '#home',
     });
     showToast(delivered
@@ -200,7 +200,7 @@ export const NotificationsDrawerModal: React.FC = () => {
         {permStatus === 'denied' && (
           <div className="rounded-[16px] bg-rose-50 border border-rose-200 p-2.5 flex items-center gap-2 text-rose-800 text-[11px] font-semibold">
             <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>Telefonda bildirishnoma bloklangan. Brauzer sozlamalaridan OnBozar uchun ruxsat bering.</span>
+            <span>Telefonda bildirishnoma bloklangan. Brauzer sozlamalaridan MollBazar uchun ruxsat bering.</span>
           </div>
         )}
 

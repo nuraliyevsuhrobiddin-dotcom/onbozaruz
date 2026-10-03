@@ -34,17 +34,17 @@ const supabase = supabaseClient;
 
 // ---------- Mock-mode (localStorage) fallback ----------
 const MOCK_KEYS = {
-  business: 'onbozor-b2b-business-profiles',
-  supplier: 'onbozor-b2b-supplier-profiles',
-  contracts: 'onbozor-b2b-contracts',
-  products: 'onbozor-b2b-products',
-  orders: 'onbozor-b2b-orders',
-  orderItems: 'onbozor-b2b-order-items',
-  ledger: 'onbozor-b2b-commission-ledger',
-  cashbackRate: 'onbozor-b2b-cashback-rate',
-  directOffers: 'onbozor-b2b-direct-offers',
-  cashbackTransactions: 'onbozor-b2b-cashback-transactions',
-  platformRequisites: 'onbozor-b2b-platform-requisites',
+  business: 'mollbazar-b2b-business-profiles',
+  supplier: 'mollbazar-b2b-supplier-profiles',
+  contracts: 'mollbazar-b2b-contracts',
+  products: 'mollbazar-b2b-products',
+  orders: 'mollbazar-b2b-orders',
+  orderItems: 'mollbazar-b2b-order-items',
+  ledger: 'mollbazar-b2b-commission-ledger',
+  cashbackRate: 'mollbazar-b2b-cashback-rate',
+  directOffers: 'mollbazar-b2b-direct-offers',
+  cashbackTransactions: 'mollbazar-b2b-cashback-transactions',
+  platformRequisites: 'mollbazar-b2b-platform-requisites',
 };
 
 const SEED_CASHBACK_TRANSACTIONS: B2BCashbackTransaction[] = [
@@ -235,7 +235,7 @@ function genId(prefix: string): string {
 
 function currentMockUserId(): string {
   try {
-    const raw = localStorage.getItem('onbozor-auth-session');
+    const raw = localStorage.getItem('mollbazar-auth-session');
     const user = raw ? JSON.parse(raw) : null;
     return user?.id || 'mock-user';
   } catch {
@@ -1091,7 +1091,7 @@ export async function setB2BCashbackRate(rate: number): Promise<void> {
 
 export const DEFAULT_PLATFORM_REQUISITES: B2BPlatformRequisites = {
   adminCardNumber: '8600 4902 1122 3344',
-  adminCardHolder: 'ONBOZAR B2B RASMIY HISOBI',
+  adminCardHolder: 'MOLLBAZAR B2B RASMIY HISOBI',
   adminBankAccount: '20208000900012345001',
   adminBankMfo: '00444',
   adminBankName: 'ATB Kapitalbank Toshkent sh.',

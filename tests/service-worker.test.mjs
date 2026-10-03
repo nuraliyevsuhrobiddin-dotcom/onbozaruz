@@ -23,7 +23,7 @@ function worker(fetcher = async () => new Response('ok'), clients = {}) {
     },
     caches: {
       open: async () => cache,
-      keys: async () => ['onbozor-shell-v2', 'onbozor-shell-v3', 'onbozor-shell-v4', 'another-app'],
+      keys: async () => ['onbozor-shell-v4', 'mollbazar-shell-v5', 'mollbazar-shell-v6', 'another-app'],
       delete: async key => { deleted.push(key); },
     },
   });
@@ -66,12 +66,12 @@ test('Server failures do not replace the cached application', async () => {
   assert.equal(writes.length, 0);
 });
 
-test('Activation removes only obsolete OnBozar caches', async () => {
+test('Activation removes only obsolete MollBazar caches', async () => {
   const { handlers, deleted } = worker();
   let pending;
   handlers.activate({ waitUntil: promise => { pending = promise; } });
   await pending;
-  assert.deepEqual(deleted, ['onbozor-shell-v2', 'onbozor-shell-v3']);
+  assert.deepEqual(deleted, ['onbozor-shell-v4', 'mollbazar-shell-v5']);
 });
 
 test('Old worker navigation recovers to the app and never poisons its cache', async () => {
@@ -137,8 +137,8 @@ test('Closing windows do not swallow the notification click', async () => {
 test('Push uses a default title and converts fragment targets to absolute app URLs', async () => {
   const { dispatch, shown } = worker();
   await dispatch('push', { data: { json: () => ({ body: 'Hello', data: { url: '#home' } }) } });
-  assert.equal(shown[0].title, 'OnBozar bildirishnomasi');
+  assert.equal(shown[0].title, 'MollBazar bildirishnomasi');
   assert.equal(shown[0].options.data.url, 'https://example.test/#home');
   await dispatch('push', { data: { json: () => null } });
-  assert.equal(shown[1].title, 'OnBozar bildirishnomasi');
+  assert.equal(shown[1].title, 'MollBazar bildirishnomasi');
 });

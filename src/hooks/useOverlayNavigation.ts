@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef } from 'react';
 type Overlay = { id: string; close: () => void; previousState: unknown; url: string };
 const overlays: Overlay[] = [];
 let sequence = 0;
-const marker = '__onbozarOverlay';
+const marker = '__mollbazarOverlay';
 
 function handleBack(event: PopStateEvent) {
   const top = overlays.at(-1);

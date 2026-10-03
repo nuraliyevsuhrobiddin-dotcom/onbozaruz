@@ -16,7 +16,7 @@ export const useViewerLocation = create<ViewerLocationState>()(persist((set) => 
     set({point: {latitude:point.latitude, longitude:point.longitude}, label});
   },
   clearLocation: () => set({point:null,label:''}),
-}), { name: 'onbozar-viewer-location', partialize: state => ({ point: state.point, label: state.label }),
+}), { name: 'mollbazar-viewer-location', partialize: state => ({ point: state.point, label: state.label }),
   merge: (persisted, current) => {
     const saved = persisted as Partial<ViewerLocationState> | undefined;
     return {...current, point: hasCoordinates(saved?.point) ? saved.point : null, label: typeof saved?.label === 'string' ? saved.label : ''};

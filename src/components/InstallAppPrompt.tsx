@@ -14,7 +14,7 @@ export function InstallAppPrompt() {
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-    if (isStandalone || sessionStorage.getItem('onbozor-install-dismissed') === 'true') return;
+    if (isStandalone || sessionStorage.getItem('mollbazar-install-dismissed') === 'true') return;
 
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
@@ -34,16 +34,16 @@ export function InstallAppPrompt() {
   };
 
   const dismissPrompt = () => {
-    sessionStorage.setItem('onbozor-install-dismissed', 'true');
+    sessionStorage.setItem('mollbazar-install-dismissed', 'true');
     setDismissed(true);
   };
 
   return (
     <div className="mobile-install-prompt fixed left-3 right-3 z-[60] sm:left-auto sm:right-4 sm:w-[340px]">
       <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10">
-        <img src="/logo.png" alt="OnBozar" className="h-10 w-10 shrink-0 rounded-xl" />
+        <img src="/logo.png" alt="MollBazar" className="h-10 w-10 shrink-0 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-black text-slate-900">OnBozar ilovasini o‘rnating</p>
+          <p className="truncate text-xs font-black text-slate-900">MollBazar ilovasini o‘rnating</p>
           <p className="mt-0.5 text-[11px] text-slate-500">Tezroq kirish va qulay foydalanish</p>
         </div>
         <button

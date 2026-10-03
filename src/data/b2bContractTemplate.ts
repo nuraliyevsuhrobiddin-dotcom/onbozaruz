@@ -18,19 +18,19 @@ export function getB2BContractClauses(commissionRate: number): ContractClause[] 
   return [
     {
       title: "1. Komissiya",
-      body: `Onbozar har bir muvaffaqiyatli buyurtmadan ${commissionRate}% komissiya oladi. Stavka buyurtma yaratilgan paytda "suratga olinadi" — keyinchalik stavka o'zgarsa, eski buyurtmalarga ta'sir qilmaydi.`,
+      body: `MollBazar har bir muvaffaqiyatli buyurtmadan ${commissionRate}% komissiya oladi. Stavka buyurtma yaratilgan paytda "suratga olinadi" — keyinchalik stavka o'zgarsa, eski buyurtmalarga ta'sir qilmaydi.`,
     },
     {
       title: "2. To'lov shartlari",
-      body: "Xaridor naqd yoki (kelajakda) onlayn to'lov orqali to'laydi. Naqd to'lovni supplier o'zi qabul qiladi va tizimda tasdiqlaydi. Onbozar naqd pulni o'zida saqlamaydi.",
+      body: "Xaridor naqd yoki (kelajakda) onlayn to'lov orqali to'laydi. Naqd to'lovni supplier o'zi qabul qiladi va tizimda tasdiqlaydi. MollBazar naqd pulni o'zida saqlamaydi.",
     },
     {
       title: "3. Yetkazib berish javobgarligi",
-      body: "Mahsulotni belgilangan manzilga yetkazib berish supplierning o'z zimmasida (yoki kelishilgan yetkazib beruvchi orqali). Onbozar faqat platforma sifatida buyurtmani bog'laydi.",
+      body: "Mahsulotni belgilangan manzilga yetkazib berish supplierning o'z zimmasida (yoki kelishilgan yetkazib beruvchi orqali). MollBazar faqat platforma sifatida buyurtmani bog'laydi.",
     },
     {
       title: "4. Qaytarish siyosati",
-      body: "Sifatsiz yoki noto'g'ri yetkazilgan mahsulot uchun qaytarish shartlari supplier va xaridor o'rtasida to'g'ridan-to'g'ri kelishiladi. Onbozar bahsli holatlarda vositachilik qilishi mumkin.",
+      body: "Sifatsiz yoki noto'g'ri yetkazilgan mahsulot uchun qaytarish shartlari supplier va xaridor o'rtasida to'g'ridan-to'g'ri kelishiladi. MollBazar bahsli holatlarda vositachilik qilishi mumkin.",
     },
     {
       title: "5. Bekor qilish",

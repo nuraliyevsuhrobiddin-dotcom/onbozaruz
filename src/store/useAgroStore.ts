@@ -234,7 +234,7 @@ function getNotificationPreferences(): NotificationPreferences {
   if (typeof window === 'undefined') return defaults;
 
   try {
-    const saved = localStorage.getItem('onbozor-app-settings');
+    const saved = localStorage.getItem('mollbazar-app-settings');
     if (!saved) return defaults;
     const parsed = JSON.parse(saved) as Partial<NotificationPreferences>;
     return {
@@ -596,11 +596,11 @@ export const useAgroStore = create<AgroStoreState>()(
           notificationsUnsubscribe = null;
 
           try {
-            localStorage.removeItem('onbozor-create-post-draft');
+            localStorage.removeItem('mollbazar-create-post-draft');
             // Clean user draft & profile keys in localStorage
             for (let i = localStorage.length - 1; i >= 0; i--) {
               const key = localStorage.key(i);
-              if (key && (key.startsWith('onbozor-draft-') || key.startsWith('onbozor-profile-'))) {
+              if (key && (key.startsWith('mollbazar-draft-') || key.startsWith('mollbazar-profile-'))) {
                 localStorage.removeItem(key);
               }
             }
@@ -1407,7 +1407,7 @@ export const useAgroStore = create<AgroStoreState>()(
     };
   },
   {
-    name: 'onbozor-agro-store',
+    name: 'mollbazar-agro-store',
     partialize: (state) => ({
       b2bCart: state.b2bCart,
       savedPostIds: state.savedPostIds,
@@ -1419,7 +1419,7 @@ export const useAgroStore = create<AgroStoreState>()(
       // copy here is exactly what let one account's data flash (or, if
       // restoreSession ever failed silently, permanently stick) on another
       // account's screen. Mock mode has its own separate session store
-      // (onbozor-auth-session), so it's unaffected by this.
+      // (mollbazar-auth-session), so it's unaffected by this.
       ...(isSupabaseConfigured
         ? {}
         : { currentUser: state.currentUser, isAuthenticated: state.isAuthenticated }),

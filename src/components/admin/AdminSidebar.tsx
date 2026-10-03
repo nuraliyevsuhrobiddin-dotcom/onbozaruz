@@ -38,7 +38,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 border-b border-white/10">
         <div>
-          <span className="font-black text-sm text-white tracking-tight">OnBozar</span>
+          <span className="font-black text-sm text-white tracking-tight">MollBazar</span>
           <span className="ml-1 px-1.5 py-0.5 rounded-md bg-[#D84315] text-white text-[9px] font-black uppercase">
             Admin
           </span>
@@ -84,7 +84,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-white/10">
-        <p className="text-[10px] text-white/30 font-medium">OnBozar v1.0 · Admin Panel</p>
+        <p className="text-[10px] text-white/30 font-medium">MollBazar v1.0 · Admin Panel</p>
       </div>
     </aside>
   );

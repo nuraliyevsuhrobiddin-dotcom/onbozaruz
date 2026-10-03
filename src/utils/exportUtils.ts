@@ -21,7 +21,7 @@ function escapeCSV(val: any): string {
   return `"${str}"`;
 }
 
-export function exportOrdersToCSV(orders: any[], filename = 'onbozar-buyurtmalar'): void {
+export function exportOrdersToCSV(orders: any[], filename = 'mollbazar-buyurtmalar'): void {
   const headers = [
     'Buyurtma raqami',
     'Sana',
@@ -54,7 +54,7 @@ export function exportOrdersToCSV(orders: any[], filename = 'onbozar-buyurtmalar
   downloadCSV(`${filename}-${new Date().toISOString().slice(0, 10)}.csv`, csvContent);
 }
 
-export function exportUsersToCSV(users: any[], filename = 'onbozar-foydalanuvchilar'): void {
+export function exportUsersToCSV(users: any[], filename = 'mollbazar-foydalanuvchilar'): void {
   const headers = [
     'ID',
     'Ism / Do\'kon',

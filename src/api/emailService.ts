@@ -1,5 +1,5 @@
 /**
- * OnBozar - Frontend Email Service Client
+ * MollBazar - Frontend Email Service Client
  * Welcome xati autentifikatsiyalangan server endpointidan yuboriladi.
  * Confirmation va password-reset xatlarini token egasi bo'lgan Supabase Auth
  * yuboradi; frontend hech qachon Resend orqali erkin HTML/recipient bermaydi.

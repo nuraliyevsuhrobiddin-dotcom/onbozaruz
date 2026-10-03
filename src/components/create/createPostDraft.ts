@@ -25,7 +25,7 @@ export interface PostDraft {
   updatedAt: number;
 }
 
-const DRAFT_KEY = 'onbozor-create-post-draft';
+const DRAFT_KEY = 'mollbazar-create-post-draft';
 
 const EMPTY_DRAFT: Omit<PostDraft, 'updatedAt'> = {
   title: '',
@@ -46,7 +46,7 @@ const EMPTY_DRAFT: Omit<PostDraft, 'updatedAt'> = {
 
 export function loadDraft(): PostDraft | null {
   try {
-    if (JSON.parse(window.localStorage.getItem('onbozor-app-settings') || '{}')?.autoSaveListings === false) return null;
+    if (JSON.parse(window.localStorage.getItem('mollbazar-app-settings') || '{}')?.autoSaveListings === false) return null;
     const raw = window.localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PostDraft;
@@ -63,7 +63,7 @@ export function loadDraft(): PostDraft | null {
 
 export function saveDraft(draft: Omit<PostDraft, 'updatedAt'>): void {
   try {
-    if (JSON.parse(window.localStorage.getItem('onbozor-app-settings') || '{}')?.autoSaveListings === false) {
+    if (JSON.parse(window.localStorage.getItem('mollbazar-app-settings') || '{}')?.autoSaveListings === false) {
       clearDraft();
       return;
     }

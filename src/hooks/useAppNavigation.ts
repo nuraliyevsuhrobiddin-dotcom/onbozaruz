@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useState } from 'react';
 import { useAgroStore, type NavTab, type SubView } from '../store/useAgroStore';
 import { encodeB2BHash, parseB2BHash } from '../utils/b2bRoute';
 
-const navigationEvent = 'onbozar:navigate';
+const navigationEvent = 'mollbazar:navigate';
 const specialRoute = () => window.location.pathname === '/auth/callback' ? 'callback'
   : window.location.pathname === '/privacy-policy' || window.location.hash === '#privacy-policy' ? 'privacy' : null;
 
@@ -42,7 +42,7 @@ export function useAppNavigation() {
     const hash = state.activeTab === 'market' ? `#market/${encodeB2BHash(state.b2bRoute)}`
       : `#${state.activeTab}${state.activeTab === 'profile' && state.activeSubView ? `/${state.activeSubView}` : ''}`;
     if (location.hash === hash) return;
-    const historyState = { __onbozarFrom: location.hash };
+    const historyState = { __mollbazarFrom: location.hash };
     // The first route replaces the empty URL: Back should not visit Home twice.
     if (!location.hash) history.replaceState(historyState, '', hash);
     else history.pushState(historyState, '', hash);
@@ -57,12 +57,12 @@ export function replaceAppRoute(url: string) {
 }
 
 export function navigateAppRoute(url: string) {
-  history.pushState({ __onbozarFrom: location.hash }, '', url);
+  history.pushState({ __mollbazarFrom: location.hash }, '', url);
   window.dispatchEvent(new Event(navigationEvent));
 }
 
 /** Back buttons consume an existing profile entry; deep links use a safe fallback. */
 export function backToProfile() {
-  if (history.state?.__onbozarFrom === '#profile') history.back();
+  if (history.state?.__mollbazarFrom === '#profile') history.back();
   else replaceAppRoute('/#profile');
 }

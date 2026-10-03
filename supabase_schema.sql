@@ -1,5 +1,5 @@
-﻿-- =====================================================================
--- OnBozar Agro Marketplace — Complete Supabase SQL Schema & Initial Seed
+-- =====================================================================
+-- MollBazar Agro Marketplace — Complete Supabase SQL Schema & Initial Seed
 -- =====================================================================
 -- Ushbu skriptni Supabase Dashboard -> SQL Editor sahifasiga joylang
 -- va "Run" tugmasini bosing.
@@ -290,7 +290,7 @@ BEGIN
   INSERT INTO public.profiles (id, email, name, handle, phone, avatar_url, location, business_name, role, is_admin)
   VALUES (
     NEW.id,
-    COALESCE(NEW.email, NEW.id::text || '@user.onbozar.uz'),
+    COALESCE(NEW.email, NEW.id::text || '@user.mollbazar.uz'),
     COALESCE(NEW.raw_user_meta_data->>'name', SPLIT_PART(COALESCE(NEW.email, 'User'), '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'handle', SPLIT_PART(COALESCE(NEW.email, 'user_' || SUBSTRING(NEW.id::text, 1, 6)), '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
@@ -1865,7 +1865,7 @@ CREATE TABLE IF NOT EXISTS public.b2b_config (
     id BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE), -- yagona qatorni kafolatlaydi
     cashback_rate NUMERIC(5,2) NOT NULL DEFAULT 1.5,
     admin_card_number TEXT DEFAULT '8600 4902 1122 3344',
-    admin_card_holder TEXT DEFAULT 'ONBOZAR B2B RASMIY HISOBI',
+    admin_card_holder TEXT DEFAULT 'MOLLBAZAR B2B RASMIY HISOBI',
     admin_bank_account TEXT DEFAULT '20208000900012345001',
     admin_bank_mfo TEXT DEFAULT '00444',
     admin_bank_name TEXT DEFAULT 'ATB Kapitalbank Toshkent sh.',
