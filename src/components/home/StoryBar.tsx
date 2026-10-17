@@ -42,7 +42,7 @@ export const StoryBar: React.FC<StoryBarProps> = ({
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="bg-white rounded-[22px] border border-slate-200/80 p-3.5 shadow-sm space-y-2.5 select-none"
+        className="story-bar bg-white rounded-[22px] border border-slate-200/80 p-3.5 shadow-sm space-y-2.5 select-none"
       >
         <div className="flex items-center justify-between px-1">
           <span className="text-[11px] font-black text-[#111827] uppercase tracking-wider flex items-center gap-1.5">
@@ -82,7 +82,8 @@ export const StoryBar: React.FC<StoryBarProps> = ({
                     onSelectSeller(isSelected ? null : farmer.id);
                     if (onOpenFarmerReels) onOpenFarmerReels(farmer.id);
                   }}
-                  className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-none"
+                  aria-pressed={isSelected}
+                  className="flex flex-col items-center gap-1.5 shrink-0 group rounded-lg"
                 >
                   <div className="relative">
                     {/* Ring: tanlangan = qizil, obuna = gradient */}

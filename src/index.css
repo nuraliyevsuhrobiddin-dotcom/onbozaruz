@@ -62,6 +62,62 @@
   bottom: calc(4.75rem + env(safe-area-inset-bottom));
 }
 
+/* Desktop shell shares one rail width with the content offset. */
+@media (min-width: 1024px) {
+  .app-shell { --desktop-rail: 80px; background: #fff; }
+  .desktop-navigation { width: var(--desktop-rail); overflow-y: auto; }
+  .desktop-content { padding-left: var(--desktop-rail); }
+  .desktop-nav-label { display: none; }
+  .desktop-nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 52px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 15px;
+    text-align: left;
+    transition: background-color 160ms ease;
+  }
+  .app-shell button:focus-visible, .app-shell a:focus-visible {
+    outline: 2px solid #D84315;
+    outline-offset: 3px;
+  }
+  .feed-card { border-radius: 4px; box-shadow: none; margin-bottom: 28px; }
+  .story-bar { border: 0; border-bottom: 1px solid #e2e8f0; border-radius: 0; padding: 8px 0 20px; box-shadow: none; }
+}
+
+@media (min-width: 1280px) {
+  .app-shell { --desktop-rail: 232px; }
+  .desktop-nav-label { display: inline; }
+  .desktop-nav-item { justify-content: flex-start; }
+  .category-discovery { border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+  .category-discovery h3 { font-size: 14px; padding: 0 0 8px; color: #475569; }
+  .category-discovery-list { display: flex; flex-direction: column; gap: 0; overflow: visible; }
+  .category-discovery-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+    max-width: none;
+    width: 100%;
+    padding: 13px 4px;
+    border: 0;
+    border-bottom: 1px solid #f1f5f9;
+    border-radius: 0;
+    background: transparent;
+  }
+  .category-discovery-item > span:first-child { font-size: 13px; }
+  .category-discovery-item > span:last-child { margin: 0; flex-shrink: 0; background: transparent; border: 0; font-size: 11px; font-weight: 500; color: #64748b; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .desktop-nav-item { transition: none; }
+}
+
 /* Custom subtle scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }

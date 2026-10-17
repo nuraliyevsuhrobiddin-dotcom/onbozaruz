@@ -122,7 +122,7 @@ export const ProfileView: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-xl mx-auto py-3 px-3 sm:px-4 space-y-3.5 select-none pb-28">
+    <div className="w-full max-w-xl lg:max-w-[880px] mx-auto py-3 lg:py-0 px-3 sm:px-4 lg:px-0 space-y-3.5 select-none pb-28">
       <ProfileHeader
         currentUser={currentUser}
         profileData={{

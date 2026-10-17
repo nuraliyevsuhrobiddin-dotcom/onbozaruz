@@ -63,7 +63,7 @@ export const B2BHomeView: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full max-w-170 mx-auto py-3 px-3 space-y-4 select-none pb-28 bg-slate-50 text-slate-900">
+    <div className="relative w-full max-w-170 lg:max-w-none mx-auto py-3 px-3 space-y-4 select-none pb-28 bg-slate-50 text-slate-900">
 
       {/* ── Top Header Bar ── */}
       <div className="flex items-center justify-between bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">

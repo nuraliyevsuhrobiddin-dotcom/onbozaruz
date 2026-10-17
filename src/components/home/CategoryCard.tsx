@@ -9,18 +9,18 @@ export const CategoryCard: React.FC = () => {
   const categoryList = Array.from(new Map(categories.slice(1).map((c) => [c.id, c])).values());
 
   return (
-    <div className="bg-white rounded-[22px] border border-slate-200/80 p-3 shadow-sm space-y-2.5 select-none">
+    <section className="category-discovery bg-white rounded-[22px] border border-slate-200/80 p-3 shadow-sm space-y-2.5 select-none">
       <h3 className="font-extrabold text-sm text-[#111827] flex items-center gap-1.5 px-1">
         <Tag className="w-4 h-4 text-emerald-600" />
         Ommabop kategoriyalar
       </h3>
 
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <div className="category-discovery-list flex gap-2 overflow-x-auto no-scrollbar pb-1">
         {categoryList.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setSelectedCategoryModalId(cat.id)}
-            className="group min-w-[132px] max-w-[150px] rounded-[14px] border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-left transition-all hover:border-[#D84315]/40 hover:bg-white focus:outline-none"
+            className="category-discovery-item group min-w-[132px] max-w-[150px] rounded-[14px] border border-slate-200/80 bg-slate-50 px-3 py-2.5 text-left transition-colors hover:border-[#D84315]/40 hover:bg-white"
           >
             <span className="block truncate text-[13px] font-extrabold text-slate-800 group-hover:text-[#D84315] transition-colors">
               {cat.name}
@@ -31,6 +31,6 @@ export const CategoryCard: React.FC = () => {
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 };

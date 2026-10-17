@@ -117,12 +117,12 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.06, ease: 'easeOut' }}
-      className="w-full max-w-[650px] bg-white rounded-none sm:rounded-[20px] border-y border-slate-200/80 sm:border overflow-hidden mb-3 sm:mb-6 select-none shadow-sm sm:shadow-md hover:shadow-lg transition-shadow duration-200"
+      className="feed-card w-full max-w-[650px] bg-white rounded-none sm:rounded-[20px] border-y border-slate-200/80 sm:border overflow-hidden mb-3 sm:mb-6 select-none shadow-sm"
     >
       {/* ── Post Header ── */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-slate-100 relative">
         <button
-          className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity active:scale-[0.98]"
+          className="flex min-w-0 items-center gap-3 text-left hover:opacity-80 transition-opacity active:scale-[0.98]"
           onClick={() =>
             setSelectedSellerModal({
               sellerId: post.sellerId || post.userId,
@@ -145,16 +145,16 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
               />
             </div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-1.5 leading-tight">
-              <span className="font-bold text-[14px] text-[#111111]">{post.sellerName}</span>
+              <span className="truncate font-bold text-[14px] text-[#111111]">{post.sellerName}</span>
               {post.verified && (
                 <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50 shrink-0" />
               )}
             </div>
             <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
               <MapPin className="w-3 h-3 text-[#D84315]" />
-              <span>{post.location}</span>
+              <span className="truncate">{post.location}</span>
             </div>
             {distance && (
               <p className="mt-1 text-[10px] font-semibold text-slate-600">
@@ -164,14 +164,16 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           </div>
         </button>
 
-        <div className="flex items-center gap-2 relative">
-          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
+        <div className="flex shrink-0 items-center gap-2 relative">
+          <span className="flex max-w-24 sm:max-w-36 items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
             <Tag className="w-3 h-3 text-[#D84315]" />
-            {post.categoryName}
+            <span className="truncate">{post.categoryName}</span>
           </span>
           
           <div className="relative">
             <button
+              aria-label="E'lon menyusi"
+              aria-expanded={isMenuOpen}
               onClick={() => setIsMenuOpen((prev) => !prev)}
               className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
             >

@@ -169,7 +169,7 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8F9FA] text-[#111111] antialiased flex flex-col"
+      className="app-shell min-h-screen bg-[#F8F9FA] text-[#111111] antialiased flex flex-col"
       style={{ fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
     >
       {/* в”Ђв”Ђ Fixed Desktop Left Sidebar (260px) в”Ђв”Ђ */}
@@ -193,10 +193,10 @@ export default function App() {
       </div>
 
       {/* ─── Main Layout Area (Shifted right by sidebar width 80px) ─── */}
-      <div className="flex-1 w-full lg:pl-20 flex justify-center">
-        <div className={`w-full flex justify-center gap-5 ${isMarketMap ? 'px-0 py-0 max-w-none' : 'px-0 sm:px-4 py-1.5 sm:py-3 lg:py-5'} ${activeTab === 'admin' || isMarketMap ? 'max-w-none' : 'max-w-275'}`}>
+      <div className="desktop-content flex-1 w-full flex justify-center">
+        <div className={`w-full flex items-start justify-center gap-5 lg:gap-10 ${isMarketMap ? 'px-0 py-0 max-w-none' : 'px-0 sm:px-4 lg:px-8 py-1.5 sm:py-3 lg:py-8'} ${activeTab === 'admin' || isMarketMap ? 'max-w-none' : activeTab === 'home' ? 'max-w-[1000px]' : 'max-w-[1040px]'}`}>
           {/* Main Feed / Content View */}
-          <main className={`flex-1 min-w-0 px-0 sm:px-0 ${isMarketMap ? 'pb-0 lg:pb-0 max-w-none' : 'mobile-content-bottom lg:pb-10'} ${activeTab === 'admin' || isMarketMap ? 'max-w-none' : 'max-w-150'}`}>
+          <main id="main-content" className={`flex-1 min-w-0 px-0 sm:px-0 ${isMarketMap ? 'pb-0 lg:pb-0 max-w-none' : 'mobile-content-bottom lg:pb-10'} ${activeTab === 'home' ? 'max-w-[600px]' : 'max-w-none'}`}>
             <AnimatePresence mode="wait">
               {activeTab === 'home' && (
                 <motion.div

@@ -262,7 +262,7 @@ export const SearchExploreView: React.FC = () => {
   ].filter(Boolean).length;
 
   return (
-    <div className="w-full max-w-170 mx-auto py-3 px-3 space-y-3">
+    <div className="w-full max-w-170 lg:max-w-none mx-auto py-3 lg:py-0 px-3 lg:px-0 space-y-3 lg:space-y-5">
       <div className="border-b border-slate-200 pb-2">
         <div className="flex items-center justify-between gap-2">
           <button

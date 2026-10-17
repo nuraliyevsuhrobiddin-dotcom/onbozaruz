@@ -1,15 +1,15 @@
 import React from 'react';
 import { CategoryCard } from './home/CategoryCard';
 import { useAgroStore } from '../store/useAgroStore';
-import { CheckCircle2, User } from 'lucide-react';
+import { User } from 'lucide-react';
 
 export const DesktopRightSidebar: React.FC = () => {
   const { currentUser, setActiveTab, setAuthPromptOpen } = useAgroStore();
 
   return (
-    <aside className="hidden lg:block w-[280px] shrink-0 sticky top-4 space-y-4 select-none pb-8">
+    <aside aria-label="Siz uchun" className="hidden xl:block w-[280px] shrink-0 self-start sticky top-8 max-h-[calc(100dvh-4rem)] overflow-y-auto space-y-7 select-none pb-4">
       {/* Logged in User Quick Bar (Instagram style) */}
-      <div className="bg-white rounded-[22px] border border-slate-200/80 p-3.5 shadow-sm flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 py-2">
         {currentUser ? (
           <button
             onClick={() => setActiveTab('profile')}
@@ -29,16 +29,15 @@ export const DesktopRightSidebar: React.FC = () => {
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-1">
-                <span className="font-extrabold text-xs text-[#111827] truncate">{currentUser.name}</span>
-                <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 fill-blue-50 shrink-0" />
+                <span className="font-bold text-sm text-[#111827] truncate">{currentUser.name}</span>
               </div>
-              <span className="text-[11px] text-slate-400 font-medium block truncate">@{currentUser.handle || 'sotuvchi'}</span>
+              <span className="text-xs text-slate-500 font-medium block truncate">@{currentUser.handle || 'sotuvchi'}</span>
             </div>
           </button>
         ) : (
           <button
             onClick={() => setAuthPromptOpen(true)}
-            className="w-full py-2.5 rounded-xl bg-[#111827] text-white text-xs font-black hover:bg-[#D84315] transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-lg bg-[#111827] text-white text-sm font-bold hover:bg-[#D84315] transition-colors flex items-center justify-center gap-2"
           >
             <User className="w-4 h-4" />
             <span>Kirish / Profil</span>

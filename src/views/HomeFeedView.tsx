@@ -74,7 +74,11 @@ export const HomeFeedView: React.FC = () => {
   const isTrulyEmpty = !isHydrating && !isBackgroundFetching && !fetchError && posts.length === 0;
 
   return (
-    <div className="w-full max-w-170 mx-auto px-0 sm:px-4 py-1.5 sm:py-2 space-y-2.5 sm:space-y-3.5">
+    <div className="w-full mx-auto px-0 sm:px-4 lg:px-0 py-1.5 sm:py-2 lg:py-0 space-y-2.5 sm:space-y-3.5 lg:space-y-5">
+      <div className="hidden lg:block border-b border-slate-200 pb-5">
+        <h1 className="text-xl font-bold tracking-tight">Siz uchun</h1>
+        <p className="mt-1 text-sm text-slate-500">Bozordagi yangi e'lonlarni kashf eting.</p>
+      </div>
       <div className="mx-3 sm:mx-0 border-b border-slate-200 pb-2">
         <div className="flex items-center justify-between gap-2">
           <button
