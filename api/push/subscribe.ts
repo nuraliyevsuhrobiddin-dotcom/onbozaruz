@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { readJsonBody } from '../lib/requestBody';
+import { isAllowedPushEndpoint, isValidPushKeys } from '../lib/pushEndpoint';
 import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
 
 type PushSubscriptionPayload = {
@@ -15,17 +16,7 @@ function isValidSubscription(payload: PushSubscriptionPayload): payload is {
   endpoint: string;
   keys: { p256dh: string; auth: string };
 } {
-  if (typeof payload.endpoint !== 'string'
-    || typeof payload.keys?.p256dh !== 'string'
-    || typeof payload.keys?.auth !== 'string') {
-    return false;
-  }
-
-  try {
-    return new URL(payload.endpoint).protocol === 'https:';
-  } catch {
-    return false;
-  }
+  return !!payload && isAllowedPushEndpoint(payload.endpoint) && isValidPushKeys(payload.keys);
 }
 
 /** Stores a browser PushSubscription for the authenticated owner only. */

@@ -8,7 +8,7 @@
  *   VITE_SUPABASE_URL=https://your-project.supabase.co
  *   VITE_SUPABASE_ANON_KEY=your-anon-key
  */
-import { ApiResult, mockServer } from './mockServer';
+import { type ApiResult, mockServer } from './mockServer';
 import { getSupabaseAccessToken, isSupabaseConfigured } from './authClient';
 
 const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true';
@@ -197,8 +197,10 @@ async function requestSupabase(
   }
 
   const accessToken = await getSupabaseAccessToken();
+  const readTable = !accessToken && method === 'GET' && (table === 'posts' || table === 'products')
+    ? `${table}_public` : table;
 
-  let response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`, {
+  let response = await fetch(`${SUPABASE_URL}/rest/v1/${readTable}?${params.toString()}`, {
     method,
     headers: {
       apikey: SUPABASE_ANON_KEY,
@@ -211,7 +213,8 @@ async function requestSupabase(
 
   // If a GET request fails with 401 due to an expired/stale accessToken, retry once anonymously
   if (response.status === 401 && accessToken && method === 'GET') {
-    response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params.toString()}`, {
+    const anonymousTable = table === 'posts' || table === 'products' ? `${table}_public` : table;
+    response = await fetch(`${SUPABASE_URL}/rest/v1/${anonymousTable}?${params.toString()}`, {
       method: 'GET',
       headers: {
         apikey: SUPABASE_ANON_KEY,

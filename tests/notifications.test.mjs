@@ -22,6 +22,10 @@ async function load(relativePath, globals, dependencies = {}, env = {}) {
   return module.namespace;
 }
 
+const pushEndpointPolicy = await load('../api/lib/pushEndpoint.ts', { Buffer });
+const storedEndpoint = 'https://fcm.googleapis.com/fcm/send/test';
+const storedKeys = { p256dh: Buffer.concat([Buffer.from([4]), Buffer.alloc(64, 1)]).toString('base64url'), auth: Buffer.alloc(16, 1).toString('base64url') };
+
 async function push(fetcher, token = async () => 'token', extra = {}) {
   const subscription = { toJSON: () => ({ endpoint: 'https://push.test', keys: { auth: 'auth', p256dh: 'key' } }) };
   return load('../src/utils/webPush.ts', {
@@ -140,7 +144,7 @@ test('Realtime reconnect, online and visible events recover missed rows and clea
   assert.equal(refreshes, 3);
 });
 
-async function delivery({ statusCode, secret = 'shared-secret' } = {}) {
+async function delivery({ statusCode, secret = 'shared-secret', endpoint = storedEndpoint } = {}) {
   const sent = [], deleted = [];
   let response;
   const notification = { id: 'notification-1', user_id: 'user-1', title: 'Order', target_type: 'b2b_order', target_id: 'order-1' };
@@ -150,7 +154,7 @@ async function delivery({ statusCode, secret = 'shared-secret' } = {}) {
       select: () => query,
       eq: (key, value) => { if (deleting) deleted.push(value); return query; },
       maybeSingle: async () => ({ data: notification }),
-      returns: async () => ({ data: [{ endpoint: 'https://push.test', p256dh: 'key', auth: 'auth' }] }),
+      returns: async () => ({ data: [{ endpoint, ...storedKeys }] }),
       delete: () => { assert.equal(table, 'push_subscriptions'); deleting = true; return query; },
     };
     return query;
@@ -170,6 +174,7 @@ async function delivery({ statusCode, secret = 'shared-secret' } = {}) {
       },
     },
     '../lib/requestBody': { readJsonBody: async () => ({ notification_id: 'notification-1' }) },
+    '../lib/pushEndpoint': pushEndpointPolicy,
     '../lib/supabaseAuth': {
       getSupabaseServerConfig: () => ({ url: 'https://db.test', serviceRoleKey: 'server-only' }),
       sendApiJson: (_res, status, body) => { response = { status, body }; },
@@ -203,7 +208,13 @@ test('Temporary push delivery failures are reported instead of hidden as success
 test('Expired push endpoints are removed', async () => {
   const { response, deleted } = await delivery({ statusCode: 410 });
   assert.equal(response.body.expired, 1);
-  assert.deepEqual(deleted, ['https://push.test']);
+  assert.deepEqual(deleted, [storedEndpoint]);
+});
+
+test('Previously stored internal push URLs never reach the network', async () => {
+  const { sent, deleted } = await delivery({ endpoint: 'https://127.0.0.1/admin' });
+  assert.equal(sent.length, 0);
+  assert.deepEqual(deleted, ['https://127.0.0.1/admin']);
 });
 
 test('logout revokes the current browser push endpoint', async () => {

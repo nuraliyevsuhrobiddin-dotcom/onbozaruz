@@ -1,10 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import { createClient } from '@supabase/supabase-js';
 import { getResendClient, DEFAULT_FROM_EMAIL } from '../lib/resendClient';
 import { getWelcomeEmailTemplate } from '../lib/emailTemplates';
-import { requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
-
-const rateLimit = new Map<string, number>();
-const WELCOME_COOLDOWN_MS = 10 * 60 * 1000;
+import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') {
@@ -16,9 +14,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const user = await requireAuthenticatedUser(req, res);
   if (!user) return;
 
-  const lastSent = rateLimit.get(user.id) || 0;
-  if (Date.now() - lastSent < WELCOME_COOLDOWN_MS) {
-    sendApiJson(res, 429, { ok: false, error: 'Xush kelibsiz xati yaqinda yuborilgan.' });
+  if (!user.email_confirmed_at) {
+    sendApiJson(res, 403, { ok: false, error: 'Avval email manzilini tasdiqlang.' });
     return;
   }
 
@@ -26,6 +23,25 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const email = user.email?.trim().toLowerCase();
     if (!email) {
       sendApiJson(res, 400, { ok: false, error: 'Akkauntingizda email manzili topilmadi.' });
+      return;
+    }
+
+    const { url, serviceRoleKey } = getSupabaseServerConfig();
+    if (!url || !serviceRoleKey) {
+      sendApiJson(res, 503, { ok: false, error: 'Email xizmati sozlanmagan.' });
+      return;
+    }
+    const server = createClient(url, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    // Reserve before sending, atomically across requests and server instances.
+    const { data: reserved, error: limitError } = await server.rpc('claim_welcome_email', { p_user_id: user.id });
+    if (limitError) {
+      sendApiJson(res, 503, { ok: false, error: 'Email limitini tekshirib bo\'lmadi.' });
+      return;
+    }
+    if (reserved !== true) {
+      sendApiJson(res, 429, { ok: false, error: 'Xush kelibsiz xati yaqinda yuborilgan.' });
       return;
     }
 
@@ -53,7 +69,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return;
     }
 
-    rateLimit.set(user.id, Date.now());
     sendApiJson(res, 200, {
       ok: true,
       id: result.data?.id,

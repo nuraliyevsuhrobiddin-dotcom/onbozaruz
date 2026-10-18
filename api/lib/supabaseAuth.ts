@@ -50,6 +50,7 @@ export async function requireAuthenticatedUser(
   }
 
   const client = createClient(url, anonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await client.auth.getUser(token);
@@ -58,6 +59,16 @@ export async function requireAuthenticatedUser(
     return null;
   }
 
+  const { data: profile, error: profileError } = await client.from('profiles')
+    .select('status').eq('id', data.user.id).maybeSingle();
+  if (profileError) {
+    sendJson(res, 503, { ok: false, error: 'Akkaunt holatini tekshirib bo\'lmadi.' });
+    return null;
+  }
+  if (!profile || profile.status !== 'active') {
+    sendJson(res, 403, { ok: false, error: 'Akkaunt faol emas.' });
+    return null;
+  }
   return data.user;
 }
 

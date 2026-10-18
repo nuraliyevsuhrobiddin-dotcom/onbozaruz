@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import * as webpush from 'web-push';
 import { readJsonBody } from '../lib/requestBody';
+import { isAllowedPushEndpoint, isValidPushKeys } from '../lib/pushEndpoint';
 import { getSupabaseServerConfig, sendApiJson } from '../lib/supabaseAuth';
 
 type DeliveryPayload = { notification_id?: unknown };
@@ -54,7 +55,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     });
     return;
   }
-  if (typeof payload.notification_id !== 'string' || !payload.notification_id) {
+  if (!payload || typeof payload.notification_id !== 'string' || !payload.notification_id) {
     sendApiJson(res, 422, { ok: false, error: 'notification_id talab qilinadi.' });
     return;
   }
@@ -121,11 +122,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   let failed = 0;
   let expired = 0;
   await Promise.all((subscriptions || []).map(async (subscription) => {
+    if (!isAllowedPushEndpoint(subscription.endpoint) || !isValidPushKeys(subscription)) {
+      await adminClient.from('push_subscriptions').delete().eq('endpoint', subscription.endpoint);
+      expired += 1;
+      return;
+    }
     try {
       await webpush.sendNotification({
         endpoint: subscription.endpoint,
         keys: { p256dh: subscription.p256dh, auth: subscription.auth },
-      }, message, { TTL: 60 * 60, urgency: 'high', topic: `n-${notification.id.replace(/-/g, '').slice(0, 30)}` });
+      }, message, { timeout: 10000, TTL: 60 * 60, urgency: 'high', topic: `n-${notification.id.replace(/-/g, '').slice(0, 30)}` });
       delivered += 1;
     } catch (error: any) {
       // Expired endpoints must be discarded so every later notification is not
