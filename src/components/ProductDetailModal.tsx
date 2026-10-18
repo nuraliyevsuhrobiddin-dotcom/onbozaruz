@@ -93,10 +93,10 @@ export const ProductDetailModal: React.FC = () => {
               <span>Tahrirlash</span>
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (window.confirm("Rostdan ham ushbu e'lonni o'chirmoqchimisiz?")) {
                   if (!isProductItem) {
-                    deletePost(productDetail.id);
+                    if (!await deletePost(productDetail.id)) return;
                   } else {
                     deleteProduct(productDetail.id);
                   }

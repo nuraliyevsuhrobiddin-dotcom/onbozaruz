@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ShieldOff, Home, Menu, Loader2 } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
 import { adminRepository } from '../api/adminRepository';
@@ -16,6 +16,7 @@ import { AdminBroadcastTab } from '../components/admin/AdminBroadcastTab';
 import { AdminMediaTab } from '../components/admin/AdminMediaTab';
 import { AdminReportsTab } from '../components/admin/AdminReportsTab';
 import { AdminAuditLogsTab } from '../components/admin/AdminAuditLogsTab';
+import type { Post } from '../api/types';
 import { AdminTab } from '../components/admin/AdminSidebar';
 
 export const AdminView: React.FC = () => {
@@ -27,13 +28,42 @@ export const AdminView: React.FC = () => {
     products,
     setActiveTab,
     showToast,
-    deletePost,
     approvePost,
     rejectPost,
   } = useAgroStore();
 
+  const [adminPosts, setAdminPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [activeTab, setTab] = useState<AdminTab>('dashboard');
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+
+  const adminUserId = currentUser?.id;
+  useEffect(() => {
+    if (isAuthLoading || !isAdminUser || !adminUserId) return;
+    let disposed = false;
+    let loading = false;
+    const load = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        const rows = await adminRepository.getPosts();
+        if (!disposed) { setAdminPosts(rows); setPostsError(null); }
+      } catch (error) {
+        if (!disposed) setPostsError(error instanceof Error ? error.message : "E'lonlar yuklanmadi");
+      } finally {
+        loading = false;
+        if (!disposed) setPostsLoading(false);
+      }
+    };
+    setPostsLoading(true);
+    void load();
+    const interval = window.setInterval(() => void load(), 30000);
+    const onFocus = () => void load();
+    window.addEventListener('focus', onFocus);
+    return () => { disposed = true; window.clearInterval(interval); window.removeEventListener('focus', onFocus); };
+  }, [isAuthLoading, isAdminUser, adminUserId, reloadVersion]);
 
   const logAction = useCallback(
     async (action: string, targetId: string, oldVal: any, newVal: any) => {
@@ -82,7 +112,7 @@ export const AdminView: React.FC = () => {
   // Legacy Market/product moderation UI was removed (see supabase_schema.sql
   // "Eski Market ... UI olib tashlanadi") — only e'lon (post) approvals are
   // actionable from this panel now, so the badge only reflects those.
-  const pendingCount = posts.filter((p) => p.status === 'pending').length;
+  const pendingCount = adminPosts.filter((p) => p.status === 'pending').length;
 
   // ─── Tab Renderer ──────────────────────────────────────────────────────
   const renderTab = () => {
@@ -99,10 +129,19 @@ export const AdminView: React.FC = () => {
       case 'posts':
         return (
           <AdminPostsTab
-            posts={posts}
-            onApprove={(id) => { approvePost?.(id); }}
-            onReject={(id) => { rejectPost?.(id); }}
-            onDelete={(id) => deletePost(id)}
+            posts={adminPosts}
+            onApprove={(id) => {
+              setAdminPosts(rows => rows.map(p => p.id === id ? { ...p, status: 'approved', rejectionReason: '' } : p));
+              approvePost(id);
+            }}
+            onReject={(id, reason) => {
+              setAdminPosts(rows => rows.map(p => p.id === id ? { ...p, status: 'rejected', rejectionReason: reason } : p));
+              rejectPost(id, reason);
+            }}
+            onDelete={(id) => {
+              setAdminPosts(rows => rows.filter(p => p.id !== id));
+              useAgroStore.setState(state => ({ posts: state.posts.filter(p => p.id !== id) }));
+            }}
             onLogAction={logAction}
             showToast={showToast}
           />
@@ -209,7 +248,13 @@ export const AdminView: React.FC = () => {
 
         {/* Tab Content */}
         <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-20 max-w-4xl mx-auto w-full">
-          {renderTab()}
+          <div className="mb-4 flex items-center gap-3">
+            <button type="button" disabled={postsLoading} onClick={() => setReloadVersion(v => v + 1)} className="px-3 py-2 rounded-xl bg-white border text-xs font-bold disabled:opacity-50">
+              {postsLoading ? 'Yuklanmoqda...' : 'Yangilash'}
+            </button>
+            {postsError && <p role="alert" className="text-xs text-red-600">{postsError}</p>}
+          </div>
+          {activeTab === 'posts' && postsLoading && adminPosts.length === 0 ? <p className="text-sm">E'lonlar yuklanmoqda...</p> : renderTab()}
         </main>
       </div>
     </div>

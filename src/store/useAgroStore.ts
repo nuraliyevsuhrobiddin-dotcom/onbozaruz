@@ -144,8 +144,8 @@ interface AgroStoreState {
   toggleSavePost: (postId: string) => void;
   incrementPostViews: (postId: string) => void;
   addPost: (newPost: Post) => Promise<void>;
-  updatePost: (postId: string, updatedFields: Partial<Post>) => void;
-  deletePost: (postId: string) => void;
+  updatePost: (postId: string, updatedFields: Partial<Post>) => Promise<boolean>;
+  deletePost: (postId: string) => Promise<boolean>;
   updateProduct: (productId: string, updatedFields: Partial<Product>) => void;
   deleteProduct: (productId: string) => void;
   addCommentToPost: (postId: string) => void;
@@ -831,7 +831,7 @@ export const useAgroStore = create<AgroStoreState>()(
       editModalItem: null,
       setEditModalItem: (item) => set({ editModalItem: item }),
 
-      deletePost: (postId) => {
+      deletePost: async (postId) => {
         const stateBeforeDelete = get();
         const targetPost = stateBeforeDelete.posts.find((p) => p.id === postId);
         const isOwner = Boolean(
@@ -842,7 +842,13 @@ export const useAgroStore = create<AgroStoreState>()(
         );
         if (!stateBeforeDelete.isAdminUser && !isOwner) {
           set({ toastMessage: "Faqat e'lon egasi uni o'chira oladi." });
-          return;
+          return false;
+        }
+        try {
+          await postsRepository.remove(postId);
+        } catch (err) {
+          set({ toastMessage: `E'lon o'chirilmadi: ${err instanceof Error ? err.message : 'Tarmoq xatosi'}` });
+          return false;
         }
         set((state) => {
           const nextPosts = state.posts.filter((p) => p.id !== postId);
@@ -853,17 +859,12 @@ export const useAgroStore = create<AgroStoreState>()(
             toastMessage: "E'lon muvaffaqiyatli o'chirildi",
           };
         });
-        postsRepository.remove(postId)
-          .then(() => {
-            if (targetPost?.mediaUrl) void deleteListingMedia(targetPost.mediaUrl);
-            if (targetPost?.posterUrl) void deleteListingMedia(targetPost.posterUrl);
-          })
-          .catch((err: Error) => {
-            set({ toastMessage: `E'lonni serverdan o'chirishda xatolik: ${err.message || 'Tarmoq xatosi'}` });
-          });
+        if (targetPost?.mediaUrl) void deleteListingMedia(targetPost.mediaUrl);
+        if (targetPost?.posterUrl) void deleteListingMedia(targetPost.posterUrl);
+        return true;
       },
 
-      updatePost: (postId, updatedFields) => {
+      updatePost: async (postId, updatedFields) => {
         const stateBeforeUpdate = get();
         const targetPost = stateBeforeUpdate.posts.find((p) => p.id === postId);
         const isOwner = Boolean(
@@ -874,26 +875,32 @@ export const useAgroStore = create<AgroStoreState>()(
         );
         if (!stateBeforeUpdate.isAdminUser && !isOwner) {
           set({ toastMessage: "Faqat e'lon egasi uni tahrirlay oladi." });
-          return;
+          return false;
+        }
+        let saved: Post;
+        try {
+          saved = await postsRepository.update(postId, updatedFields);
+          if (!saved?.id) throw new Error("E'lon topilmadi yoki tahrirlashga ruxsat yo'q");
+        } catch (err) {
+          set({ toastMessage: `Serverda saqlanmadi: ${err instanceof Error ? err.message : 'Tarmoq xatosi'}` });
+          return false;
         }
         set((state) => {
           const nextPosts = state.posts.map((p) =>
-            p.id === postId ? { ...p, ...updatedFields } : p
+            p.id === postId ? { ...p, ...saved } : p
           );
           const nextDetail = state.productDetail?.id === postId
-            ? { ...state.productDetail, ...updatedFields }
+            ? { ...state.productDetail, ...saved }
             : state.productDetail;
           cacheManager.savePostsCache(nextPosts);
           return {
             posts: nextPosts,
             productDetail: nextDetail as Post | Product | null,
             editModalItem: null,
-            toastMessage: "E'lon tahrirlandi va saqlandi!",
+            toastMessage: saved.status === 'pending' ? "E'lon saqlandi va tekshirishga yuborildi" : "E'lon tahrirlandi va saqlandi!",
           };
         });
-        postsRepository.update(postId, updatedFields).catch((err: Error) => {
-          set({ toastMessage: `Serverda saqlanmadi: ${err.message || 'Xatolik'}` });
-        });
+        return true;
       },
 
       deleteProduct: (productId) => {
@@ -950,7 +957,7 @@ export const useAgroStore = create<AgroStoreState>()(
       approvePost: (postId) => {
         set((state) => ({
           posts: state.posts.map((p) =>
-            p.id === postId ? { ...p, status: 'approved' } : p
+            p.id === postId ? { ...p, status: 'approved', rejectionReason: '' } : p
           ),
           toastMessage: "E'lon tasdiqlandi va nashr qilindi!",
         }));

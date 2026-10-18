@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Search, CheckCircle, XCircle, Trash2, CheckSquare, Square } from 'lucide-react';
 import { Post } from '../../data/mockAgroData';
 import { adminRepository } from '../../api/adminRepository';
@@ -18,7 +18,7 @@ type PostStatus = 'all' | 'pending' | 'approved' | 'rejected' | 'blocked';
 interface AdminPostsTabProps {
   posts: Post[];
   onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
   onDelete: (id: string) => void;
   onLogAction: (action: string, targetId: string, oldVal: any, newVal: any) => void;
   showToast: (msg: string) => void;
@@ -48,6 +48,12 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
     return matchSearch && matchStatus;
   });
 
+  const actionLock = useRef(false);
+  const isBusy = actingId !== null || isBulkProcessing || isRejectSubmitting;
+  useEffect(() => {
+    setSelectedIds(ids => ids.filter(id => posts.some(post => post.id === id)));
+  }, [posts]);
+  const allFilteredSelected = filtered.length > 0 && filtered.every(post => selectedIds.includes(post.id));
   const pending = posts.filter((p) => p.status === 'pending').length;
 
   const toggleSelect = (id: string) => {
@@ -55,36 +61,42 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
   };
 
   const selectAllFiltered = () => {
-    if (selectedIds.length === filtered.length) {
-      setSelectedIds([]);
+    if (allFilteredSelected) {
+      setSelectedIds(ids => ids.filter(id => !filtered.some(post => post.id === id)));
     } else {
-      setSelectedIds(filtered.map((p) => p.id));
+      setSelectedIds(ids => [...new Set([...ids, ...filtered.map(p => p.id)])]);
     }
   };
 
   const handleApprove = async (post: Post) => {
+    if (actionLock.current) return;
+    actionLock.current = true;
     setActingId(post.id);
     try {
       await adminRepository.updatePostModeration(post.id, 'approved');
-      await onLogAction('approve_post', post.id, { status: 'pending' }, { status: 'approved' });
+      await onLogAction('approve_post', post.id, { status: post.status }, { status: 'approved' });
       onApprove(post.id);
       showToast("E'lon tasdiqlandi!");
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
     } finally {
+      actionLock.current = false;
       setActingId(null);
     }
   };
 
   const handleBulkApprove = async () => {
+    if (actionLock.current) return;
     if (!selectedIds.length) return;
     if (!window.confirm(`${selectedIds.length} ta tanlangan e'lonni tasdiqlashni xohlaysizmi?`)) return;
 
+    actionLock.current = true;
     setIsBulkProcessing(true);
     try {
       for (const id of selectedIds) {
         await adminRepository.updatePostModeration(id, 'approved');
         onApprove(id);
+        setSelectedIds(ids => ids.filter(value => value !== id));
       }
       await onLogAction('bulk_approve_posts', 'batch', { count: selectedIds.length }, { status: 'approved' });
       showToast(`${selectedIds.length} ta e'lon bir vaqtda tasdiqlandi!`);
@@ -92,19 +104,23 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
     } finally {
+      actionLock.current = false;
       setIsBulkProcessing(false);
     }
   };
 
   const handleBulkDelete = async () => {
+    if (actionLock.current) return;
     if (!selectedIds.length) return;
     if (!window.confirm(`${selectedIds.length} ta tanlangan e'lonni o'chirishni tasdiqlaysizmi?`)) return;
 
+    actionLock.current = true;
     setIsBulkProcessing(true);
     try {
       for (const id of selectedIds) {
         await adminRepository.deletePostByAdmin(id);
         onDelete(id);
+        setSelectedIds(ids => ids.filter(value => value !== id));
       }
       await onLogAction('bulk_delete_posts', 'batch', { count: selectedIds.length }, null);
       showToast(`${selectedIds.length} ta e'lon o'chirildi!`);
@@ -112,21 +128,26 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
     } finally {
+      actionLock.current = false;
       setIsBulkProcessing(false);
     }
   };
 
   const handleRejectSubmit = async () => {
+    if (actionLock.current) return;
     if (!rejectModal || !rejectModal.ids.length) return;
     const finalReason = rejectReason === 'Boshqa sabab...' ? customReason.trim() : rejectReason;
     if (!finalReason) { showToast('Rad etish sababini kiriting'); return; }
 
+    actionLock.current = true;
     setIsRejectSubmitting(true);
     try {
       for (const id of rejectModal.ids) {
         await adminRepository.updatePostModeration(id, 'rejected', finalReason);
-        await onLogAction('reject_post', id, { status: 'pending' }, { status: 'rejected', reason: finalReason });
-        onReject(id);
+        await onLogAction('reject_post', id, { status: posts.find(post => post.id === id)?.status }, { status: 'rejected', reason: finalReason });
+        onReject(id, finalReason);
+        setSelectedIds(ids => ids.filter(value => value !== id));
+        setRejectModal(modal => modal ? { ...modal, ids: modal.ids.filter(value => value !== id) } : null);
       }
       showToast(`${rejectModal.ids.length} ta e'lon rad etildi: ${finalReason}`);
       setRejectModal(null);
@@ -134,12 +155,15 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
     } finally {
+      actionLock.current = false;
       setIsRejectSubmitting(false);
     }
   };
 
   const handleDelete = async (post: Post) => {
+    if (actionLock.current) return;
     if (!window.confirm(`"${post.title}" — o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.`)) return;
+    actionLock.current = true;
     setActingId(post.id);
     try {
       await adminRepository.deletePostByAdmin(post.id);
@@ -149,6 +173,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
     } catch (e: any) {
       showToast(e.message || 'Xatolik yuz berdi');
     } finally {
+      actionLock.current = false;
       setActingId(null);
     }
   };
@@ -167,21 +192,21 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
             <span className="text-xs font-black text-[#D84315]">{selectedIds.length} ta tanlandi</span>
             <button
               onClick={handleBulkApprove}
-              disabled={isBulkProcessing}
+              disabled={isBusy}
               className="px-2.5 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black cursor-pointer"
             >
               Tasdiqlash
             </button>
             <button
               onClick={() => setRejectModal({ ids: selectedIds, title: `${selectedIds.length} ta e'lon` })}
-              disabled={isBulkProcessing}
+              disabled={isBusy}
               className="px-2.5 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black cursor-pointer"
             >
               Rad etish
             </button>
             <button
               onClick={handleBulkDelete}
-              disabled={isBulkProcessing}
+              disabled={isBusy}
               className="px-2.5 py-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-black cursor-pointer"
             >
               O'chirish
@@ -206,7 +231,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
           onClick={selectAllFiltered}
           className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
         >
-          {selectedIds.length === filtered.length && filtered.length > 0 ? (
+          {allFilteredSelected ? (
             <CheckSquare className="w-3.5 h-3.5 text-[#D84315]" />
           ) : (
             <Square className="w-3.5 h-3.5" />
@@ -282,10 +307,10 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                   <p className="text-[10px] font-bold text-[#D84315]">{post.price}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {postStatus === 'pending' && (
+                  {postStatus !== 'approved' && (
                     <>
                       <button
-                        disabled={actingId === post.id}
+                        disabled={isBusy}
                         onClick={() => handleApprove(post)}
                         className="p-1.5 rounded-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-600 transition-colors disabled:opacity-50"
                         title="Tasdiqlash"
@@ -293,7 +318,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                         <CheckCircle className="w-4 h-4" />
                       </button>
                       <button
-                        disabled={actingId === post.id}
+                        disabled={isBusy}
                         onClick={() => setRejectModal({ ids: [post.id], title: post.title })}
                         className="p-1.5 rounded-[10px] bg-amber-50 hover:bg-amber-100 text-amber-600 transition-colors disabled:opacity-50"
                         title="Rad etish"
@@ -303,7 +328,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                     </>
                   )}
                   <button
-                    disabled={actingId === post.id}
+                    disabled={isBusy}
                     onClick={() => handleDelete(post)}
                     className="p-1.5 rounded-[10px] bg-red-50 hover:bg-red-100 text-red-600 transition-colors disabled:opacity-50"
                     title="O'chirish"
@@ -347,6 +372,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
             )}
             <div className="flex gap-2 pt-1">
               <button
+                disabled={isRejectSubmitting}
                 onClick={() => setRejectModal(null)}
                 className="flex-1 py-3 rounded-[16px] bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
               >

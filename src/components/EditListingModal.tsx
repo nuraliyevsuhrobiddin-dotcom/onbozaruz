@@ -19,6 +19,7 @@ export const EditListingModal: React.FC = () => {
     categories: allCategories,
   } = useAgroStore();
 
+  const [isSaving, setIsSaving] = useState(false);
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
   const [numericPrice, setNumericPrice] = useState('');
@@ -56,8 +57,9 @@ export const EditListingModal: React.FC = () => {
   // Posts and products draw from separate admin-managed category lists.
   const categories = categoriesForScope(allCategories, isPost ? 'post' : 'market');
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     if (!title.trim()) {
       showToast("Mahsulot sarlavhasini kiriting");
       return;
@@ -66,7 +68,8 @@ export const EditListingModal: React.FC = () => {
     const selectedCategoryObj = allCategories.find((c) => c.id === category);
 
     if (isPost) {
-      updatePost(editModalItem.id, {
+      setIsSaving(true);
+      const saved = await updatePost(editModalItem.id, {
         title,
         price,
         numericPrice: Number(numericPrice) || 0,
@@ -74,8 +77,10 @@ export const EditListingModal: React.FC = () => {
         categoryName: selectedCategoryObj?.name || 'Meva-Sabzavot',
         location,
         minOrder,
-        ...(phone ? { phone } : {}),
+        phone: phone.trim(),
       });
+      setIsSaving(false);
+      if (!saved) return;
     } else {
       updateProduct(editModalItem.id, {
         title,
@@ -92,10 +97,14 @@ export const EditListingModal: React.FC = () => {
     setEditModalItem(null);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    if (isSaving) return;
     if (window.confirm("Rostdan ham ushbu e'lonni o'chirmoqchimisiz?")) {
       if (isPost) {
-        deletePost(editModalItem.id);
+        setIsSaving(true);
+        const deleted = await deletePost(editModalItem.id);
+        setIsSaving(false);
+        if (!deleted) return;
       } else {
         deleteProduct(editModalItem.id);
       }
@@ -110,6 +119,7 @@ export const EditListingModal: React.FC = () => {
       title="E'lonni tahrirlash"
     >
       <form onSubmit={handleSave} className="space-y-4">
+        <fieldset disabled={isSaving} className="space-y-4">
         {/* Sarlavha / Nomi */}
         <label className="block space-y-1.5">
           <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
@@ -264,6 +274,7 @@ export const EditListingModal: React.FC = () => {
             Saqlash
           </button>
         </div>
+        </fieldset>
       </form>
     </Modal>
   );

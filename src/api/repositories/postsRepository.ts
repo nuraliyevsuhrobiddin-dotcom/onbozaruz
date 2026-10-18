@@ -41,7 +41,15 @@ export const postsRepository = {
   update: (id: string, patch: Partial<Post>) => api.patch<Post>(`/posts/${id}`, patch),
 
   /** DELETE /posts/:id */
-  remove: (id: string) => api.delete<{ id: string }>(`/posts/${id}`),
+  remove: async (id: string): Promise<{ id: string }> => {
+    if (!supabaseClient || import.meta.env.VITE_USE_MOCK_API === 'true') {
+      return api.delete<{ id: string }>(`/posts/${id}`);
+    }
+    const { data, error } = await supabaseClient.from('posts').delete().eq('id', id).select('id').single();
+    if (error) throw new Error(error.message);
+    if (!data) throw new Error("E'lon o'chirilmadi");
+    return data;
+  },
 
   incrementViews: (id: string) => incrementPostViewsOnServer(id),
 };

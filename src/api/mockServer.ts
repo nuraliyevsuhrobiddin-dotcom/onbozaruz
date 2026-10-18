@@ -61,6 +61,7 @@ export const mockServer = {
       const post: Post = {
         ...input,
         id: buildPostId(now),
+        status: 'pending',
         likesCount: 0,
         commentsCount: 0,
         viewsCount: 0,

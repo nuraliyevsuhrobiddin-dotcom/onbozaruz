@@ -5,6 +5,8 @@
 
 import { CATEGORIES } from '../data/mockAgroData';
 import { supabaseClient } from './authClient';
+import { api, normalizeApiRow } from './http';
+import type { Post } from './types';
 
 const supabase = supabaseClient;
 
@@ -115,6 +117,23 @@ export interface AdminAuditLog {
 }
 
 export const adminRepository = {
+  // Moderation must include all statuses, independent of feed location and expiry.
+  async getPosts(): Promise<Post[]> {
+    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
+      return api.get<Post[]>('/posts');
+    }
+    const posts: Post[] = [];
+    const pageSize = 500;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase.from('posts').select('*')
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(`E'lonlar yuklanmadi: ${error.message}`);
+      posts.push(...normalizeApiRow<Post[]>(data || []));
+      if (!data || data.length < pageSize) return posts;
+    }
+  },
+
   async getStats(): Promise<AdminStats> {
     const offlineFallback: AdminStats = {
       totalUsers: 0,
@@ -350,19 +369,26 @@ export const adminRepository = {
   },
 
   async updatePostModeration(postId: string, status: 'approved' | 'rejected' | 'blocked', rejectionReason = ''): Promise<void> {
-    if (!supabase) return;
-    const { error } = await supabase.from('posts').update({
+    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
+      await api.patch(`/posts/${postId}`, { status, rejectionReason });
+      return;
+    }
+    const { data, error } = await supabase.from('posts').update({
       status,
       rejection_reason: rejectionReason,
       updated_at: new Date().toISOString(),
-    }).eq('id', postId);
+    }).eq('id', postId).select('id, status').single();
 
     if (error) throw new Error(`E'lon moderatsiyasi yangilanmadi: ${error.message}`);
+    if (!data || data.status !== status) throw new Error("E'lon holati saqlanmadi. Admin huquqlarini tekshiring.");
   },
 
   async deletePostByAdmin(postId: string): Promise<void> {
-    if (!supabase) return;
-    const { error } = await supabase.from('posts').delete().eq('id', postId);
+    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
+      await api.delete(`/posts/${postId}`);
+      return;
+    }
+    const { error } = await supabase.from('posts').delete().eq('id', postId).select('id').single();
     if (error) throw new Error(`E'lon o'chirilmadi: ${error.message}`);
   },
 
