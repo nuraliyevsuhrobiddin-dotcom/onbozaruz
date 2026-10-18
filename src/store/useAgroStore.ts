@@ -35,7 +35,7 @@ import { productReviewsRepository } from '../api/repositories/productReviewsRepo
 import { subscribeToNotifications } from '../api/notificationsRealtime';
 import { playNotificationSound } from '../utils/notificationSound';
 import { showDeviceNotification } from '../utils/deviceNotifications';
-import { syncWebPushSubscription } from '../utils/webPush';
+import { syncWebPushSubscription, unsubscribeWebPush } from '../utils/webPush';
 import { cacheManager } from '../utils/cacheManager';
 import { adminRepository } from '../api/adminRepository';
 import { b2bRepository, DEFAULT_PLATFORM_REQUISITES, type B2BDeliveryInfo, type CheckoutResult } from '../api/b2bRepository';
@@ -579,6 +579,7 @@ export const useAgroStore = create<AgroStoreState>()(
         },
 
         logoutUser: async () => {
+          await unsubscribeWebPush();
           await authClient.signOut();
           get().clearSession();
         },

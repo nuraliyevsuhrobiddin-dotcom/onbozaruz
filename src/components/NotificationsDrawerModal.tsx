@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BottomSheet } from './ui/BottomSheet';
+import { postsRepository } from '../api/repositories/postsRepository';
+import { productsRepository } from '../api/repositories/productsRepository';
 import { useAgroStore } from '../store/useAgroStore';
 import {
   Bell,
@@ -91,7 +93,7 @@ export const NotificationsDrawerModal: React.FC = () => {
     markNotificationRead,
     markAllNotificationsRead,
     posts,
-    orders,
+    products,
     setProductDetail,
     setActiveSubView,
     setActiveTab,
@@ -139,15 +141,23 @@ export const NotificationsDrawerModal: React.FC = () => {
     await sendDeviceTest('Sinov ovozi va bildirishnomasi yuborildi');
   };
 
-  const handleSelect = (notification: Notification) => {
+  const handleSelect = async (notification: Notification) => {
     if (!notification.isRead) void markNotificationRead(notification.id);
 
     if (notification.targetType === 'post' || notification.targetType === 'product') {
-      const post = posts.find((p) => p.id === notification.targetId);
-      if (post) setProductDetail(post);
+      try {
+        const isPost = notification.targetType === 'post';
+        const cached = (isPost ? posts : products).find(p => p.id === notification.targetId);
+        const detail = cached || await (isPost ? postsRepository.get(notification.targetId) : productsRepository.get(notification.targetId));
+        if (!detail) throw new Error('Not found');
+        setProductDetail(detail);
+      } catch {
+        showToast("E'lon topilmadi yoki uni ko'rishga ruxsat yo'q");
+        return;
+      }
     } else if (notification.targetType === 'order') {
-      const order = orders.find((o) => o.id === notification.targetId);
-      if (order) { setActiveTab('profile'); setActiveSubView('orders'); }
+      setActiveTab('profile');
+      setActiveSubView('orders');
     } else if (notification.targetType === 'b2b_order' && notification.targetId) {
       setActiveTab('market');
       setB2BRoute({ view: 'order', id: notification.targetId });

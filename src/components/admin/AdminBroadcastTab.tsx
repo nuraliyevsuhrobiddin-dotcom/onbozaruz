@@ -62,11 +62,12 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
 
     setIsSending(true);
     try {
-      await adminRepository.sendBroadcastAnnouncement(
+      const sent = await adminRepository.sendBroadcastAnnouncement(
         title.trim(),
         message.trim(),
         targetRole
       );
+      if (sent === 0) { showToast("Xabar yuborish uchun foydalanuvchi topilmadi"); return; }
       await onLogAction('send_broadcast_announcement', targetRole, null, { title, message, targetRole });
 
       showToast(`✅ Ommaviy xabarnoma muvaffaqiyatli yuborildi!`);

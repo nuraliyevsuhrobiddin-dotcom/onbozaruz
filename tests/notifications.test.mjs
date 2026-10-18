@@ -205,3 +205,30 @@ test('Expired push endpoints are removed', async () => {
   assert.equal(response.body.expired, 1);
   assert.deepEqual(deleted, ['https://push.test']);
 });
+
+test('logout revokes the current browser push endpoint', async () => {
+  let revoked = false;
+  const api = await push(async () => Response.json({ ok: true }), undefined, {
+    navigator: { serviceWorker: { getRegistration: async () => ({ pushManager: {
+      getSubscription: async () => ({ unsubscribe: async () => { revoked = true; return true; } }),
+    } }) } },
+  });
+  await api.unsubscribeWebPush();
+  assert.equal(revoked, true);
+});
+
+test('logout surfaces failed push revocation instead of silently leaving an active endpoint', async () => {
+  const api = await push(async () => Response.json({ ok: true }), undefined, {
+    navigator: { serviceWorker: { getRegistration: async () => ({ pushManager: {
+      getSubscription: async () => ({ unsubscribe: async () => false }),
+    } }) } },
+  });
+  await assert.rejects(api.unsubscribeWebPush(), /uzib/);
+});
+
+test('logout without a browser push registration is safe', async () => {
+  const api = await push(async () => Response.json({ ok: true }), undefined, {
+    navigator: { serviceWorker: { getRegistration: async () => undefined } },
+  });
+  await api.unsubscribeWebPush();
+});

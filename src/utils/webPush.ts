@@ -53,3 +53,13 @@ export async function syncWebPushSubscription(): Promise<boolean> {
     return false;
   }
 }
+
+/** Revoke this browser endpoint before signing out so the previous account cannot push to it. */
+export async function unsubscribeWebPush(): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  const registration = await navigator.serviceWorker.getRegistration();
+  const subscription = await registration?.pushManager?.getSubscription();
+  if (subscription && !await subscription.unsubscribe()) {
+    throw new Error("Telefon bildirishnomalarini uzib bo'lmadi. Qayta urinib ko'ring.");
+  }
+}

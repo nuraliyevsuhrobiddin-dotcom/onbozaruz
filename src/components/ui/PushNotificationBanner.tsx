@@ -16,6 +16,8 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { Notification, NotificationType } from '../../api/types';
+import { postsRepository } from '../../api/repositories/postsRepository';
+import { productsRepository } from '../../api/repositories/productsRepository';
 import { useAgroStore } from '../../store/useAgroStore';
 
 const ICON_MAP: Record<NotificationType, React.ElementType> = {
@@ -65,13 +67,14 @@ export const PushNotificationBanner: React.FC = () => {
     pushNotification,
     clearPushNotification,
     posts,
-    orders,
+    products,
     setProductDetail,
     setActiveSubView,
     setActiveTab,
     setB2BRoute,
     setNotificationsOpen,
     markNotificationRead,
+    showToast,
   } = useAgroStore();
 
   const [activeItem, setActiveItem] = useState<Notification | null>(null);
@@ -79,9 +82,7 @@ export const PushNotificationBanner: React.FC = () => {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (pushNotification) {
-      setActiveItem(pushNotification);
-    }
+    setActiveItem(pushNotification);
   }, [pushNotification]);
 
   const handleClose = useCallback(() => {
@@ -102,18 +103,24 @@ export const PushNotificationBanner: React.FC = () => {
     };
   }, [activeItem, isHovered, handleClose]);
 
-  const handleClick = () => {
+  const handleClick = async () => {
     if (!activeItem) return;
     void markNotificationRead(activeItem.id);
 
     if (activeItem.targetType === 'post' || activeItem.targetType === 'product') {
-      const post = posts.find((p) => p.id === activeItem.targetId);
-      if (post) setProductDetail(post);
-      else setNotificationsOpen(true);
+      try {
+        const isPost = activeItem.targetType === 'post';
+        const cached = (isPost ? posts : products).find(p => p.id === activeItem.targetId);
+        const detail = cached || await (isPost ? postsRepository.get(activeItem.targetId) : productsRepository.get(activeItem.targetId));
+        if (!detail) throw new Error('Not found');
+        setProductDetail(detail);
+      } catch {
+        showToast("E'lon topilmadi yoki uni ko'rishga ruxsat yo'q");
+        return;
+      }
     } else if (activeItem.targetType === 'order') {
-      const order = orders.find((o) => o.id === activeItem.targetId);
-      if (order) setActiveSubView('orders');
-      else setNotificationsOpen(true);
+      setActiveTab('profile');
+      setActiveSubView('orders');
     } else if (activeItem.targetType === 'b2b_order' && activeItem.targetId) {
       setActiveTab('market');
       setB2BRoute({ view: 'order', id: activeItem.targetId });

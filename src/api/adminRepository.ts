@@ -331,41 +331,28 @@ export const adminRepository = {
       createdAt: new Date().toISOString(),
     };
 
-    // Save to mock storage / local broadcasts
-    const history = readMock<any[]>('mollbazar-admin-broadcasts', []);
-    writeMock('mollbazar-admin-broadcasts', [payload, ...history]);
-
-    if (!supabase) {
-      // In mock mode, insert notification for current user or mock users
+    const saveHistory = () => {
+      const history = readMock<any[]>('mollbazar-admin-broadcasts', []);
+      writeMock('mollbazar-admin-broadcasts', [payload, ...history]);
+    };
+    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
+      saveHistory();
       return 1;
     }
-
-    try {
-      // Fetch target user IDs
-      let query = supabase.from('profiles').select('id');
-      if (targetRole === 'business') query = query.eq('role', 'business');
-      if (targetRole === 'supplier') query = query.eq('role', 'supplier');
-
-      const { data: users } = await query;
-      if (!users || users.length === 0) return 0;
-
-      const notifications = users.map((u) => ({
-        user_id: u.id,
-        type: 'broadcast',
-        title,
-        body: message,    // trigger-based columns use 'body'
-        message,          // broadcast code uses 'message' (§13.1 patch)
-        target_type: 'announcement',
-        target_id: payload.id,
-        is_read: false,
-        created_at: new Date().toISOString(),
-      }));
-
-      await supabase.from('notifications').insert(notifications);
-      return notifications.length;
-    } catch {
-      return 0;
-    }
+    let query = supabase.from('profiles').select('id');
+    if (targetRole === 'business') query = query.in('role', ['business', 'business_buyer']);
+    if (targetRole === 'supplier') query = query.eq('role', 'supplier');
+    const { data: users, error: usersError } = await query;
+    if (usersError) throw new Error(usersError.message);
+    if (!users?.length) return 0;
+    const notifications = users.map(u => ({
+      user_id: u.id, type: 'broadcast', title, body: message,
+      target_type: 'announcement', target_id: payload.id, is_read: false,
+    }));
+    const { error } = await supabase.from('notifications').insert(notifications);
+    if (error) throw new Error(`Xabarnoma yuborilmadi: ${error.message}`);
+    saveHistory();
+    return notifications.length;
   },
 
   async updatePostModeration(postId: string, status: 'approved' | 'rejected' | 'blocked', rejectionReason = ''): Promise<void> {

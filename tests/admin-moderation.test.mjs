@@ -118,3 +118,25 @@ test('delete changes UI only after the server confirms success', async () => {
   assert.equal(store.state().posts.length, 0);
   assert.equal(store.state().productDetail, null);
 });
+
+test('broadcast propagates insert failures instead of reporting delivery', async () => {
+  const repo = await repository({ from: table => table === 'profiles'
+    ? { select: async () => ({ data: [{ id: 'user' }], error: null }) }
+    : { insert: async () => ({ error: { message: 'Permission denied' } }) } });
+  await assert.rejects(repo.sendBroadcastAnnouncement('Title', 'Body'), /Permission denied/);
+});
+
+test('broadcast propagates recipient lookup failures', async () => {
+  const repo = await repository({ from: () => ({ select: async () => ({ error: { message: 'Read failed' } }) }) });
+  await assert.rejects(repo.sendBroadcastAnnouncement('Title', 'Body'), /Read failed/);
+});
+
+test('broadcast writes the canonical body and returns the accepted recipient count', async () => {
+  let sent;
+  const repo = await repository({ from: table => table === 'profiles'
+    ? { select: async () => ({ data: [{ id: 'user' }], error: null }) }
+    : { insert: async rows => { sent = rows; return { error: null }; } } });
+  assert.equal(await repo.sendBroadcastAnnouncement('Title', 'Body'), 1);
+  assert.equal(sent[0].body, 'Body');
+  assert.equal('message' in sent[0], false);
+});
