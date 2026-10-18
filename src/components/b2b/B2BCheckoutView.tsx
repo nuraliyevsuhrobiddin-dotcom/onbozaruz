@@ -23,7 +23,7 @@ export const B2BCheckoutView: React.FC = () => {
     phone: businessProfile?.phone || currentUser?.phone || '',
     region: businessProfile?.region || '',
     district: businessProfile?.district || '',
-    address: '',
+    address: businessProfile?.address || '',
     note: '',
   });
   const [paymentMethod, setPaymentMethod] = useState<B2BPaymentMethod>('cash');
@@ -120,6 +120,7 @@ export const B2BCheckoutView: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
     if (!form.storeName.trim() || !form.phone.trim() || !form.region || !form.district.trim() || !form.address.trim()) {
       setError("Yetkazib berish uchun barcha majburiy ma'lumotlarni to'ldiring");
@@ -133,8 +134,9 @@ export const B2BCheckoutView: React.FC = () => {
           ownerName: currentUser?.name || form.storeName.trim(),
           phone: form.phone.trim(),
           businessType: 'grocery',
-          region: form.region || 'Toshkent',
-          district: form.district || 'Boshqa',
+          region: form.region.trim(),
+          district: form.district.trim(),
+          address: form.address.trim(),
           description: "Avtomatik yaratilgan biznes profil",
         });
       }
