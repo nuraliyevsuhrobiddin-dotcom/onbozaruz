@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { sendApiJson } from '../lib/supabaseAuth';
+import { sendApiJson } from '../_lib/supabaseAuth';
 
 /** Password reset tokens must be created and emailed by Supabase Auth. */
 export default async function handler(req: IncomingMessage, res: ServerResponse) {

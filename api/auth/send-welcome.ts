@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { createClient } from '@supabase/supabase-js';
-import { getResendClient, DEFAULT_FROM_EMAIL } from '../lib/resendClient';
-import { getWelcomeEmailTemplate } from '../lib/emailTemplates';
-import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
+import { getResendClient, DEFAULT_FROM_EMAIL } from '../_lib/resendClient';
+import { getWelcomeEmailTemplate } from '../_lib/emailTemplates';
+import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../_lib/supabaseAuth';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') {

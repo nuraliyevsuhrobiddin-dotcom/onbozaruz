@@ -22,7 +22,7 @@ async function load(relativePath, globals, dependencies = {}, env = {}) {
   return module.namespace;
 }
 
-const pushEndpointPolicy = await load('../api/lib/pushEndpoint.ts', { Buffer });
+const pushEndpointPolicy = await load('../api/_lib/pushEndpoint.ts', { Buffer });
 const storedEndpoint = 'https://fcm.googleapis.com/fcm/send/test';
 const storedKeys = { p256dh: Buffer.concat([Buffer.from([4]), Buffer.alloc(64, 1)]).toString('base64url'), auth: Buffer.alloc(16, 1).toString('base64url') };
 
@@ -173,9 +173,9 @@ async function delivery({ statusCode, secret = 'shared-secret', endpoint = store
         if (statusCode) throw { statusCode };
       },
     },
-    '../lib/requestBody': { readJsonBody: async () => ({ notification_id: 'notification-1' }) },
-    '../lib/pushEndpoint': pushEndpointPolicy,
-    '../lib/supabaseAuth': {
+    '../_lib/requestBody': { readJsonBody: async () => ({ notification_id: 'notification-1' }) },
+    '../_lib/pushEndpoint': pushEndpointPolicy,
+    '../_lib/supabaseAuth': {
       getSupabaseServerConfig: () => ({ url: 'https://db.test', serviceRoleKey: 'server-only' }),
       sendApiJson: (_res, status, body) => { response = { status, body }; },
     },

@@ -2,9 +2,9 @@ import { timingSafeEqual } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import * as webpush from 'web-push';
-import { readJsonBody } from '../lib/requestBody';
-import { isAllowedPushEndpoint, isValidPushKeys } from '../lib/pushEndpoint';
-import { getSupabaseServerConfig, sendApiJson } from '../lib/supabaseAuth';
+import { readJsonBody } from '../_lib/requestBody';
+import { isAllowedPushEndpoint, isValidPushKeys } from '../_lib/pushEndpoint';
+import { getSupabaseServerConfig, sendApiJson } from '../_lib/supabaseAuth';
 
 type DeliveryPayload = { notification_id?: unknown };
 type StoredSubscription = { endpoint: string; p256dh: string; auth: string };

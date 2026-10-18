@@ -19,7 +19,7 @@ async function load(path, dependencies = {}, globals = {}, env = {}) {
   return module.namespace;
 }
 
-const endpointPolicy = await load('../api/lib/pushEndpoint.ts');
+const endpointPolicy = await load('../api/_lib/pushEndpoint.ts');
 test('Push endpoints reject internal hosts, lookalikes, credentials and nonstandard ports', () => {
   for (const endpoint of ['https://127.0.0.1/a', 'https://[::1]/', 'https://169.254.169.254/',
     'https://fcm.googleapis.com.attacker.test/a', 'https://attackerfcm.googleapis.com/',
@@ -42,7 +42,7 @@ for (const [name, result, expected] of [
 ]) {
   test(`Server authentication: ${name}`, async () => {
     let config, body;
-    const api = await load('../api/lib/supabaseAuth.ts', {
+    const api = await load('../api/_lib/supabaseAuth.ts', {
       '@supabase/supabase-js': { createClient: (_url, _key, options) => {
         config = options;
         const query = { select: () => query, eq: () => query, maybeSingle: async () => result };
@@ -65,11 +65,11 @@ test('Welcome mail reserves a persistent slot before sending and fails closed', 
       assert.equal(name, 'claim_welcome_email'); assert.equal(args.p_user_id, 'user');
       return reservation;
     } }) },
-    '../lib/resendClient': { DEFAULT_FROM_EMAIL: 'test@test.invalid', getResendClient: () => ({ emails: { send: async () => {
+    '../_lib/resendClient': { DEFAULT_FROM_EMAIL: 'test@test.invalid', getResendClient: () => ({ emails: { send: async () => {
       sends++; return { data: { id: 'email' } };
     } } }) },
-    '../lib/emailTemplates': { getWelcomeEmailTemplate: () => ({ subject: 'welcome', html: 'welcome', text: 'welcome' }) },
-    '../lib/supabaseAuth': {
+    '../_lib/emailTemplates': { getWelcomeEmailTemplate: () => ({ subject: 'welcome', html: 'welcome', text: 'welcome' }) },
+    '../_lib/supabaseAuth': {
       requireAuthenticatedUser: async () => ({ id: 'user', email: 'user@test.invalid', email_confirmed_at: '2026-10-18' }),
       getSupabaseServerConfig: () => ({ url: 'https://db.test', serviceRoleKey: 'secret' }),
       sendApiJson: (_res, status, body) => { response = { status, body }; },

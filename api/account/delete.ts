@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
+import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../_lib/supabaseAuth';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') {

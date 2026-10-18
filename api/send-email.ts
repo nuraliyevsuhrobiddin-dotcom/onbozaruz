@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { sendApiJson } from './lib/supabaseAuth';
+import { sendApiJson } from './_lib/supabaseAuth';
 
 /**
  * Kept solely for backwards-compatible errors. The former endpoint accepted

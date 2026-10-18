@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { readJsonBody } from '../lib/requestBody';
-import { isAllowedPushEndpoint, isValidPushKeys } from '../lib/pushEndpoint';
-import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../lib/supabaseAuth';
+import { readJsonBody } from '../_lib/requestBody';
+import { isAllowedPushEndpoint, isValidPushKeys } from '../_lib/pushEndpoint';
+import { getSupabaseServerConfig, requireAuthenticatedUser, sendApiJson } from '../_lib/supabaseAuth';
 
 type PushSubscriptionPayload = {
   endpoint?: unknown;
