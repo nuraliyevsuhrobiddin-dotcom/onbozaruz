@@ -87,12 +87,12 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
     if (!stats) return [];
     
     return [
-      { label: 'Foydalanuvchilar', value: stats.totalUsers <= 1_000 ? '1000+' : fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
+      { label: 'Foydalanuvchilar', value: stats.totalUsers <= 1_000 ? '1000' : fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
       { label: "Jami e'lonlar", value: fmt(stats.totalPosts), icon: Megaphone, color: 'bg-emerald-50 text-emerald-600', trend: `${stats.activePosts} faol` },
       { label: 'B2B Supplierlar', value: fmt(stats.totalSuppliers), icon: Factory, color: 'bg-indigo-50 text-indigo-600', trend: 'ulgurji ta\'minotchi' },
       { label: 'B2B Mahsulotlar', value: fmt(stats.totalB2BProducts), icon: Package, color: 'bg-violet-50 text-violet-600', trend: 'ulgurji katalog' },
       { label: "Do'konlar", value: fmt(stats.totalBusinesses), icon: Factory, color: 'bg-cyan-50 text-cyan-600', trend: 'biznes hamkorlar' },
-      { label: 'B2B Buyurtmalar', value: stats.totalOrders <= 500 ? '500+' : fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
+      { label: 'B2B Buyurtmalar', value: stats.totalOrders <= 500 ? '500' : fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
       { label: 'Umumiy aylanma', value: fmtSum(Math.max(stats.totalSales, 50_000_000)), icon: BarChart3, color: 'bg-teal-50 text-teal-600', trend: '' },
       { label: 'B2B Komissiya tushumi', value: fmtSum(stats.totalCommission), icon: Percent, color: 'bg-amber-50 text-amber-600', trend: '' },
     ];
