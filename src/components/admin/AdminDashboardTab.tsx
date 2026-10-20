@@ -33,6 +33,18 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
 
+  // Presentation totals stay separate from database records and CSV exports.
+  const displayStats = useMemo(() => stats ? {
+    ...stats,
+    totalPosts: Math.max(stats.totalPosts, stats.activePosts, 850),
+    activePosts: Math.max(stats.activePosts, 720),
+    totalSuppliers: Math.max(stats.totalSuppliers, 45),
+    totalBusinesses: Math.max(stats.totalBusinesses, 120),
+    totalB2BProducts: Math.max(stats.totalB2BProducts, 350),
+    totalCommission: Math.max(stats.totalCommission, 2_500_000),
+    activeSellers: Math.max(stats.activeSellers, 280),
+  } : null, [stats]);
+
   const loadStats = () => {
     setLoading(true);
     adminRepository
@@ -71,17 +83,20 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
   };
 
   const cards = useMemo(() => {
+    const stats = displayStats;
     if (!stats) return [];
     
     return [
-      { label: 'Foydalanuvchilar', value: fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
+      { label: 'Foydalanuvchilar', value: stats.totalUsers <= 1_000 ? '1000+' : fmt(stats.totalUsers), icon: Users, color: 'bg-blue-50 text-blue-600', trend: `${stats.totalBusinesses} ta do'kon` },
       { label: "Jami e'lonlar", value: fmt(stats.totalPosts), icon: Megaphone, color: 'bg-emerald-50 text-emerald-600', trend: `${stats.activePosts} faol` },
       { label: 'B2B Supplierlar', value: fmt(stats.totalSuppliers), icon: Factory, color: 'bg-indigo-50 text-indigo-600', trend: 'ulgurji ta\'minotchi' },
       { label: 'B2B Mahsulotlar', value: fmt(stats.totalB2BProducts), icon: Package, color: 'bg-violet-50 text-violet-600', trend: 'ulgurji katalog' },
-      { label: 'B2B Buyurtmalar', value: fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
-      { label: 'B2B Komissiya tushumi', value: fmtSum(stats.totalCommission), icon: Percent, color: 'bg-amber-50 text-amber-600', trend: `${fmtSum(stats.totalSales)} savdo` },
+      { label: "Do'konlar", value: fmt(stats.totalBusinesses), icon: Factory, color: 'bg-cyan-50 text-cyan-600', trend: 'biznes hamkorlar' },
+      { label: 'B2B Buyurtmalar', value: stats.totalOrders <= 500 ? '500+' : fmt(stats.totalOrders), icon: ShoppingCart, color: 'bg-rose-50 text-rose-600', trend: `+${stats.todayOrders} bugun` },
+      { label: 'Umumiy aylanma', value: fmtSum(Math.max(stats.totalSales, 50_000_000)), icon: BarChart3, color: 'bg-teal-50 text-teal-600', trend: '' },
+      { label: 'B2B Komissiya tushumi', value: fmtSum(stats.totalCommission), icon: Percent, color: 'bg-amber-50 text-amber-600', trend: '' },
     ];
-  }, [stats]);
+  }, [displayStats]);
 
   return (
     <div className="space-y-5 select-none">
@@ -132,14 +147,17 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
       )}
 
       {/* Stat Cards */}
+      <p className="text-xs text-slate-500">
+        Taqdimot uchun namunaviy ko'rsatkichlar qo'shilgan. Grafik va eksportlar haqiqiy ma'lumotlarga asoslanadi.
+      </p>
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="h-28 bg-slate-100 rounded-[22px] animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
           {cards.map((c) => {
             const Icon = c.icon;
             return (
@@ -200,9 +218,9 @@ export const AdminDashboardTab: React.FC<AdminDashboardTabProps> = ({ adminEmail
       {stats && (
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: 'Faol e\'lonlar', val: stats.activePosts, icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
+            { label: 'Faol e\'lonlar', val: displayStats?.activePosts ?? stats.activePosts, icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50' },
             { label: 'Moderatsiya', val: stats.pendingModeration, icon: Clock, color: 'text-amber-600 bg-amber-50' },
-            { label: 'Faol sotuvchilar', val: stats.activeSellers, icon: Users, color: 'text-blue-600 bg-blue-50' },
+            { label: 'Faol sotuvchilar', val: displayStats?.activeSellers ?? stats.activeSellers, icon: Users, color: 'text-blue-600 bg-blue-50' },
           ].map((s) => {
             const Icon = s.icon;
             return (
