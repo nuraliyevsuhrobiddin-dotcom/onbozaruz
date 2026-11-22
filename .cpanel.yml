@@ -2,8 +2,9 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/oboxuz/mollbazar.uz/
-    - /bin/mkdir -p $DEPLOYPATH
     - npm ci
     - npm run build
-    - /bin/cp -R dist/. $DEPLOYPATH
-    - /bin/cp -R public/. $DEPLOYPATH
+    - /bin/cp dist/index.html $DEPLOYPATH
+    - /bin/cp -R dist/assets $DEPLOYPATH
+    - /bin/cp dist/privacy-policy.html dist/sw.js dist/manifest.webmanifest $DEPLOYPATH
+    - /bin/cp dist/*.png dist/*.svg dist/*.jpg dist/*.webp dist/*.wav $DEPLOYPATH
