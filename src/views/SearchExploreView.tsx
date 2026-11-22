@@ -166,7 +166,7 @@ const ExploreCard: React.FC<{
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-5 text-white text-xs font-extrabold backdrop-blur-[1px] z-20">
         <span className="flex items-center gap-1.5">
           <Heart className="w-4 h-4 fill-white" />
-          {(post.likesCount || 0).toLocaleString()}
+          {(Number(post.likesCount) || 0).toLocaleString()}
         </span>
         <span className="flex items-center gap-1.5">
           <MessageCircle className="w-4 h-4 fill-white" />

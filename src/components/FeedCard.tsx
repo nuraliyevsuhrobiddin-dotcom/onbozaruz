@@ -319,11 +319,11 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
         {/* Likes count + Views count */}
         <div className="flex items-center justify-between">
           <div className="font-bold text-[13px] text-[#111111]">
-            {post.likesCount.toLocaleString()} ta layk
+            {(Number(post.likesCount) || 0).toLocaleString()} ta layk
           </div>
           <div className="flex items-center gap-1 text-[11px] text-slate-400 font-medium">
             <Eye className="w-3.5 h-3.5" />
-            <span>{(post.viewsCount || 0).toLocaleString()} ta ko'rish</span>
+            <span>{(Number(post.viewsCount) || 0).toLocaleString()} ta ko'rish</span>
           </div>
         </div>
 

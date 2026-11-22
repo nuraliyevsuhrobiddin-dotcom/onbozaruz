@@ -331,7 +331,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               />
             </div>
             <span className="text-white text-[11px] sm:text-[12px] font-black drop-shadow-md">
-              {post.likesCount.toLocaleString()}
+              {(Number(post.likesCount) || 0).toLocaleString()}
             </span>
           </motion.button>
 
