@@ -14,14 +14,19 @@ import {
   Edit3,
   Trash2,
   Copy,
+  BadgeCheck,
+  RotateCcw,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Post } from '../data/mockAgroData';
+import { Post } from '../data/catalog';
 import { useAgroStore } from '../store/useAgroStore';
 import { VideoPlayer } from './ui/VideoPlayer';
+import { SoldBadge } from './ui/SoldBadge';
 import { copyText, getPostShareUrl } from '../utils/sharePost';
 import { useViewerLocation } from '../store/useViewerLocation';
 import { distanceKm, formatDistance, hasCoordinates } from '../utils/geo';
+import { formatRelativeTime } from '../utils/time';
+import { formatPrice } from '../utils/price';
 
 interface FeedCardProps {
   post: Post;
@@ -44,6 +49,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
     openVideoViewer,
     setEditModalItem,
     deletePost,
+    setPostSold,
     showToast,
     incrementPostViews,
     isAdminUser,
@@ -58,7 +64,18 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const viewedRef = useRef(false);
+
+  // Close the post menu on any tap outside it.
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const close = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setIsMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [isMenuOpen]);
 
   // Track real views with Intersection Observer
   useEffect(() => {
@@ -86,7 +103,16 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
     return () => { observer.disconnect(); clearTimeout(timer); };
   }, [post.id, incrementPostViews]);
 
-  const canManage = Boolean(isAdminUser);
+  const isOwner = Boolean(currentUser && (currentUser.id === post.userId || currentUser.id === post.sellerId));
+  const canManage = isOwner || Boolean(isAdminUser);
+  const copyLink = async () => {
+    try {
+      await copyText(getPostShareUrl(post.id));
+      showToast("E'lon havolasi nusxalandi!");
+    } catch {
+      showToast('Havolani nusxalab bo‘lmadi');
+    }
+  };
 
   const handleDoubleTap = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -138,10 +164,10 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           <div className="w-[42px] h-[42px] rounded-full p-[2px] bg-gradient-to-tr from-amber-500 via-[#D84315] to-rose-600 shrink-0 shadow-xs">
             <div className="w-full h-full rounded-full p-[1.5px] bg-white overflow-hidden">
               <img
-                src={post.sellerAvatar || '/logo.png'}
+                src={post.sellerAvatar || '/logo.png?v=2'}
                 alt={post.sellerName}
                 className="w-full h-full rounded-full object-cover"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }}
+                onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png?v=2'; }}
               />
             </div>
           </div>
@@ -165,12 +191,13 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
         </button>
 
         <div className="flex shrink-0 items-center gap-2 relative">
-          <span className="flex max-w-24 sm:max-w-36 items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
-            <Tag className="w-3 h-3 text-[#D84315]" />
+          {/* On phones the tag icon is dropped so names like "Meva-Sabzavot" fit whole. */}
+          <span className="flex max-w-[7.5rem] sm:max-w-40 items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">
+            <Tag className="hidden sm:block w-3 h-3 shrink-0 text-[#D84315]" />
             <span className="truncate">{post.categoryName}</span>
           </span>
           
-          <div className="relative">
+          <div className="relative" ref={menuRef}>
             <button
               aria-label="E'lon menyusi"
               aria-expanded={isMenuOpen}
@@ -181,15 +208,27 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
             </button>
 
             {isMenuOpen && (
-              <div className="absolute right-0 top-9 z-30 w-44 bg-white rounded-[16px] border border-slate-200 shadow-xl overflow-hidden py-1">
-                {canManage ? (
+              <div className="absolute right-0 top-9 z-30 w-52 bg-white rounded-[16px] border border-slate-200 shadow-xl overflow-hidden py-1">
+                {canManage && (
                   <>
+                    <button
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        void setPostSold(post.id, !post.isSold);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      {post.isSold
+                        ? <RotateCcw className="w-4 h-4 text-emerald-600" />
+                        : <BadgeCheck className="w-4 h-4 text-[#D84315]" />}
+                      {post.isSold ? 'Sotuvga qaytarish' : 'Sotildi deb belgilash'}
+                    </button>
                     <button
                       onClick={() => {
                         setIsMenuOpen(false);
                         setEditModalItem(post);
                       }}
-                      className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2"
+                      className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2 border-t border-slate-100"
                     >
                       <Edit3 className="w-4 h-4 text-[#D84315]" />
                       Tahrirlash
@@ -207,25 +246,17 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
                       O'chirish
                     </button>
                   </>
-                ) : (
-                  <>
-                    <button
-                      onClick={async () => {
-                        setIsMenuOpen(false);
-                        try {
-                          await copyText(getPostShareUrl(post.id));
-                          showToast("E'lon havolasi nusxalandi!");
-                        } catch {
-                          showToast('Havolani nusxalab bo‘lmadi');
-                        }
-                      }}
-                      className="w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2"
-                    >
-                      <Copy className="w-4 h-4 text-slate-500" />
-                      Havolani nusxalash
-                    </button>
-                  </>
                 )}
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    void copyLink();
+                  }}
+                  className={`w-full px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-50 flex items-center gap-2 ${canManage ? 'border-t border-slate-100' : ''}`}
+                >
+                  <Copy className="w-4 h-4 text-slate-500" />
+                  Havolani nusxalash
+                </button>
               </div>
             )}
           </div>
@@ -248,7 +279,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
           />
         ) : (
           <img
-            src={mediaError ? '/logo.png' : post.posterUrl || post.mediaUrl || '/logo.png'}
+            src={mediaError ? '/logo.png?v=2' : post.posterUrl || post.mediaUrl || '/logo.png?v=2'}
             alt={post.title}
             loading="lazy"
             onError={() => setMediaError(true)}
@@ -259,8 +290,10 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
 
         {/* Price Badge */}
         <div className="absolute top-3 left-3 z-10 bg-[#111111]/90 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[12px] font-extrabold tracking-tight shadow-md border border-white/10">
-          <span className="text-[#22C55E]">{post.price}</span>
+          <span className={post.isSold ? 'text-slate-400 line-through' : 'text-[#22C55E]'}>{formatPrice(post.price)}</span>
         </div>
+
+        {post.isSold && <SoldBadge className="absolute top-3 right-3 z-10" />}
 
         {/* Double-tap heart */}
         {showHeartAnim && (
@@ -364,7 +397,7 @@ export const FeedCard: React.FC<FeedCardProps> = ({ post, allPosts, index = 0 })
 
         {/* Date */}
         <div className="text-[11px] text-slate-400 font-medium uppercase tracking-wider">
-          {post.date}
+          {formatRelativeTime(post.createdAt) || post.date}
         </div>
 
         {/* Contact CTA */}

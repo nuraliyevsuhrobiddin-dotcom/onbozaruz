@@ -6,7 +6,7 @@ import {
 import { b2bAdminRepository } from '../../api/b2bAdminRepository';
 import { BusinessProfile, BusinessType } from '../../api/types';
 import { B2B_BUSINESS_TYPES, formatPhone } from '../../utils/b2bUtils';
-import { REGIONS } from '../../data/mockAgroData';
+import { REGIONS } from '../../data/catalog';
 
 interface Props {
   onLogAction?: (action: string, targetId: string, oldVal: any, newVal: any) => Promise<void>;

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Filter, CheckCircle2, PhoneCall, Tag, Apple, Wheat, Tractor, Beef, Sprout, Leaf, Package, Hexagon } from 'lucide-react';
 import { useAgroStore } from '../store/useAgroStore';
+import { formatPrice } from '../utils/price';
 
 
 const categoryIconMap = {
@@ -118,7 +119,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
           <div className="p-4 overflow-y-auto space-y-3 flex-1">
             {categoryPosts.length === 0 ? (
               <div className="py-12 text-center text-slate-400 space-y-2">
-                <img src="/logo.png" alt="MollBazar" className="w-12 h-12 rounded-[14px] mx-auto opacity-70" />
+                <img src="/logo.png?v=2" alt="MollBazar" className="w-12 h-12 rounded-[14px] mx-auto opacity-70" />
                 <p className="text-sm font-bold text-[#111111]">Ushbu kategoriyada e'lon topilmadi</p>
               </div>
             ) : (
@@ -153,7 +154,7 @@ export const CategoryExplorerModal: React.FC<Props> = ({ categoryId, onClose }) 
 
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-2">
                       <div>
-                        <span className="font-extrabold text-sm text-[#D84315] block">{post.price}</span>
+                        <span className="font-extrabold text-sm text-[#D84315] block">{formatPrice(post.price)}</span>
                         <span className="text-[10px] text-slate-400">Min: {post.minOrder}</span>
                       </div>
 

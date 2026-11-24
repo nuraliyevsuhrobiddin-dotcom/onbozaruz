@@ -18,7 +18,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
-import { REGIONS } from '../../data/mockAgroData';
+import { REGIONS } from '../../data/catalog';
 import { categoriesForScope } from '../../utils/categoryScope';
 import { BusinessType, SupplierType } from '../../api/types';
 import {

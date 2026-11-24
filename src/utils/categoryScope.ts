@@ -1,6 +1,6 @@
 import { Category, CategoryScope } from '../api/types';
 import { CategoryItem } from '../api/adminRepository';
-import { CATEGORIES } from '../data/mockAgroData';
+import { CATEGORIES } from '../data/catalog';
 
 /**
  * Filters the shared category list down to the ones relevant for a given

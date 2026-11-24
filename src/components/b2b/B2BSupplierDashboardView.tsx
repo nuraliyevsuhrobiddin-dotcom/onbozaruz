@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, X, Loader2, Package, ShoppingCart, TrendingUp, Upload, MapPin, Phone, Store } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { categoriesForScope } from '../../utils/categoryScope';
-import { REGIONS } from '../../data/mockAgroData';
+import { REGIONS } from '../../data/catalog';
 import { uploadListingMedia } from '../../api/authClient';
 import { B2BOrder } from '../../api/types';
 import {

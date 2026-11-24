@@ -17,14 +17,18 @@ import {
   AlertTriangle,
   RefreshCw,
   Loader2,
+  BadgeCheck,
 } from 'lucide-react';
-import { Post } from '../data/mockAgroData';
+import { Post } from '../data/catalog';
 import { useAgroStore } from '../store/useAgroStore';
 import confetti from 'canvas-confetti';
 import { useVideoFrame } from '../hooks/useVideoFrame';
 import { useVideoPlayback } from '../hooks/useVideoPlayback';
+import { useBufferHealth, useReleaseVideo } from '../hooks/useVideoLoading';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOverlayNavigation } from '../hooks/useOverlayNavigation';
+import { SoldBadge } from './ui/SoldBadge';
+import { formatPrice } from '../utils/price';
 
 // Official Telegram SVG icon
 const TelegramSVG = () => (
@@ -36,15 +40,47 @@ const TelegramSVG = () => (
 // ---------------------------------------------------------------------------
 // Preload strategy helper
 // ---------------------------------------------------------------------------
-type PreloadMode = 'active' | 'next' | 'previous' | 'none';
+type PreloadMode = 'active' | 'next' | 'ahead' | 'previous' | 'none';
 
-function getPreloadMode(idx: number, currentIndex: number, isSlowConnection: boolean): PreloadMode {
-  if (idx === currentIndex) return 'active';
-  // Keep the previous decoder/frame for a quick reverse swipe. Only one
-  // upcoming video buffers ahead, and data-saver connections skip that fetch.
-  if (idx === currentIndex - 1) return 'previous';
-  if (!isSlowConnection && idx === currentIndex + 1) return 'next';
+/** How far the visible video is buffered: 0 = just started, 1 = a few seconds, 2 = well ahead. */
+export type BufferLevel = 0 | 1 | 2;
+const BUFFER_LEVEL_SECONDS: Record<1 | 2, number> = { 1: 3, 2: 10 };
+
+/**
+ * `activeIndex` is the settled slide that plays. `nearIndex` follows the
+ * finger during a swipe, so the slide being scrolled into starts loading
+ * before it is reached.
+ *
+ * The visible video always comes first, and its own buffer tells how fast the
+ * connection is (many phones do not report it):
+ * - level 1 (3 s ahead): the next reel fetches its first frames, so a quick
+ *   swipe starts it at once;
+ * - level 2 (10 s ahead, so the connection outruns playback): the next reel
+ *   loads fully and the one after gets its first frames.
+ * On a slow connection level 2 is never reached, so the visible video is never
+ * starved. Reels left behind are released.
+ */
+function getPreloadMode(
+  idx: number,
+  activeIndex: number,
+  nearIndex: number,
+  isSlowConnection: boolean,
+  level: BufferLevel,
+): PreloadMode {
+  if (idx === activeIndex) return 'active';
+  if (nearIndex !== activeIndex && idx === nearIndex) return 'next';
+  const ahead = idx - Math.max(activeIndex, nearIndex);
+  if (ahead === 1) return level === 2 && !isSlowConnection ? 'next' : level >= 1 ? 'ahead' : 'none';
+  if (ahead === 2) return level === 2 && !isSlowConnection ? 'ahead' : 'none';
+  // Reels left behind are released: Chrome keeps downloading a paused video
+  // that has played, which starved the next reel during fast swipes (measured).
+  // Swiping back reloads it from the browser cache behind its poster.
   return 'none';
+}
+
+/** Slides that get a real <video> element; the rest are cheap poster placeholders. */
+function isMountedSlide(idx: number, activeIndex: number, nearIndex: number): boolean {
+  return idx === activeIndex || (idx >= nearIndex - 1 && idx <= nearIndex + 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -52,15 +88,18 @@ function getPreloadMode(idx: number, currentIndex: number, isSlowConnection: boo
 // ---------------------------------------------------------------------------
 interface SlideProps {
   post: Post;
+  index: number;
   isActive: boolean;
   preloadMode: PreloadMode;
   globalMuted: boolean;
   onAutoplayMuted: () => void;
+  /** The active slide reports how far ahead its video is buffered. */
+  onBufferLevel: (index: number, level: BufferLevel) => void;
 }
 
 // memo prevents re-renders when the parent's state changes but this slide's
 // props haven't changed (e.g. globalMuted toggle causes full list re-render).
-const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, globalMuted, onAutoplayMuted }) => {
+const VideoSlide: React.FC<SlideProps> = memo(({ post, index, isActive, preloadMode, globalMuted, onAutoplayMuted, onBufferLevel }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -85,18 +124,37 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
     setSelectedSellerModal,
     showToast,
     setAuthPromptOpen,
+    setPostSold,
+    isAdminUser,
   } = useAgroStore();
 
   const isLiked = likedPostIds.includes(post.id);
   const isSaved = savedPostIds.includes(post.id);
   const isFollowing = followedSellerIds.includes(post.sellerId);
-  const isOwnPost = currentUser?.id === post.sellerId;
+  const isOwnPost = Boolean(currentUser && (currentUser.id === post.sellerId || currentUser.id === post.userId));
+  const canMarkSold = isOwnPost || Boolean(isAdminUser);
 
-  // At most three media sources are attached; distant slides are unmounted.
+  // The visible slide always has a source; neighbours get one once it has buffered.
   const videoSrc = preloadMode !== 'none' ? post.mediaUrl : undefined;
   const posterSrc = post.posterUrl || undefined;
   const hasFrame = useVideoFrame(videoRef, videoSrc, retryKey);
   useVideoPlayback(videoRef, videoSrc, isActive, globalMuted, retryKey, onAutoplayMuted);
+  useReleaseVideo(videoRef, videoSrc, retryKey);
+  const reportLevel1 = useCallback(() => onBufferLevel(index, 1), [onBufferLevel, index]);
+  const reportLevel2 = useCallback(() => onBufferLevel(index, 2), [onBufferLevel, index]);
+  useBufferHealth(videoRef, videoSrc, isActive, retryKey, reportLevel1, BUFFER_LEVEL_SECONDS[1]);
+  useBufferHealth(videoRef, videoSrc, isActive, retryKey, reportLevel2, BUFFER_LEVEL_SECONDS[2]);
+
+  // Show a loading spinner only if the first frame is noticeably late.
+  const [isSlowStart, setIsSlowStart] = useState(false);
+  useEffect(() => {
+    if (!isActive || hasFrame || post.type !== 'video') {
+      setIsSlowStart(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setIsSlowStart(true), 600);
+    return () => window.clearTimeout(timer);
+  }, [isActive, hasFrame, post.type, retryKey]);
 
   // Reset playback feedback when the resource changes.
   useEffect(() => {
@@ -164,7 +222,7 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
 
   const preloadAttr = preloadMode === 'active' || preloadMode === 'next'
     ? 'auto'
-    : preloadMode === 'previous' ? 'metadata' : 'none';
+    : preloadMode === 'ahead' || preloadMode === 'previous' ? 'metadata' : 'none';
 
   return (
     <div
@@ -212,25 +270,33 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
               className="reels-visual relative z-[1] cursor-pointer"
             />
 
-            {/* Poster / Placeholder Overlay — smoothly covers video until first frame arrives */}
-            {!hasFrame && !hasError && (
-              <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-black/35 backdrop-blur-[1px] transition-opacity duration-300">
+            {/* The poster (the video's own first frame) covers the element until a
+                real frame is painted, then fades out: no dark tint, no black flash. */}
+            {!hasError && (
+              <div
+                data-video-placeholder
+                aria-hidden={hasFrame}
+                className="absolute inset-0 z-[2] pointer-events-none transition-opacity duration-200"
+                style={{ opacity: hasFrame ? 0 : 1 }}
+              >
                 {posterSrc && !posterFailed ? (
                   <img
                     src={posterSrc}
                     alt={post.title}
+                    decoding="async"
                     onError={() => setPosterFailed(true)}
                     className="reels-visual absolute inset-0"
                   />
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-[radial-gradient(circle_at_center,_rgba(51,65,85,0.88),_rgba(2,6,23,0.96)_58%,_rgba(0,0,0,1)_100%)]">
-                    <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-lg border border-white/10">
-                      <Play className="w-7 h-7 text-white/80 fill-white/80 translate-x-0.5" />
-                    </div>
+                    <Play className="w-10 h-10 text-white/70 fill-white/70 translate-x-0.5" />
                     <span className="text-sm font-bold text-white/90 max-w-[240px] truncate">{post.title}</span>
-                    <div className="flex items-center gap-2 mt-1 px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white/70 text-xs">
-                      <Loader2 className="w-4 h-4 text-[#D84315] animate-spin" />
-                      <span>Yuklanmoqda...</span>
+                  </div>
+                )}
+                {isSlowStart && !hasFrame && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center">
+                      <Loader2 className="w-7 h-7 text-white animate-spin" />
                     </div>
                   </div>
                 )}
@@ -315,6 +381,26 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
         <div
           className="reels-actions absolute right-3 bottom-4 sm:right-4 flex flex-col items-center gap-3.5 z-20"
         >
+          {/* Owner: mark as sold */}
+          {canMarkSold && (
+            <motion.button
+              whileTap={{ scale: 1.15 }}
+              onClick={(e) => { e.stopPropagation(); void setPostSold(post.id, !post.isSold); }}
+              aria-label={post.isSold ? 'Sotuvga qaytarish' : 'Sotildi deb belgilash'}
+              aria-pressed={Boolean(post.isSold)}
+              className="flex flex-col items-center gap-1 focus:outline-none group"
+            >
+              <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full backdrop-blur-md border flex items-center justify-center transition-transform group-active:scale-90 shadow-lg ${
+                post.isSold ? 'bg-[#D84315] border-white/70' : 'bg-black/40 border-white/20'
+              }`}>
+                <BadgeCheck className="w-6 h-6 text-white stroke-[2] drop-shadow-md" />
+              </div>
+              <span className="text-white text-[10px] sm:text-[11px] font-black drop-shadow-md">
+                {post.isSold ? 'Sotildi' : 'Sotish'}
+              </span>
+            </motion.button>
+          )}
+
           {/* Like */}
           <motion.button
             whileTap={{ scale: 1.3 }}
@@ -403,10 +489,10 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             >
               <div className="relative shrink-0">
                 <img
-                  src={post.sellerAvatar || '/logo.png'}
+                  src={post.sellerAvatar || '/logo.png?v=2'}
                   onError={(event) => {
                     event.currentTarget.onerror = null;
-                    event.currentTarget.src = '/logo.png';
+                    event.currentTarget.src = '/logo.png?v=2';
                   }}
                   alt={post.sellerName}
                   className="w-10 h-10 rounded-full border-2 border-white/40 object-cover shadow-md"
@@ -456,16 +542,23 @@ const VideoSlide: React.FC<SlideProps> = memo(({ post, isActive, preloadMode, gl
             </p>
           )}
 
-          {/* Row 3: Price Tag & Category Badge */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="max-w-full truncate rounded-full bg-[#111827]/90 border border-emerald-500/40 px-3 py-1 text-[11px] sm:text-xs font-black text-[#22C55E] shadow-md backdrop-blur-md">
-              {post.price}
-            </span>
-            <span className="min-w-0 max-w-full rounded-full bg-black/40 backdrop-blur-md border border-white/20 px-2.5 py-1 text-[11px] font-bold text-white flex items-center gap-1">
-              <Tag className="w-3 h-3 shrink-0 text-emerald-400" />
-              <span className="truncate">{post.categoryName}</span>
+          {/* Row 3: sold mark and price, chips of one height */}
+          <div className="flex min-w-0 items-center gap-1.5">
+            {post.isSold && <SoldBadge size="chip" />}
+            <span className={`inline-flex h-7 min-w-0 items-center rounded-full border border-white/15 bg-black/55 px-2.5 text-[12px] font-black shadow-md backdrop-blur-md ${
+              post.isSold ? 'text-white/55 line-through' : 'text-[#4ADE80]'
+            }`}>
+              <span className="truncate">{formatPrice(post.price)}</span>
             </span>
           </div>
+
+          {/* Row 4: category and order details on one quiet line */}
+          <p className="flex min-w-0 items-center gap-1 text-[11px] font-semibold text-white/85 drop-shadow-md">
+            <Tag className="w-3 h-3 shrink-0 text-emerald-400" />
+            <span className="truncate">
+              {[post.categoryName, post.minOrder && `Min: ${post.minOrder}`, post.condition].filter(Boolean).join(' · ')}
+            </span>
+          </p>
         </div>
         </div>
 
@@ -537,10 +630,19 @@ export const VideoReelsViewer: React.FC = () => {
   );
 
   const [currentIndex, setCurrentIndex] = useState(0);
+  // Follows the finger during a swipe (see getPreloadMode); currentIndex only
+  // changes once the swipe settles, so playback never thrashes mid-gesture.
+  const [nearIndex, setNearIndex] = useState(0);
+  const nearIndexRef = useRef(0);
   // Let device media volume control sound. Fall back to mute only when the
   // browser rejects audible playback, with the audio button kept in sync.
   const [globalMuted, setGlobalMuted] = useState(false);
   const handleAutoplayMuted = useCallback(() => setGlobalMuted(true), []);
+  // How far the visible slide's video is buffered; neighbours wait for it.
+  const [buffer, setBuffer] = useState<{ index: number; level: BufferLevel }>({ index: -1, level: 0 });
+  const handleBufferLevel = useCallback((index: number, level: BufferLevel) => {
+    setBuffer((prev) => (prev.index === index && prev.level >= level ? prev : { index, level }));
+  }, []);
   // Floating control visibility: appears on scroll, hides after inactivity
   const [showFloatingControls, setShowFloatingControls] = useState(true);
   const floatingControlsTimer = useRef<number | null>(null);
@@ -555,9 +657,9 @@ export const VideoReelsViewer: React.FC = () => {
   // This component stays mounted while closed. On the opening render, use the
   // requested item rather than the stale index from the previous session so
   // phones never start fetching videos 0 and 1 before the selected reel.
-  const renderedIndex = isVideoViewerOpen && !wasOpenRef.current
-    ? requestedStartIndex
-    : currentIndex;
+  const isOpeningRender = isVideoViewerOpen && !wasOpenRef.current;
+  const renderedIndex = isOpeningRender ? requestedStartIndex : currentIndex;
+  const renderedNearIndex = isOpeningRender ? requestedStartIndex : nearIndex;
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -575,6 +677,9 @@ export const VideoReelsViewer: React.FC = () => {
     wasOpenRef.current = true;
     setCurrentIndex(requestedStartIndex);
     currentIndexRef.current = requestedStartIndex;
+    setNearIndex(requestedStartIndex);
+    nearIndexRef.current = requestedStartIndex;
+    setBuffer({ index: -1, level: 0 });
     setGlobalMuted(false);
     setShowFloatingControls(true);
 
@@ -653,10 +758,30 @@ export const VideoReelsViewer: React.FC = () => {
       currentIndexRef.current = idx;
       setCurrentIndex(idx);
     }
+    if (idx !== nearIndexRef.current) {
+      nearIndexRef.current = idx;
+      setNearIndex(idx);
+    }
+  }, [liveVideoPosts.length]);
+
+  // Cheap, once per frame: move the preload window with the finger.
+  const trackNearIndex = useCallback(() => {
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      const el = containerRef.current;
+      if (!el || !el.clientHeight || !liveVideoPosts.length) return;
+      const idx = Math.max(0, Math.min(Math.round(el.scrollTop / el.clientHeight), liveVideoPosts.length - 1));
+      if (idx !== nearIndexRef.current) {
+        nearIndexRef.current = idx;
+        setNearIndex(idx);
+      }
+    });
   }, [liveVideoPosts.length]);
 
   const handleScroll = useCallback(() => {
     revealControls();
+    trackNearIndex();
     // Debounce: only update the active index once scrolling settles.
     // Firing on every rAF during a swipe causes rapid play/pause cycling
     // and black frames on mobile hardware decoders.
@@ -667,7 +792,7 @@ export const VideoReelsViewer: React.FC = () => {
       scrollSettleTimer.current = null;
       syncVisibleIndex();
     }, 150);
-  }, [revealControls, syncVisibleIndex]);
+  }, [revealControls, syncVisibleIndex, trackNearIndex]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -795,12 +920,10 @@ export const VideoReelsViewer: React.FC = () => {
           } as React.CSSProperties}
         >
           {liveVideoPosts.map((post, idx) => {
-            const preloadMode = getPreloadMode(idx, renderedIndex, isSlowConnection);
-            // Only mount the real slide (with its <video> element) for the
-            // active slide and its immediate neighbors. Farther slides stay
-            // as cheap placeholders so opening the viewer doesn't force React
-            // to mount every video component in the feed at once.
-            const isNearby = Math.abs(idx - renderedIndex) <= 1;
+            const preloadMode = getPreloadMode(idx, renderedIndex, renderedNearIndex, isSlowConnection, buffer.index === renderedIndex ? buffer.level : 0);
+            // Only slides around the finger get a real <video>; farther ones
+            // stay cheap poster placeholders.
+            const isNearby = isMountedSlide(idx, renderedIndex, renderedNearIndex);
             return (
               <div
                 key={post.id}
@@ -819,10 +942,12 @@ export const VideoReelsViewer: React.FC = () => {
                 {isNearby ? (
                   <VideoSlide
                     post={post}
+                    index={idx}
                     isActive={idx === renderedIndex}
                     preloadMode={preloadMode}
                     globalMuted={globalMuted}
                     onAutoplayMuted={handleAutoplayMuted}
+                    onBufferLevel={handleBufferLevel}
                   />
                 ) : (
                   <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">

@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Volume2, VolumeX, Play, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 import { useVideoFrame } from '../../hooks/useVideoFrame';
 import { useVideoPlayback } from '../../hooks/useVideoPlayback';
+import { useReleaseVideo } from '../../hooks/useVideoLoading';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { useAgroStore } from '../../store/useAgroStore';
 
 interface VideoPlayerProps {
@@ -30,15 +32,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const isVideoViewerOpen = useAgroStore((state) => state.isVideoViewerOpen);
   const [isVisible, setIsVisible] = useState(false);
   const [posterFailed, setPosterFailed] = useState(false);
-  const [hasBeenNear, setHasBeenNear] = useState(false);
+  const [isNear, setIsNear] = useState(false);
+  const { isSlowConnection } = useNetworkStatus();
 
-  // Lazy-attach source once near viewport (within 600px).
-  // Once loaded, keep source attached so video frame does not turn black or re-request.
-  const activeSrc = hasBeenNear ? src : undefined;
-  const isActive = isVisible && !isVideoViewerOpen && Boolean(activeSrc);
+  // A source is attached only while the card is within 600px of the screen and
+  // the reels viewer is closed. Far-away feed videos, and all of them while
+  // reels are open, are released so they never take bandwidth from the video
+  // being watched (measured: a paused feed player kept downloading the same
+  // file in parallel with the reel). Coming back reloads them behind the poster.
+  const activeSrc = isNear && !isVideoViewerOpen ? src : undefined;
+  const isActive = isVisible && Boolean(activeSrc);
 
   const hasFrame = useVideoFrame(videoRef, activeSrc, retryKey);
   useVideoPlayback(videoRef, activeSrc, isActive, isMuted, retryKey);
+  useReleaseVideo(videoRef, activeSrc, retryKey);
 
   // Reset state on new source or retry
   useEffect(() => {
@@ -55,16 +62,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     if (!container) return;
 
     if (typeof IntersectionObserver === 'undefined') {
-      setHasBeenNear(true);
+      setIsNear(true);
       return;
     }
 
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setHasBeenNear(true);
-        }
-      },
+      ([entry]) => setIsNear(entry.isIntersecting),
       { rootMargin: '600px 0px', threshold: 0 }
     );
 
@@ -169,7 +172,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         webkit-playsinline="true"
         x5-playsinline="true"
         x5-video-player-type="h5-page"
-        preload={isActive ? 'auto' : hasBeenNear ? 'metadata' : 'none'}
+        preload={isActive ? 'auto' : activeSrc && !isSlowConnection ? 'metadata' : 'none'}
         onError={(e) => {
           if (activeSrc && e.currentTarget.error) setHasError(true);
           setIsBuffering(false);
@@ -191,13 +194,20 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }`}
       />
 
-      {/* Poster overlay until first frame decodes */}
-      {!hasFrame && !hasError && (
-        <div data-video-placeholder className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center bg-slate-900/60 backdrop-blur-[1px]">
+      {/* The poster covers the element until a real frame is painted, then fades out. */}
+      {!hasError && (
+        <div
+          data-video-placeholder
+          aria-hidden={hasFrame}
+          className="absolute inset-0 z-[2] pointer-events-none flex items-center justify-center transition-opacity duration-200"
+          style={{ opacity: hasFrame ? 0 : 1 }}
+        >
           {poster && !posterFailed ? (
             <img
               src={poster}
               alt="Video thumbnail"
+              loading="lazy"
+              decoding="async"
               onError={() => setPosterFailed(true)}
               className={`w-full h-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
             />

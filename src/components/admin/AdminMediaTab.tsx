@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AlertCircle, Image, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
-import { Post } from '../../data/mockAgroData';
-import { Product } from '../../data/mockAgroData';
+import { Post } from '../../data/catalog';
+import { Product } from '../../data/catalog';
 
 interface MediaCheckResult {
   id: string;

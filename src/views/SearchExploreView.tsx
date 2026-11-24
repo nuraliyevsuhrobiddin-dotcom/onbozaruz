@@ -6,13 +6,15 @@ import {
 import { useVideoPlayback } from '../hooks/useVideoPlayback';
 import { useVideoFrame } from '../hooks/useVideoFrame';
 import { useAgroStore } from '../store/useAgroStore';
-import { REGIONS } from '../data/mockAgroData';
+import { REGIONS } from '../data/catalog';
 import { Post } from '../api/types';
 import { categoriesForScope } from '../utils/categoryScope';
 import { LocationPicker } from '../components/ui/LocationPicker';
+import { SoldBadge } from '../components/ui/SoldBadge';
 import { Modal } from '../components/ui/Modal';
 import { useViewerLocation } from '../store/useViewerLocation';
 import { hasCoordinates, sortNearby, type GeoPoint } from '../utils/geo';
+import { formatPrice } from '../utils/price';
 
 /* ─────────────────────────────────────────────
    Video thumbnail card — video elementdan
@@ -152,10 +154,12 @@ const ExploreCard: React.FC<{
         </div>
       )}
 
+      {post.isSold && <SoldBadge size="sm" className="absolute top-2 left-2 z-10" />}
+
       {/* ── Bottom info ── */}
       <div className="absolute bottom-0 left-0 right-0 px-2.5 pb-2 pt-4 pointer-events-none z-10">
-        <span className="font-extrabold text-[11px] text-[#22C55E] block leading-tight drop-shadow">
-          {post.price}
+        <span className={`font-extrabold text-[11px] block leading-tight drop-shadow ${post.isSold ? 'text-white/60 line-through' : 'text-[#22C55E]'}`}>
+          {formatPrice(post.price)}
         </span>
         <span className="text-[10px] font-semibold text-white/90 truncate block leading-tight">
           {post.sellerName}
@@ -460,7 +464,7 @@ export const SearchExploreView: React.FC = () => {
           className="py-16 flex flex-col items-center gap-3 bg-white rounded-[22px] border border-slate-200/80 p-8 shadow-sm text-center select-none"
         >
           <img
-            src="/logo.png"
+            src="/logo.png?v=2"
             alt="MollBazar"
             className="w-16 h-16 rounded-[20px] object-cover shadow-sm ring-1 ring-slate-200/80 mb-1"
           />

@@ -1,10 +1,11 @@
 ---
+# cPanel "Git Version Control" deployment for MollBazar (Ahost).
+# Copies the whole build (frontend + PHP API in dist/api) into the web root.
+# Uploaded media in api/storage/ and the server config are never overwritten,
+# because they are not part of the build.
 deployment:
   tasks:
     - export DEPLOYPATH=/home/oboxuz/mollbazar.uz/
     - npm ci
     - npm run build
-    - /bin/cp dist/index.html $DEPLOYPATH
-    - /bin/cp -R dist/assets $DEPLOYPATH
-    - /bin/cp dist/privacy-policy.html dist/sw.js dist/manifest.webmanifest $DEPLOYPATH
-    - /bin/cp dist/*.png dist/*.svg dist/*.jpg dist/*.webp dist/*.wav $DEPLOYPATH
+    - /bin/cp -R dist/. $DEPLOYPATH

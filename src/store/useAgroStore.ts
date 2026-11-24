@@ -1,15 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import {
-  Post,
-  Product,
-  Order,
-  Category,
-  INITIAL_POSTS,
-  INITIAL_PRODUCTS,
-  INITIAL_ORDERS,
-  CATEGORIES,
-} from '../data/mockAgroData';
+import { Post, Product, Order, Category, CATEGORIES } from '../data/catalog';
 import { CreatePostInput, Notification, ProductReview } from '../api/types';
 import type {
   BusinessProfile,
@@ -25,11 +16,12 @@ import type {
   CreateB2BProductInput,
   B2BPlatformRequisites,
 } from '../api/types';
-import { type AuthUser, authClient, deleteListingMedia, isSupabaseConfigured } from '../api/authClient';
+import { type AuthUser, authClient, deleteListingMedia } from '../api/authClient';
 import { postsRepository } from '../api/repositories/postsRepository';
 import { productsRepository } from '../api/repositories/productsRepository';
 import { ordersRepository } from '../api/repositories/ordersRepository';
 import { userInteractionsRepository } from '../api/repositories/userInteractionsRepository';
+import { ApiTransportError } from '../api/http';
 import { notificationsRepository } from '../api/repositories/notificationsRepository';
 import { productReviewsRepository } from '../api/repositories/productReviewsRepository';
 import { subscribeToNotifications } from '../api/notificationsRealtime';
@@ -44,6 +36,17 @@ import { mapCategoryItemsToCategories } from '../utils/categoryScope';
 
 
 export type NavTab = 'home' | 'search' | 'market' | 'profile' | 'admin';
+
+/** Background publishing banner: video preparation, then upload, then the result. */
+export interface UploadingPostStatus {
+  isUploading: boolean;
+  title?: string;
+  isSuccess?: boolean;
+  error?: string;
+  stage?: 'preparing' | 'uploading';
+  /** 0…1 for the current stage, when known. */
+  progress?: number;
+}
 
 let hydrationVersion = 0;
 
@@ -99,6 +102,8 @@ interface AgroStoreState {
   isCreateModalOpen: boolean;
 
   isAuthPromptOpen: boolean;
+  /** True when sign-in was opened from the Profile tab: after signing in the user goes there. */
+  authWantsProfile: boolean;
   isNotificationsOpen: boolean;
   notifications: Notification[];
   unreadNotificationsCount: number;
@@ -116,8 +121,8 @@ interface AgroStoreState {
   pushNotification: Notification | null;
   clearPushNotification: () => void;
 
-  uploadingPostStatus: { isUploading: boolean; title?: string; isSuccess?: boolean; error?: string } | null;
-  setUploadingPostStatus: (status: { isUploading: boolean; title?: string; isSuccess?: boolean; error?: string } | null) => void;
+  uploadingPostStatus: UploadingPostStatus | null;
+  setUploadingPostStatus: (status: UploadingPostStatus | null) => void;
 
   isVideoViewerOpen: boolean;
   videoViewerPosts: Post[];
@@ -145,6 +150,8 @@ interface AgroStoreState {
   incrementPostViews: (postId: string) => void;
   addPost: (newPost: Post) => Promise<void>;
   updatePost: (postId: string, updatedFields: Partial<Post>) => Promise<boolean>;
+  /** Owner (or admin) marks a listing as sold or puts it back on sale. */
+  setPostSold: (postId: string, sold: boolean) => Promise<boolean>;
   deletePost: (postId: string) => Promise<boolean>;
   updateProduct: (productId: string, updatedFields: Partial<Product>) => void;
   deleteProduct: (productId: string) => void;
@@ -211,9 +218,6 @@ interface AgroStoreState {
   supplierFinanceSummary: SupplierFinanceSummary | null;
   fetchOwnSupplierFinanceSummary: (sinceIso?: string) => Promise<void>;
 }
-
-// ADMIN_EMAIL is kept only as a fallback for mock-mode (no Supabase). Real admin check comes from profiles.is_admin in DB.
-const ADMIN_EMAIL = 'nuraliyevsuhrobiddin@gmail.com';
 
 // Realtime subscription handle — lives outside Zustand state since it's a side-effect handle, not serializable.
 let notificationsUnsubscribe: (() => void) | null = null;
@@ -298,24 +302,24 @@ function getNotificationTargetUrl(n: Notification): string {
 export const useAgroStore = create<AgroStoreState>()(
   persist(
     (set, get) => {
-      const initialUser = isSupabaseConfigured ? null : authClient.getCurrentUser();
-      const initialIsAdmin = initialUser
-        ? Boolean(initialUser.isAdmin) || initialUser.email?.toLowerCase().trim() === ADMIN_EMAIL
-        : !isSupabaseConfigured; // Enable admin mode by default in mock/development mode
-
       let sessionRevision = 0;
       let restorePromise: Promise<void> | null = null;
       let notificationsLoadedRevision = -1;
 
       async function loadUserInteractions(user: AuthUser) {
         const revision = sessionRevision;
-        try {
-          const [savedPostIds, likedPostIds] = await Promise.all([
+        // Follows load on their own, so a failure there never hides saved/liked posts (or the reverse).
+        const [posts, follows] = await Promise.allSettled([
+          Promise.all([
             userInteractionsRepository.listSavedPostIds(user.id),
             userInteractionsRepository.listLikedPostIds(user.id),
-          ]);
+          ]),
+          userInteractionsRepository.listFollowedSellerIds(user.id),
+        ]);
 
-          if (revision !== sessionRevision || get().currentUser?.id !== user.id) return;
+        if (revision !== sessionRevision || get().currentUser?.id !== user.id) return;
+        if (posts.status === 'fulfilled') {
+          const [savedPostIds, likedPostIds] = posts.value;
           set((state) => ({
             savedPostIds,
             likedPostIds,
@@ -325,9 +329,9 @@ export const useAgroStore = create<AgroStoreState>()(
               isLiked: likedPostIds.includes(post.id),
             })),
           }));
-        } catch {
-          // Keep local state if backend interaction load fails.
         }
+        if (follows.status === 'fulfilled') set({ followedSellerIds: follows.value });
+        // On a failed load the local state is kept as it is.
       }
 
       function receiveNotification(notification: Notification) {
@@ -378,18 +382,18 @@ export const useAgroStore = create<AgroStoreState>()(
         }
       }
 
-      function startNotificationsSubscription(userId: string) {
+      function startNotificationsSubscription() {
         notificationsUnsubscribe?.();
-        notificationsUnsubscribe = subscribeToNotifications(userId, receiveNotification, fetchNotificationsList);
+        notificationsUnsubscribe = subscribeToNotifications(fetchNotificationsList);
       }
 
       const cachedPostsResult = cacheManager.loadPostsCache();
       const cachedProductsResult = cacheManager.loadProductsCache();
 
       const initialPosts = filterActivePosts(
-        cachedPostsResult?.posts?.length ? cachedPostsResult.posts : INITIAL_POSTS
+        cachedPostsResult?.posts || []
       );
-      const initialProducts = cachedProductsResult?.products?.length ? cachedProductsResult.products : INITIAL_PRODUCTS;
+      const initialProducts = cachedProductsResult?.products || [];
 
       const markPostFlags = (posts: Post[], savedPostIds: string[], likedPostIds: string[]) =>
         posts.map((post) => ({
@@ -401,12 +405,12 @@ export const useAgroStore = create<AgroStoreState>()(
       return {
         posts: initialPosts,
         products: initialProducts,
-        orders: INITIAL_ORDERS,
+        orders: [],
         categories: CATEGORIES,
         setCategories: (categories) => set({ categories }),
         activeTab: 'home',
         activeSubView: null,
-        isAdminUser: initialIsAdmin,
+        isAdminUser: false,
 
         // --- Offline & Cache state ---
         isHydrating: true,
@@ -414,13 +418,10 @@ export const useAgroStore = create<AgroStoreState>()(
         isBackgroundFetching: false,
         fetchError: null,
 
-        // --- Auth: restore session from localStorage ---
-        currentUser: initialUser,
-        isAuthenticated: !!initialUser,
-        // Mock mode resolves the session synchronously above; Supabase mode
-        // must wait for the first restoreSession() round-trip before we know
-        // who (if anyone) is really signed in.
-        isAuthLoading: isSupabaseConfigured,
+        // --- Auth: unknown until the first restoreSession() round-trip ---
+        currentUser: null,
+        isAuthenticated: false,
+        isAuthLoading: true,
 
         savedPostIds: [],
         likedPostIds: [],
@@ -433,6 +434,7 @@ export const useAgroStore = create<AgroStoreState>()(
         isCreateModalOpen: false,
 
         isAuthPromptOpen: false,
+        authWantsProfile: false,
         isNotificationsOpen: false,
         notifications: [],
         unreadNotificationsCount: 0,
@@ -452,7 +454,7 @@ export const useAgroStore = create<AgroStoreState>()(
         setActiveTab: (tab) =>
           set((state) => {
             if (tab === 'profile' && !state.isAuthenticated) {
-              return { isAuthPromptOpen: true };
+              return { isAuthPromptOpen: true, authWantsProfile: true };
             }
             return { activeTab: tab, activeSubView: null };
           }),
@@ -461,8 +463,8 @@ export const useAgroStore = create<AgroStoreState>()(
         // --- Auth actions ---
         loginUser: async (user: AuthUser) => {
           const revision = ++sessionRevision;
-          // isAdmin comes from DB profiles.is_admin field (set in authClient restoreSession/signIn)
-          const isAdmin = Boolean(user.isAdmin) || (!isSupabaseConfigured && user.email.toLowerCase().trim() === ADMIN_EMAIL);
+          // Admin rights come only from profiles.is_admin in the database.
+          const isAdmin = Boolean(user.isAdmin);
 
           // Only wipe personal state when this is actually a different account
           // than whatever was previously active in this browser tab — otherwise
@@ -502,7 +504,7 @@ export const useAgroStore = create<AgroStoreState>()(
             get().hydrateFromApi(),
           ]);
           if (revision !== sessionRevision || get().currentUser?.id !== user.id) return;
-          startNotificationsSubscription(user.id);
+          startNotificationsSubscription();
           void fetchNotificationsList();
           void get().fetchOwnB2BProfiles();
           void syncWebPushSubscription();
@@ -528,8 +530,7 @@ export const useAgroStore = create<AgroStoreState>()(
                 return;
               }
 
-              // isAdmin sourced from profiles.is_admin in Supabase DB — not from email string
-              const isAdmin = Boolean(restoredUser.isAdmin) || (!isSupabaseConfigured && restoredUser.email.toLowerCase().trim() === ADMIN_EMAIL);
+              const isAdmin = Boolean(restoredUser.isAdmin);
               const isNewUser = get().currentUser?.id !== restoredUser.id;
 
               set({
@@ -564,7 +565,7 @@ export const useAgroStore = create<AgroStoreState>()(
               if (get().posts.length === 0) {
                 void get().hydrateFromApi();
               }
-              startNotificationsSubscription(restoredUser.id);
+              startNotificationsSubscription();
               void fetchNotificationsList();
               void get().fetchOwnB2BProfiles();
               void syncWebPushSubscription();
@@ -615,6 +616,7 @@ export const useAgroStore = create<AgroStoreState>()(
             isAdminUser: false,
             isAuthLoading: false,
             isAuthPromptOpen: false,
+            authWantsProfile: false,
             isCreateModalOpen: false,
             isNotificationsOpen: false,
             pushNotification: null,
@@ -657,8 +659,7 @@ export const useAgroStore = create<AgroStoreState>()(
           }
           set((state) => {
             const nextUser = updatedUser || (state.currentUser ? { ...state.currentUser, ...updatedFields } : null);
-            // Preserve isAdmin from DB — don't derive from email on update
-            const isAdmin = Boolean(nextUser?.isAdmin) || (!isSupabaseConfigured && (nextUser?.email || '').toLowerCase().trim() === ADMIN_EMAIL);
+            const isAdmin = Boolean(nextUser?.isAdmin);
             return {
               currentUser: nextUser,
               isAdminUser: isAdmin,
@@ -669,7 +670,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
       toggleLikePost: (postId) => {
         const state = get();
-        if (isSupabaseConfigured && !state.currentUser) {
+        if (!state.currentUser) {
           set({ toastMessage: 'Layk bosish uchun tizimga kiring' });
           return;
         }
@@ -685,7 +686,7 @@ export const useAgroStore = create<AgroStoreState>()(
 
         set({ likedPostIds: nextLikedIds, posts: nextPosts });
 
-        if (state.currentUser && isSupabaseConfigured) {
+        if (state.currentUser) {
           const userId = state.currentUser.id;
           const likePromise = isLiked
             ? userInteractionsRepository.removeLikedPost(userId, postId)
@@ -729,7 +730,7 @@ export const useAgroStore = create<AgroStoreState>()(
           toastMessage: isSaved ? "Saqlanganlardan o'chirildi" : "Saqlanganlarga qo'shildi",
         });
 
-        if (state.currentUser && isSupabaseConfigured) {
+        if (state.currentUser) {
           const userId = state.currentUser.id;
           const request = isSaved
             ? userInteractionsRepository.removeSavedPost(userId, postId)
@@ -773,26 +774,48 @@ export const useAgroStore = create<AgroStoreState>()(
         });
       },
 
-      toggleFollowSeller: (sellerId, sellerName = 'Sotuvchi') =>
-        set((state) => {
-          if (!state.isAuthenticated) {
-            return {
-              isAuthPromptOpen: true,
-              toastMessage: "Obuna bo'lish uchun avval tizimga kiring",
-            };
-          }
-          if (state.currentUser?.id === sellerId) return state;
-          const isFollowing = state.followedSellerIds.includes(sellerId);
-          const nextFollowed = isFollowing
+      toggleFollowSeller: (sellerId, sellerName = 'Sotuvchi') => {
+        const state = get();
+        if (!state.isAuthenticated || !state.currentUser) {
+          set({
+            isAuthPromptOpen: true,
+            toastMessage: "Obuna bo'lish uchun avval tizimga kiring",
+          });
+          return;
+        }
+        const userId = state.currentUser.id;
+        if (!sellerId) return;
+        if (userId === sellerId) {
+          set({ toastMessage: "O'zingizga obuna bo'lib bo'lmaydi" });
+          return;
+        }
+        const isFollowing = state.followedSellerIds.includes(sellerId);
+
+        // Shown at once, saved on the server, and undone if the server refuses.
+        set({
+          followedSellerIds: isFollowing
             ? state.followedSellerIds.filter((id) => id !== sellerId)
-            : [...state.followedSellerIds, sellerId];
-          return {
-            followedSellerIds: nextFollowed,
-            toastMessage: isFollowing
-              ? `${sellerName} obunasi bekor qilindi`
-              : `${sellerName} ga muvaffaqiyatli obuna bo'lindingiz!`,
-          };
-        }),
+            : [...state.followedSellerIds, sellerId],
+          toastMessage: isFollowing
+            ? `${sellerName} obunasi bekor qilindi`
+            : `${sellerName} ga muvaffaqiyatli obuna bo'lindingiz!`,
+        });
+
+        const request = isFollowing
+          ? userInteractionsRepository.unfollowSeller(userId, sellerId)
+          : userInteractionsRepository.followSeller(userId, sellerId);
+        request.catch((error: unknown) => {
+          if (get().currentUser?.id !== userId) return;
+          // Already followed on the server (say, from another tab): the follow stands.
+          if (!isFollowing && error instanceof ApiTransportError && /duplicate key/i.test(error.message)) return;
+          set((current) => ({
+            followedSellerIds: isFollowing
+              ? [...current.followedSellerIds.filter((id) => id !== sellerId), sellerId]
+              : current.followedSellerIds.filter((id) => id !== sellerId),
+            toastMessage: "Obunani saqlab bo'lmadi. Qayta urinib ko'ring.",
+          }));
+        });
+      },
 
       addPost: async (newPost) => {
         const input: CreatePostInput = {
@@ -904,6 +927,37 @@ export const useAgroStore = create<AgroStoreState>()(
         return true;
       },
 
+      setPostSold: async (postId, sold) => {
+        const state = get();
+        const target = state.posts.find((p) => p.id === postId);
+        const isOwner = Boolean(state.currentUser && target
+          && (target.userId === state.currentUser.id || target.sellerId === state.currentUser.id));
+        if (!state.isAdminUser && !isOwner) {
+          set({ toastMessage: "Faqat e'lon egasi uni sotildi deb belgilay oladi." });
+          return false;
+        }
+        let saved: Post;
+        try {
+          saved = await postsRepository.update(postId, { isSold: sold });
+          if (!saved?.id) throw new Error("E'lon topilmadi");
+        } catch (err) {
+          set({ toastMessage: `Saqlanmadi: ${err instanceof Error ? err.message : 'Tarmoq xatosi'}` });
+          return false;
+        }
+        set((current) => {
+          const posts = current.posts.map((p) => (p.id === postId ? { ...p, ...saved } : p));
+          cacheManager.savePostsCache(posts);
+          return {
+            posts,
+            productDetail: current.productDetail?.id === postId
+              ? ({ ...current.productDetail, ...saved } as Post | Product)
+              : current.productDetail,
+            toastMessage: sold ? "E'lon «Sotildi» deb belgilandi" : "E'lon yana sotuvda",
+          };
+        });
+        return true;
+      },
+
       deleteProduct: (productId) => {
         if (!get().isAdminUser) {
           set({ toastMessage: "Mahsulotni o'chirish faqat Admin paneli orqali amalga oshiriladi!" });
@@ -962,7 +1016,7 @@ export const useAgroStore = create<AgroStoreState>()(
           ),
           toastMessage: "E'lon tasdiqlandi va nashr qilindi!",
         }));
-        // Supabase update (adminRepository.updatePostModeration) is called from the tab component
+        // The server update (adminRepository.updatePostModeration) is called from the tab component
       },
 
       rejectPost: (postId, reason) => {
@@ -1004,7 +1058,7 @@ export const useAgroStore = create<AgroStoreState>()(
           }
         }
 
-        // Step 2: Background da Supabase dan yangiliklari olib kel
+        // Step 2: fetch fresh data from the server in the background
         set({ isBackgroundFetching: true });
         try {
           const [posts, products, dbCategories] = await Promise.all([
@@ -1019,7 +1073,15 @@ export const useAgroStore = create<AgroStoreState>()(
           // CATEGORIES list is only used to backfill cover images and as a
           // fallback before any DB row exists for a given id.
           if (dbCategories && dbCategories.length > 0) {
-            set({ categories: mapCategoryItemsToCategories(dbCategories) });
+            const fromDb = mapCategoryItemsToCategories(dbCategories);
+            // A database with only wholesale (market) rows must not leave the
+            // listing form without categories: fall back to the built-in ones.
+            const hasPostCategories = fromDb.some((c) => c.id !== 'all' && (c.scope || 'both') !== 'market');
+            set({
+              categories: hasPostCategories
+                ? fromDb
+                : [...fromDb, ...CATEGORIES.filter((c) => c.id !== 'all' && !fromDb.some((d) => d.id === c.id)).map((c) => ({ ...c, scope: 'post' as const }))],
+            });
           }
 
           const state = get();
@@ -1046,8 +1108,8 @@ export const useAgroStore = create<AgroStoreState>()(
             localPost.status === 'pending' && !freshPosts.some((serverPost) => serverPost.id === localPost.id)
           );
           const mergedPosts = [...localOnlyPending, ...freshPosts];
-          const finalPosts = filterActivePosts(mergedPosts.length > 0 ? mergedPosts : INITIAL_POSTS);
-          const finalProducts = products.length > 0 ? products : INITIAL_PRODUCTS;
+          const finalPosts = filterActivePosts(mergedPosts);
+          const finalProducts = products;
           cacheManager.savePostsCache(finalPosts);
           cacheManager.saveProductsCache(finalProducts);
           set({
@@ -1087,7 +1149,7 @@ export const useAgroStore = create<AgroStoreState>()(
             ? { isAuthPromptOpen: true }
             : { isCreateModalOpen: open }
         ),
-      setAuthPromptOpen: (open) => set({ isAuthPromptOpen: open }),
+      setAuthPromptOpen: (open) => set(open ? { isAuthPromptOpen: true } : { isAuthPromptOpen: false, authWantsProfile: false }),
       setNotificationsOpen: (open) => set({ isNotificationsOpen: open }),
 
       fetchNotifications: async () => {
@@ -1271,7 +1333,7 @@ export const useAgroStore = create<AgroStoreState>()(
           };
         }),
       clearB2BCart: () => set({ b2bCart: {} }),
-      b2bCashbackRate: b2bRepository.getB2BCashbackRate(),
+      b2bCashbackRate: 1.5, // replaced by fetchB2BCashbackRate() once the server answers
       b2bCashbackBalance: 0,
       fetchB2BCashbackBalance: async () => {
         const businessProfile = get().businessProfile;
@@ -1421,16 +1483,9 @@ export const useAgroStore = create<AgroStoreState>()(
       savedPostIds: state.savedPostIds,
       likedPostIds: state.likedPostIds,
       followedSellerIds: state.followedSellerIds,
-      // In Supabase mode, currentUser/isAuthenticated must never be trusted
-      // from a locally-persisted copy — restoreSession() re-derives them from
-      // a real, freshly-validated session on every load. Persisting a stale
-      // copy here is exactly what let one account's data flash (or, if
-      // restoreSession ever failed silently, permanently stick) on another
-      // account's screen. Mock mode has its own separate session store
-      // (mollbazar-auth-session), so it's unaffected by this.
-      ...(isSupabaseConfigured
-        ? {}
-        : { currentUser: state.currentUser, isAuthenticated: state.isAuthenticated }),
+      // currentUser/isAuthenticated are never persisted: restoreSession()
+      // re-derives them from a freshly validated session on every load, so a
+      // stale copy can never show one account's data to another.
     }),
   }
 )

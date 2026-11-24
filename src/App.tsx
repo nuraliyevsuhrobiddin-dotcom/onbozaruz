@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, type Transition } from 'framer-motion';
 import { useAgroStore } from './store/useAgroStore';
 
@@ -9,7 +9,6 @@ import { DesktopRightSidebar } from './components/DesktopRightSidebar';
 
 import { HomeFeedView } from './views/HomeFeedView';
 import { SearchExploreView } from './views/SearchExploreView';
-import { B2BView } from './views/B2BView';
 import { ProfileView } from './views/ProfileView';
 import { useAppNavigation, replaceAppRoute } from './hooks/useAppNavigation';
 import { useOverlayNavigation } from './hooks/useOverlayNavigation';
@@ -26,13 +25,21 @@ import { CategoryExplorerModal } from './components/CategoryExplorerModal';
 import { EditListingModal } from './components/EditListingModal';
 import { AuthView } from './views/AuthView';
 import { AuthCallbackView } from './views/AuthCallbackView';
-import { AdminView } from './views/AdminView';
+import { ResetPasswordView } from './views/ResetPasswordView';
 import { SellerProfileModal } from './components/SellerProfileModal';
 import { subscribeToAuthState } from './api/authClient';
 import { InstallAppPrompt } from './components/InstallAppPrompt';
-import { PrivacyPolicyView } from './views/PrivacyPolicyView';
+import { AppIconNotice } from './components/AppIconNotice';
 import { postsRepository } from './api/repositories/postsRepository';
 import { useViewerLocation } from './store/useViewerLocation';
+import { loadChunk } from './utils/loadChunk';
+
+// Rarely opened screens load on demand, so the first visit downloads less
+// (the admin charts alone were ~100 KB gzipped for every visitor).
+const B2BView = lazy(() => loadChunk(() => import('./views/B2BView')).then((m) => ({ default: m.B2BView })));
+const AdminView = lazy(() => loadChunk(() => import('./views/AdminView')).then((m) => ({ default: m.AdminView })));
+const PrivacyPolicyView = lazy(() => loadChunk(() => import('./views/PrivacyPolicyView')).then((m) => ({ default: m.PrivacyPolicyView })));
+const ViewLoading = () => <div aria-busy="true" className="min-h-[60vh]" />;
 
 
 
@@ -67,14 +74,23 @@ export default function App() {
   const isMarketMap = activeTab === 'market' && b2bRoute.view === 'map';
   const showHeader = activeTab !== 'search' && activeTab !== 'admin' && !isMarketMap;
 
-  const { isAuthCallback, isPrivacyPolicy } = useAppNavigation();
+  const { isAuthCallback, isPasswordReset, isPrivacyPolicy } = useAppNavigation();
   const dismissAuth = useOverlayNavigation(isAuthPromptOpen && !isAuthenticated, () => setAuthPromptOpen(false));
   const handleAuthSuccess = useCallback(async (user: Parameters<typeof loginUser>[0], isNewUser = false) => {
+    // Where to go next: a new account fills in its profile; signing in from the
+    // Profile tab opens the profile; signing in from an action (follow, contact,
+    // new listing...) returns to that same place.
+    const state = useAgroStore.getState();
+    const destination = isNewUser ? '/#profile/edit-profile'
+      : state.authWantsProfile || !state.isAuthPromptOpen ? '/#profile' : null;
+    // The sign-in screen disappears as soon as the user is set, while loginUser
+    // is still loading: choosing the page first avoids flashing the home feed.
+    if (destination && state.isAuthPromptOpen) replaceAppRoute(destination);
     await loginUser(user);
     if (useAgroStore.getState().currentUser?.id !== user.id) return;
+    if (useAgroStore.getState().isAdminUser) replaceAppRoute('/#admin');
+    else if (destination) replaceAppRoute(destination);
     setAuthPromptOpen(false);
-    const isAdmin = useAgroStore.getState().isAdminUser;
-    replaceAppRoute(isAdmin ? '/#admin' : isNewUser ? '/#profile/edit-profile' : '/#profile');
   }, [loginUser, setAuthPromptOpen]);
   const sharedPostId = new URLSearchParams(window.location.search).get('post');
 
@@ -132,6 +148,16 @@ export default function App() {
         return;
       }
       if (!session) return;
+      // While the sign-in screen is open, it completes the sign-in itself and
+      // picks the next page. Restoring the session here as well raced it: the
+      // screen closed before its success handler ran and the user stayed on the
+      // home feed. Fall back to restoring only if it did not finish.
+      if (event === 'SIGNED_IN' && useAgroStore.getState().isAuthPromptOpen) {
+        window.setTimeout(() => {
+          if (!useAgroStore.getState().isAuthenticated) void restoreSession();
+        }, 1500);
+        return;
+      }
       void restoreSession();
     });
   }, [clearSession, isAuthCallback, restoreSession]);
@@ -139,12 +165,14 @@ export default function App() {
   // ─── Single Page App History & Phone Back Button Handler ─────────────────
   if (isPrivacyPolicy) {
     return (
-      <PrivacyPolicyView
-        onBack={() => {
-          if (history.state?.__mollbazarFrom) history.back();
-          else replaceAppRoute('/#home');
-        }}
-      />
+      <Suspense fallback={<ViewLoading />}>
+        <PrivacyPolicyView
+          onBack={() => {
+            if (history.state?.__mollbazarFrom) history.back();
+            else replaceAppRoute('/#home');
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -152,6 +180,21 @@ export default function App() {
     return (
       <AuthCallbackView
         onSuccess={handleAuthSuccess}
+      />
+    );
+  }
+
+  if (isPasswordReset) {
+    return (
+      <ResetPasswordView
+        onDone={async (user) => {
+          await handleAuthSuccess(user);
+          useAgroStore.getState().showToast('Parolingiz yangilandi');
+        }}
+        onRequestNewLink={() => {
+          replaceAppRoute('/#home');
+          setAuthPromptOpen(true);
+        }}
       />
     );
   }
@@ -233,7 +276,7 @@ export default function App() {
                   exit="exit"
                   transition={pageTransition}
                 >
-                  <B2BView />
+                  <Suspense fallback={<ViewLoading />}><B2BView /></Suspense>
                 </motion.div>
               )}
 
@@ -259,7 +302,7 @@ export default function App() {
                   exit="exit"
                   transition={pageTransition}
                 >
-                  <AdminView />
+                  <Suspense fallback={<ViewLoading />}><AdminView /></Suspense>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -295,6 +338,7 @@ export default function App() {
       <VideoReelsViewer />
 
       <InstallAppPrompt />
+      <AppIconNotice />
 
       {/* Category Explorer Modal */}
       <CategoryExplorerModal

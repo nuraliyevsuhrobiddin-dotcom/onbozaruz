@@ -1,0 +1,66 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 1. Force HTTPS
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # 2. Canonical hostname (optional - ensure no trailing dot)
+  # 3. Privacy Policy static html rewrite
+  RewriteRule ^privacy-policy/?$ privacy-policy.html [L]
+
+  # Pass Authorization Header to PHP on Apache/cPanel
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # The PHP API has its own router in api/.htaccess — never send it to index.html.
+  RewriteRule ^api(/|$) - [L]
+
+  # 4. Don't rewrite real files, directories, or symlinks
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # 5. A missing build file is a real 404, never the app page: a tab left open
+  #    from an older release then reloads cleanly instead of running HTML as JS.
+  RewriteRule ^assets/ - [R=404,L]
+
+  # 6. SPA Fallback: send all other requests to index.html
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Prevent directory browsing
+Options -Indexes
+
+# Security headers & Service Worker cache rules
+<IfModule mod_headers.c>
+  # Service Worker must NOT be cached so users always get updates
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+    Header set Service-Worker-Allowed "/"
+  </Files>
+
+  # HTML files should check with server
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  # Static assets with hash in filename can be cached long-term
+  <FilesMatch "\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif|mp4|webm|mov)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # XSS and security protections
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set X-XSS-Protection "1; mode=block"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Enable Gzip / Brotli compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css application/xml application/xhtml+xml application/rss+xml application/javascript application/x-javascript application/json image/svg+xml
+</IfModule>

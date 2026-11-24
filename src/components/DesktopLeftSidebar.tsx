@@ -14,7 +14,7 @@ export const DesktopLeftSidebar: React.FC = () => {
   return (
     <aside className="desktop-navigation hidden lg:flex fixed inset-y-0 left-0 z-30 flex-col border-r border-slate-200 bg-white px-3 py-7 select-none">
       <button type="button" onClick={() => setActiveTab('home')} aria-label="MollBazar — Asosiy" className="flex min-h-12 items-center gap-3 px-2 mb-9 rounded-lg">
-        <img src="/logo.png" alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
+        <img src="/logo.png?v=2" alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
         <span className="desktop-nav-label text-xl font-extrabold tracking-tight">MollBazar<span className="text-[#D84315]">.</span></span>
       </button>
       <nav aria-label="Asosiy navigatsiya" className="flex flex-col gap-2">

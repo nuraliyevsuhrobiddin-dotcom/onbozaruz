@@ -1,19 +1,9 @@
 /**
- * HTTP transport layer.
- *
- * Single switch point between the mock API and Supabase.
- *
- * .env example:
- *   VITE_USE_MOCK_API=false
- *   VITE_SUPABASE_URL=https://your-project.supabase.co
- *   VITE_SUPABASE_ANON_KEY=your-anon-key
+ * HTTP transport for simple table reads/writes against the PHP API (public/api),
+ * which speaks the PostgREST protocol. Keys are camelCase in the app and
+ * snake_case in the database.
  */
-import { type ApiResult, mockServer } from './mockServer';
-import { getSupabaseAccessToken, isSupabaseConfigured } from './authClient';
-
-const USE_MOCK_API = import.meta.env.VITE_USE_MOCK_API === 'true';
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const SUPABASE_ANON_KEY = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
+import { API_PUBLIC_KEY, API_URL, getAccessToken } from './authClient';
 
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
@@ -21,7 +11,7 @@ export interface RequestOptions {
   params?: Record<string, string | number | undefined>;
   /** PostgREST ordering clause, for example created_at.desc. */
   order?: string;
-  /** Maximum number of rows returned by PostgREST. */
+  /** Maximum number of rows returned. */
   limit?: number;
 }
 
@@ -32,93 +22,6 @@ export class ApiTransportError extends Error {
     super(message);
     this.name = 'ApiTransportError';
     this.status = status;
-  }
-}
-
-async function unwrap<T>(result: Promise<ApiResult<T>> | ApiResult<T>): Promise<T> {
-  const resolved = await result;
-  if ('error' in resolved) {
-    throw new ApiTransportError(resolved.error.status, resolved.error.message);
-  }
-  return resolved.data;
-}
-
-export async function request<T>(
-  method: HttpMethod,
-  path: string,
-  body?: unknown,
-  options?: RequestOptions
-): Promise<T> {
-  if (USE_MOCK_API || !isSupabaseConfigured) {
-    return (await requestMock(method, path, body, options)) as T;
-  }
-  return (await requestSupabase(method, path, body, options)) as T;
-}
-
-async function requestMock(
-  method: HttpMethod,
-  path: string,
-  body?: unknown,
-  _options?: RequestOptions
-): Promise<unknown> {
-  const pathSegments = path.split('/').filter(Boolean);
-  const resource = pathSegments[0];
-  const id = pathSegments[1];
-
-  switch (method) {
-    case 'GET': {
-      if (resource === 'posts') {
-        if (id) return unwrap(mockServer.getPost(id));
-        return unwrap(mockServer.listPosts());
-      }
-      if (resource === 'products') {
-        if (id) return unwrap(mockServer.getProduct(id));
-        return unwrap(mockServer.listProducts());
-      }
-      if (resource === 'orders') {
-        if (id) return unwrap(mockServer.getOrder(id));
-        return unwrap(mockServer.listOrders());
-      }
-      if (resource === 'categories') return unwrap(mockServer.listCategories());
-      if (resource === 'notifications') return [];
-      if (resource === 'product_reviews') return [];
-      throw new ApiTransportError(404, `Endpoint topilmadi: GET /${path}`);
-    }
-    case 'POST': {
-      if (resource === 'posts') {
-        return unwrap(mockServer.createPost(body as Parameters<typeof mockServer.createPost>[0]));
-      }
-      if (resource === 'products') {
-        return unwrap(mockServer.createProduct(body as Parameters<typeof mockServer.createProduct>[0]));
-      }
-      if (resource === 'orders') {
-        return unwrap(mockServer.createOrder(body as Parameters<typeof mockServer.createOrder>[0]));
-      }
-      if (resource === 'product_reviews') {
-        return { ...(body as Record<string, unknown>), id: `rev-${Date.now()}`, createdAt: new Date().toISOString() };
-      }
-      throw new ApiTransportError(404, `Endpoint topilmadi: POST /${path}`);
-    }
-    case 'PATCH': {
-      if (resource === 'posts' && id) {
-        return unwrap(mockServer.updatePost(id, (body || {}) as Parameters<typeof mockServer.updatePost>[1]));
-      }
-      if (resource === 'products' && id) {
-        return unwrap(mockServer.updateProduct(id, (body || {}) as Parameters<typeof mockServer.updateProduct>[1]));
-      }
-      if (resource === 'orders' && id) {
-        return unwrap(mockServer.updateOrder(id, (body || {}) as Parameters<typeof mockServer.updateOrder>[1]));
-      }
-      if (resource === 'notifications' && id) return { id };
-      throw new ApiTransportError(404, `Endpoint topilmadi: PATCH /${path}`);
-    }
-    case 'DELETE': {
-      if (resource === 'posts' && id) return unwrap(mockServer.deletePost(id));
-      if (resource === 'products' && id) return unwrap(mockServer.deleteProduct(id));
-      throw new ApiTransportError(404, `Endpoint topilmadi: DELETE /${path}`);
-    }
-    default:
-      throw new ApiTransportError(405, `Method qo'llab-quvvatlanmaydi: ${method}`);
   }
 }
 
@@ -162,19 +65,12 @@ export function normalizeApiRow<T>(value: unknown): T {
   return normalizeApiDates(mapObjectKeys(value, toCamelCase)) as T;
 }
 
-async function requestSupabase(
+export async function request<T>(
   method: HttpMethod,
   path: string,
   body?: unknown,
   options?: RequestOptions
-): Promise<unknown> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new ApiTransportError(
-      500,
-      'Supabase sozlanmagan: VITE_SUPABASE_URL va VITE_SUPABASE_ANON_KEY kerak'
-    );
-  }
-
+): Promise<T> {
   const pathSegments = path.split('/').filter(Boolean);
   const table = pathSegments[0];
   const id = pathSegments[1];
@@ -196,15 +92,15 @@ async function requestSupabase(
     });
   }
 
-  const accessToken = await getSupabaseAccessToken();
+  const accessToken = await getAccessToken();
   const readTable = !accessToken && method === 'GET' && (table === 'posts' || table === 'products')
     ? `${table}_public` : table;
 
-  let response = await fetch(`${SUPABASE_URL}/rest/v1/${readTable}?${params.toString()}`, {
+  let response = await fetch(`${API_URL}/rest/v1/${readTable}?${params.toString()}`, {
     method,
     headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+      apikey: API_PUBLIC_KEY,
+      Authorization: `Bearer ${accessToken || API_PUBLIC_KEY}`,
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       ...(method === 'POST' || method === 'PATCH' ? { Prefer: 'return=representation' } : {}),
     },
@@ -214,17 +110,17 @@ async function requestSupabase(
   // If a GET request fails with 401 due to an expired/stale accessToken, retry once anonymously
   if (response.status === 401 && accessToken && method === 'GET') {
     const anonymousTable = table === 'posts' || table === 'products' ? `${table}_public` : table;
-    response = await fetch(`${SUPABASE_URL}/rest/v1/${anonymousTable}?${params.toString()}`, {
+    response = await fetch(`${API_URL}/rest/v1/${anonymousTable}?${params.toString()}`, {
       method: 'GET',
       headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        apikey: API_PUBLIC_KEY,
+        Authorization: `Bearer ${API_PUBLIC_KEY}`,
       },
     });
   }
 
   if (!response.ok) {
-    let message = `Supabase xatolik qaytardi (${response.status})`;
+    let message = `Server xatolik qaytardi (${response.status})`;
     try {
       const payload = (await response.json()) as { message?: string; error?: string; hint?: string };
       message = payload?.message || payload?.error || payload?.hint || message;
@@ -232,18 +128,17 @@ async function requestSupabase(
       // Non-JSON error body: keep default message.
     }
     if (import.meta.env.DEV) {
-      console.error(`[Supabase Error] ${method} /${table}:`, message);
+      console.error(`[API] ${method} /${table}:`, message);
     }
     throw new ApiTransportError(response.status, message);
   }
 
-  if (method === 'DELETE') return id ? { id } : {};
+  if (method === 'DELETE') return (id ? { id } : {}) as T;
 
   const payload = await response.json();
   const normalized = normalizeApiDates(mapObjectKeys(payload, toCamelCase));
-  if (Array.isArray(normalized) && id) return normalized[0];
-  if (Array.isArray(normalized) && (method === 'POST' || method === 'PATCH')) return normalized[0];
-  return normalized;
+  if (Array.isArray(normalized) && (id || method === 'POST' || method === 'PATCH')) return normalized[0] as T;
+  return normalized as T;
 }
 
 export const api = {

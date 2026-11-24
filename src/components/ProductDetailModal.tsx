@@ -11,8 +11,12 @@ import {
   Truck,
   Star,
   Package,
+  BadgeCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { VideoPlayer } from './ui/VideoPlayer';
+import { SoldBadge } from './ui/SoldBadge';
+import { formatPrice } from '../utils/price';
 
 export const ProductDetailModal: React.FC = () => {
   const {
@@ -20,6 +24,7 @@ export const ProductDetailModal: React.FC = () => {
     setProductDetail,
     setEditModalItem,
     deletePost,
+    setPostSold,
     deleteProduct,
     openVideoViewer,
     isAdminUser,
@@ -53,8 +58,7 @@ export const ProductDetailModal: React.FC = () => {
 
   const isProductItem = !('mediaUrl' in productDetail || 'type' in productDetail);
   const title = 'title' in productDetail ? productDetail.title : '';
-  const price = 'price' in productDetail ? productDetail.price : '';
-  const numericPrice = 'numericPrice' in productDetail ? Number(productDetail.numericPrice) : 0;
+  const price = 'price' in productDetail ? formatPrice(productDetail.price) : '';
   const image = 'image' in productDetail ? productDetail.image : productDetail.mediaUrl;
   const galleryImages = 'images' in productDetail
     ? [productDetail.image, ...(productDetail.images || [])].filter((url, index, urls) => url && urls.indexOf(url) === index)
@@ -64,11 +68,15 @@ export const ProductDetailModal: React.FC = () => {
   const minOrder = productDetail.minOrder || '1 dona';
   const phone = ('phone' in productDetail ? productDetail.phone : '') || '';
   const discount = 'discount' in productDetail ? productDetail.discount : undefined;
-  const rating = 'rating' in productDetail ? productDetail.rating : 5;
-  const reviewsCount = 'reviewsCount' in productDetail ? productDetail.reviewsCount : 0;
+  // Only real ratings: a listing without reviews shows no stars at all.
+  const rating = 'rating' in productDetail ? Number(productDetail.rating) || 0 : 0;
+  const reviewsCount = 'reviewsCount' in productDetail ? Number(productDetail.reviewsCount) || 0 : 0;
+  const isSold = 'isSold' in productDetail && Boolean(productDetail.isSold);
   const stock = 'stock' in productDetail ? productDetail.stock : undefined;
 
-  const canManage = Boolean(isAdminUser);
+  const isOwner = Boolean(currentUser && !isProductItem && 'sellerId' in productDetail
+    && (currentUser.id === productDetail.sellerId || currentUser.id === productDetail.userId));
+  const canManage = Boolean(isAdminUser) || isOwner;
   const telegram = ('telegram' in productDetail ? productDetail.telegram : undefined)?.replace(/^@/, '').replace(/\s+/g, '');
   const isVideoPost = 'mediaUrl' in productDetail && productDetail.type === 'video';
   const description = 'description' in productDetail ? productDetail.description : '';
@@ -83,11 +91,20 @@ export const ProductDetailModal: React.FC = () => {
       <div className="space-y-4 select-none">
         {/* Admin Management Bar */}
         {canManage && (
-          <div className="flex items-center gap-2 p-2 bg-amber-50 rounded-[16px] border border-amber-200">
-            <span className="text-[11px] font-bold text-amber-800 px-2 shrink-0">Admin:</span>
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-amber-50 rounded-[16px] border border-amber-200">
+            <span className="hidden sm:inline text-[11px] font-bold text-amber-800 px-2 shrink-0">{isAdminUser && !isOwner ? 'Admin:' : 'Boshqaruv:'}</span>
+            {!isProductItem && (
+              <button
+                onClick={() => { void setPostSold(productDetail.id, !isSold); }}
+                className="flex-1 min-w-0 px-3 py-2 rounded-[12px] bg-white border border-amber-200 text-slate-800 font-black text-xs flex items-center justify-center gap-1.5 hover:bg-amber-100 transition-colors"
+              >
+                {isSold ? <RotateCcw className="w-3.5 h-3.5 text-emerald-600" /> : <BadgeCheck className="w-3.5 h-3.5 text-[#D84315]" />}
+                <span>{isSold ? 'Sotuvga qaytarish' : 'Sotildi'}</span>
+              </button>
+            )}
             <button
               onClick={() => setEditModalItem(productDetail)}
-              className="flex-1 py-2 rounded-[12px] bg-[#111827] text-white font-black text-xs flex items-center justify-center gap-1.5 hover:bg-black transition-colors"
+              className="flex-1 min-w-0 px-3 py-2 rounded-[12px] bg-[#111827] text-white font-black text-xs flex items-center justify-center gap-1.5 hover:bg-black transition-colors"
             >
               <Edit3 className="w-3.5 h-3.5 text-amber-400" />
               <span>Tahrirlash</span>
@@ -103,7 +120,7 @@ export const ProductDetailModal: React.FC = () => {
                   setProductDetail(null);
                 }
               }}
-              className="px-3 py-2 rounded-[12px] bg-orange-100 text-[#D84315] font-black text-xs flex items-center justify-center gap-1.5 hover:bg-orange-200 transition-colors"
+              className="flex-1 min-w-0 px-3 py-2 rounded-[12px] bg-orange-100 text-[#D84315] font-black text-xs flex items-center justify-center gap-1.5 hover:bg-orange-200 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>O'chirish</span>
@@ -126,11 +143,11 @@ export const ProductDetailModal: React.FC = () => {
             />
           ) : (
             <img
-              src={galleryImages[activeImage] || '/logo.png'}
+              src={galleryImages[activeImage] || '/logo.png?v=2'}
               alt={title}
               onError={(event) => {
                 event.currentTarget.onerror = null;
-                event.currentTarget.src = '/logo.png';
+                event.currentTarget.src = '/logo.png?v=2';
               }}
               className="w-full h-full object-cover"
             />
@@ -140,6 +157,7 @@ export const ProductDetailModal: React.FC = () => {
               {discount}
             </span>
           )}
+          {isSold && <SoldBadge className="absolute left-3 top-3 z-10" />}
           {isProductItem && (
             <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-500/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-black text-white shadow-md flex items-center gap-1">
               <Truck className="w-3 h-3" /> MollBazar Yetkazadi
@@ -164,7 +182,7 @@ export const ProductDetailModal: React.FC = () => {
                   alt=""
                   onError={(event) => {
                     event.currentTarget.onerror = null;
-                    event.currentTarget.src = '/logo.png';
+                    event.currentTarget.src = '/logo.png?v=2';
                   }}
                   className="w-full h-full object-cover"
                 />
@@ -177,16 +195,14 @@ export const ProductDetailModal: React.FC = () => {
         <div className="space-y-2.5">
           {/* Price & Rating */}
           <div className="flex items-center justify-between">
-            <div>
-              <span className="font-black text-xl text-[#D84315]">{price}</span>
-              {numericPrice > 0 && (
-                <p className="text-[10px] text-slate-400 font-semibold">({numericPrice.toLocaleString('uz-UZ')} so'm)</p>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-full text-xs font-black text-amber-700">
-              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-              <span>{rating}</span>
-            </div>
+            <span className={`font-black text-xl ${isSold ? 'text-slate-400 line-through' : 'text-[#D84315]'}`}>{price}</span>
+            {reviewsCount > 0 && rating > 0 && (
+              <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-full text-xs font-black text-amber-700">
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                <span>{rating.toFixed(1)}</span>
+                <span className="font-semibold text-amber-600/80">({reviewsCount})</span>
+              </div>
+            )}
           </div>
 
           {/* Title */}
@@ -267,10 +283,12 @@ export const ProductDetailModal: React.FC = () => {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                   Sharhlar {reviewsCount > 0 ? `(${reviewsCount})` : ''}
                 </span>
-                <span className="flex items-center gap-1 text-xs font-black text-[#f59e0b]">
-                  <Star className="w-3.5 h-3.5 fill-[#fbbf24]" />
-                  {rating}
-                </span>
+                {reviewsCount > 0 && (
+                  <span className="flex items-center gap-1 text-xs font-black text-[#f59e0b]">
+                    <Star className="w-3.5 h-3.5 fill-[#fbbf24]" />
+                    {rating.toFixed(1)}
+                  </span>
+                )}
               </div>
 
               {(productReviews[productDetail.id] || []).length > 0 ? (

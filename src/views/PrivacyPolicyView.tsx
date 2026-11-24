@@ -63,7 +63,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
               title="MollBazar Homepage"
             >
               <img
-                src="/logo.png"
+                src="/logo.png?v=2"
                 alt="MollBazar Logo"
                 className="w-8 h-8 rounded-xl object-cover shadow-xs group-hover:scale-105 transition-transform"
               />
@@ -295,7 +295,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
               <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 mb-4 flex items-center gap-2.5">
                   <Lock className="w-5 h-5 text-[#D84315]" />
-                  5. How User Data Is Stored & Protected (Supabase & Cloud Architecture)
+                  5. How User Data Is Stored & Protected
                 </h2>
                 <div className="space-y-4 text-sm text-slate-700 leading-relaxed">
                   <p>
@@ -306,10 +306,10 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1.5">
                       <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
                         <Database className="w-4 h-4 text-blue-600" />
-                        Supabase Backend & PostgreSQL
+                        Servers in Uzbekistan
                       </h3>
                       <p className="text-xs text-slate-600 leading-relaxed">
-                        Authentication records, database profiles, and storage media are hosted using <strong>Supabase</strong> with enterprise-grade PostgreSQL. All data queries are protected by Row Level Security (RLS) policies ensuring users can only read and write their own authorized data.
+                        Accounts, profiles, listings and uploaded media are stored on our own server at <strong>Ahost</strong>, a hosting provider in Uzbekistan, in a MySQL database. Every request is checked by server-side access rules, so users can only read and change data they are authorised to.
                       </p>
                     </div>
 
@@ -413,8 +413,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
                   <p>We work with trusted third-party cloud infrastructure providers under strict data protection terms:</p>
                   <ul className="list-disc list-inside space-y-1 text-xs text-slate-700">
                     <li><strong>Google LLC:</strong> Identity provider for Google OAuth authentication.</li>
-                    <li><strong>Supabase Inc:</strong> Authentication gateway and PostgreSQL database hosting.</li>
-                    <li><strong>Vercel Inc:</strong> Secure web application hosting and CDN infrastructure.</li>
+                    <li><strong>Ahost (Uzbekistan):</strong> Web hosting, database and file storage.</li>
                     <li><strong>Resend Inc:</strong> Transactional email service provider.</li>
                   </ul>
                 </div>
@@ -512,11 +511,11 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
               <section className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-xs">
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 mb-4 flex items-center gap-2.5">
                   <Database className="w-5 h-5 text-[#D84315]" />
-                  3. Ma'lumotlarni saqlash va Xavfsizlik (Supabase)
+                  3. Ma'lumotlarni saqlash va xavfsizlik
                 </h2>
                 <div className="space-y-3 text-sm text-slate-700 leading-relaxed">
                   <p>
-                    Barcha shaxsiy ma'lumotlar, parollar va sessiyalar zamonaviy <strong>Supabase</strong> PostgreSQL bazasida Row Level Security (RLS) shifrlash qoidalari asosida saqlanadi. Ma'lumotlar uzatish TLS 1.3 / HTTPS protokollari bilan himoyalangan.
+                    Barcha shaxsiy ma'lumotlar, e'lonlar va yuklangan fayllar O'zbekistondagi <strong>Ahost</strong> serverida, MySQL bazasida saqlanadi. Parollar faqat bir tomonlama shifrlangan (bcrypt) ko'rinishda saqlanadi, har bir so'rov server tomonidagi ruxsat qoidalari bilan tekshiriladi. Ma'lumotlar uzatish HTTPS (TLS) protokoli bilan himoyalangan.
                   </p>
                 </div>
               </section>
@@ -556,7 +555,7 @@ export const PrivacyPolicyView: React.FC<PrivacyPolicyViewProps> = ({ onBack }) 
         {/* ── Footer ── */}
         <footer className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="MollBazar Logo" className="w-6 h-6 rounded-lg object-cover" />
+            <img src="/logo.png?v=2" alt="MollBazar Logo" className="w-6 h-6 rounded-lg object-cover" />
             <span className="font-bold text-slate-700">© 2026 MollBazar. Barcha huquqlar himoyalangan.</span>
           </div>
 

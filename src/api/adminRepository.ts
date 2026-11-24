@@ -1,45 +1,12 @@
 /**
- * MollBazar Admin Repository
- * Supabase DB va Realtime RLS orqali admin ma'lumotlarini boshqaruvchi repository
+ * Admin panel data access: statistics, users, moderation, categories,
+ * reports, broadcasts and the audit log. Every write either reaches the server
+ * or throws, so the panel never shows a change that was not saved.
  */
 
-import { CATEGORIES } from '../data/mockAgroData';
-import { supabaseClient } from './authClient';
-import { api, normalizeApiRow } from './http';
+import { apiClient } from './authClient';
+import { normalizeApiRow } from './http';
 import type { Post } from './types';
-
-const supabase = supabaseClient;
-
-const MOCK_CATEGORIES_KEY = 'mollbazar-admin-categories';
-const MOCK_AUDIT_KEY = 'mollbazar-admin-audit-logs';
-
-function readMock<T>(key: string, fallback: T): T {
-  if (typeof localStorage === 'undefined') return fallback;
-  try { return JSON.parse(localStorage.getItem(key) || '') as T; } catch { return fallback; }
-}
-
-function writeMock<T>(key: string, value: T): void {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
-}
-
-function mockCategories(): CategoryItem[] {
-  return readMock<CategoryItem[]>(MOCK_CATEGORIES_KEY, CATEGORIES.map((c, index) => ({
-    id: c.id, name: c.name, icon: c.icon || '', orderIndex: index, isActive: true, scope: 'both',
-  })));
-}
-
-function ensureCategoryFallback(next: CategoryItem[]): CategoryItem[] {
-  const safe = Array.isArray(next) ? next : [];
-  writeMock(MOCK_CATEGORIES_KEY, safe);
-  return safe;
-}
-
-function persistCategoryFallback(category: CategoryItem): CategoryItem[] {
-  const current = mockCategories();
-  const filtered = current.filter((item) => item.id !== category.id);
-  const next = [...filtered, category].sort((a, b) => a.orderIndex - b.orderIndex);
-  return ensureCategoryFallback(next);
-}
 
 export interface AdminStats {
   totalUsers: number;
@@ -59,14 +26,6 @@ export interface AdminStats {
 }
 
 const WEEKDAY_ABBR = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh']; // Date.getDay(): 0=Yakshanba..6=Shanba
-
-function emptyWeeklyChart(): AdminStats['weeklyChart'] {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (6 - i));
-    return { day: WEEKDAY_ABBR[d.getDay()], orders: 0, sales: 0 };
-  });
-}
 
 export interface AdminUserItem {
   id: string;
@@ -104,6 +63,15 @@ export interface AdminReport {
   createdAt: string;
 }
 
+export interface BroadcastItem {
+  id: string;
+  title: string;
+  message: string;
+  targetRole: 'all' | 'business' | 'supplier';
+  sentCount: number;
+  createdAt: string;
+}
+
 export interface AdminAuditLog {
   id: string;
   adminId?: string;
@@ -116,16 +84,25 @@ export interface AdminAuditLog {
   createdAt: string;
 }
 
+function mapCategory(c: any): CategoryItem {
+  return {
+    id: c.id,
+    name: c.name,
+    icon: c.icon || '',
+    orderIndex: c.order_index || 0,
+    isActive: c.is_active ?? true,
+    scope: c.scope || 'both',
+    createdAt: c.created_at,
+  };
+}
+
 export const adminRepository = {
   // Moderation must include all statuses, independent of feed location and expiry.
   async getPosts(): Promise<Post[]> {
-    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
-      return api.get<Post[]>('/posts');
-    }
     const posts: Post[] = [];
     const pageSize = 500;
     for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase.from('posts').select('*')
+      const { data, error } = await apiClient.from('posts').select('*')
         .order('created_at', { ascending: false }).order('id', { ascending: false })
         .range(from, from + pageSize - 1);
       if (error) throw new Error(`E'lonlar yuklanmadi: ${error.message}`);
@@ -135,24 +112,6 @@ export const adminRepository = {
   },
 
   async getStats(): Promise<AdminStats> {
-    const offlineFallback: AdminStats = {
-      totalUsers: 0,
-      totalPosts: 0,
-      activePosts: 0,
-      pendingModeration: 0,
-      totalSuppliers: 0,
-      totalBusinesses: 0,
-      totalB2BProducts: 0,
-      totalOrders: 0,
-      todayOrders: 0,
-      totalSales: 0,
-      totalCommission: 0,
-      activeSellers: 0,
-      weeklyChart: emptyWeeklyChart(),
-    };
-
-    if (!supabase) return offlineFallback;
-
     try {
       const [
         usersRes,
@@ -164,14 +123,14 @@ export const adminRepository = {
         b2bOrdersRes,
         ledgerRes,
       ] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'seller'),
-        supabase.from('posts').select('id, status', { count: 'exact' }),
-        supabase.from('supplier_profiles').select('id, verification_status', { count: 'exact' }),
-        supabase.from('business_profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('b2b_products').select('id, status', { count: 'exact' }),
-        supabase.from('b2b_orders').select('id, created_at, total', { count: 'exact' }),
-        supabase.from('commission_ledger').select('commission_amount', { count: 'exact' }),
+        apiClient.from('profiles').select('id', { count: 'exact', head: true }),
+        apiClient.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'seller'),
+        apiClient.from('posts').select('id, status', { count: 'exact' }),
+        apiClient.from('supplier_profiles').select('id, verification_status', { count: 'exact' }),
+        apiClient.from('business_profiles').select('id', { count: 'exact', head: true }),
+        apiClient.from('b2b_products').select('id, status', { count: 'exact' }),
+        apiClient.from('b2b_orders').select('id, created_at, total', { count: 'exact' }),
+        apiClient.from('commission_ledger').select('commission_amount', { count: 'exact' }),
       ]);
       for (const result of [usersRes, sellersRes, postsRes, suppliersRes, businessesRes, b2bProductsRes, b2bOrdersRes, ledgerRes]) {
         if (result.error) throw result.error;
@@ -237,22 +196,8 @@ export const adminRepository = {
   },
 
   async getUsers(search = '', page = 1, pageSize = 20): Promise<{ users: AdminUserItem[]; total: number }> {
-    if (!supabase) {
-      const raw = readMock<Record<string, { user: AdminUserItem; password: string }>>('mollbazar-auth-users', {});
-      const all = Object.values(raw).map((record) => ({
-        ...record.user,
-        postsCount: 0,
-        ordersCount: 0,
-      }));
-      const filtered = search
-        ? all.filter((u) => `${u.name} ${u.email} ${u.phone}`.toLowerCase().includes(search.toLowerCase()))
-        : all;
-      const from = (page - 1) * pageSize;
-      return { users: filtered.slice(from, from + pageSize), total: filtered.length };
-    }
-
     try {
-      let query = supabase.from('profiles').select('*', { count: 'exact' });
+      let query = apiClient.from('profiles').select('*', { count: 'exact' });
       if (search) {
         query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
       }
@@ -284,37 +229,15 @@ export const adminRepository = {
   },
 
   async updateUserStatus(userId: string, status: 'active' | 'banned', role?: string): Promise<void> {
-    if (!supabase) {
-      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('mollbazar-auth-users', {});
-      for (const key of Object.keys(users)) {
-        if (users[key].user.id === userId) {
-          users[key].user.status = status;
-          if (role) users[key].user.role = role;
-        }
-      }
-      writeMock('mollbazar-auth-users', users);
-      return;
-    }
     const updatePayload: Record<string, any> = { status, updated_at: new Date().toISOString() };
     if (role) updatePayload.role = role;
 
-    const { error } = await supabase.from('profiles').update(updatePayload).eq('id', userId);
+    const { error } = await apiClient.from('profiles').update(updatePayload).eq('id', userId);
     if (error) throw new Error(`Foydalanuvchi statusi saqlanmadi: ${error.message}`);
   },
 
   async updateUserRole(userId: string, role: string, isAdmin = false): Promise<void> {
-    if (!supabase) {
-      const users = readMock<Record<string, { user: AdminUserItem; password: string }>>('mollbazar-auth-users', {});
-      for (const key of Object.keys(users)) {
-        if (users[key].user.id === userId) {
-          users[key].user.role = role;
-          users[key].user.isAdmin = isAdmin;
-        }
-      }
-      writeMock('mollbazar-auth-users', users);
-      return;
-    }
-    const { error } = await supabase.from('profiles').update({
+    const { error } = await apiClient.from('profiles').update({
       role,
       is_admin: isAdmin,
       updated_at: new Date().toISOString(),
@@ -323,23 +246,7 @@ export const adminRepository = {
   },
 
   async sendBroadcastAnnouncement(title: string, message: string, targetRole: 'all' | 'business' | 'supplier' = 'all'): Promise<number> {
-    const payload = {
-      id: `broadcast-${Date.now()}`,
-      title,
-      message,
-      targetRole,
-      createdAt: new Date().toISOString(),
-    };
-
-    const saveHistory = () => {
-      const history = readMock<any[]>('mollbazar-admin-broadcasts', []);
-      writeMock('mollbazar-admin-broadcasts', [payload, ...history]);
-    };
-    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
-      saveHistory();
-      return 1;
-    }
-    let query = supabase.from('profiles').select('id');
+    let query = apiClient.from('profiles').select('id');
     if (targetRole === 'business') query = query.in('role', ['business', 'business_buyer']);
     if (targetRole === 'supplier') query = query.eq('role', 'supplier');
     const { data: users, error: usersError } = await query;
@@ -347,20 +254,40 @@ export const adminRepository = {
     if (!users?.length) return 0;
     const notifications = users.map(u => ({
       user_id: u.id, type: 'broadcast', title, body: message,
-      target_type: 'announcement', target_id: payload.id, is_read: false,
+      target_type: 'announcement', target_id: '', is_read: false,
     }));
-    const { error } = await supabase.from('notifications').insert(notifications);
+    const { error } = await apiClient.from('notifications').insert(notifications);
     if (error) throw new Error(`Xabarnoma yuborilmadi: ${error.message}`);
-    saveHistory();
+
+    // The notifications are already delivered; a failed history row must not report the send as failed.
+    const { data: session } = await apiClient.auth.getUser();
+    const { error: historyError } = await apiClient.from('broadcast_announcements').insert({
+      admin_id: session?.user?.id || null,
+      title,
+      message,
+      target_role: targetRole,
+      sent_count: notifications.length,
+    });
+    if (historyError) console.warn('[admin] broadcast history not saved:', historyError.message);
     return notifications.length;
   },
 
+  async getBroadcastHistory(): Promise<BroadcastItem[]> {
+    const { data, error } = await apiClient.from('broadcast_announcements').select('*')
+      .order('created_at', { ascending: false }).limit(50);
+    if (error) throw new Error(error.message);
+    return (data || []).map((b) => ({
+      id: b.id,
+      title: b.title,
+      message: b.message || '',
+      targetRole: b.target_role || 'all',
+      sentCount: Number(b.sent_count) || 0,
+      createdAt: b.created_at,
+    }));
+  },
+
   async updatePostModeration(postId: string, status: 'approved' | 'rejected' | 'blocked', rejectionReason = ''): Promise<void> {
-    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
-      await api.patch(`/posts/${postId}`, { status, rejectionReason });
-      return;
-    }
-    const { data, error } = await supabase.from('posts').update({
+    const { data, error } = await apiClient.from('posts').update({
       status,
       rejection_reason: rejectionReason,
       updated_at: new Date().toISOString(),
@@ -371,101 +298,37 @@ export const adminRepository = {
   },
 
   async deletePostByAdmin(postId: string): Promise<void> {
-    if (!supabase || import.meta.env.VITE_USE_MOCK_API === 'true') {
-      await api.delete(`/posts/${postId}`);
-      return;
-    }
-    const { error } = await supabase.from('posts').delete().eq('id', postId).select('id').single();
+    const { error } = await apiClient.from('posts').delete().eq('id', postId).select('id').single();
     if (error) throw new Error(`E'lon o'chirilmadi: ${error.message}`);
   },
 
   async getCategories(): Promise<CategoryItem[]> {
-    if (!supabase) return mockCategories();
-    try {
-      const { data, error } = await supabase.from('categories').select('*').order('order_index', { ascending: true });
-      if (error || !data) {
-        return mockCategories();
-      }
-      return data.map((c) => ({
-        id: c.id,
-        name: c.name,
-        icon: c.icon || '',
-        orderIndex: c.order_index || 0,
-        isActive: c.is_active ?? true,
-        scope: c.scope || 'both',
-        createdAt: c.created_at,
-      }));
-    } catch {
-      return mockCategories();
-    }
+    const { data, error } = await apiClient.from('categories').select('*').order('order_index', { ascending: true });
+    if (error) throw new Error(`Kategoriyalar yuklanmadi: ${error.message}`);
+    return (data || []).map(mapCategory);
   },
 
   async saveCategory(cat: Partial<CategoryItem>): Promise<CategoryItem> {
-    const fallback = (): CategoryItem => {
-      const saved: CategoryItem = {
-        id: cat.id || `cat-${Date.now()}`,
-        name: cat.name?.trim() || 'Yangi kategoriya',
-        icon: cat.icon || 'tag',
-        orderIndex: cat.orderIndex ?? 0,
-        isActive: cat.isActive ?? true,
-        scope: cat.scope || 'both',
-        createdAt: cat.createdAt || new Date().toISOString(),
-      };
-      persistCategoryFallback(saved);
-      return saved;
-    };
-
-    if (!supabase) return fallback();
-
-    try {
-      const { data, error } = await supabase.from('categories').upsert({
-        id: cat.id || `cat-${Date.now()}`,
-        name: cat.name,
-        icon: cat.icon || '',
-        order_index: cat.orderIndex || 0,
-        is_active: cat.isActive ?? true,
-        scope: cat.scope || 'both',
-      }).select().single();
-
-      if (error || !data) {
-        return fallback();
-      }
-
-      return {
-        id: data.id,
-        name: data.name,
-        icon: data.icon || '',
-        orderIndex: data.order_index || 0,
-        isActive: data.is_active ?? true,
-        scope: data.scope || 'both',
-        createdAt: data.created_at,
-      };
-    } catch {
-      return fallback();
-    }
+    const { data, error } = await apiClient.from('categories').upsert({
+      id: cat.id || `cat-${Date.now()}`,
+      name: cat.name,
+      icon: cat.icon || '',
+      order_index: cat.orderIndex || 0,
+      is_active: cat.isActive ?? true,
+      scope: cat.scope || 'both',
+    }).select().single();
+    if (error || !data) throw new Error(`Kategoriya saqlanmadi: ${error?.message || "server javob bermadi"}`);
+    return mapCategory(data);
   },
 
   async deleteCategory(catId: string): Promise<void> {
-    if (!supabase) {
-      ensureCategoryFallback(mockCategories().filter((cat) => cat.id !== catId));
-      return;
-    }
-
-    try {
-      const { error } = await supabase.from('categories').delete().eq('id', catId);
-      if (error) {
-        ensureCategoryFallback(mockCategories().filter((cat) => cat.id !== catId));
-        return;
-      }
-    } catch {
-      ensureCategoryFallback(mockCategories().filter((cat) => cat.id !== catId));
-    }
+    const { error } = await apiClient.from('categories').delete().eq('id', catId);
+    if (error) throw new Error(`Kategoriya o'chirilmadi: ${error.message}`);
   },
 
   async getReports(): Promise<AdminReport[]> {
-    if (!supabase) return [];
     try {
-      const { data, error } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+      const { data, error } = await apiClient.from('reports').select('*').order('created_at', { ascending: false });
       if (error || !data) return [];
       return data.map((r) => ({
         id: r.id,
@@ -483,15 +346,13 @@ export const adminRepository = {
   },
 
   async updateReportStatus(reportId: string, status: 'pending' | 'resolved' | 'rejected'): Promise<void> {
-    if (!supabase) return;
-    const { error } = await supabase.from('reports').update({ status }).eq('id', reportId);
+    const { error } = await apiClient.from('reports').update({ status }).eq('id', reportId);
     if (error) throw new Error(`Shikoyat holati saqlanmadi: ${error.message}`);
   },
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
-    if (!supabase) return readMock<AdminAuditLog[]>(MOCK_AUDIT_KEY, []);
     try {
-      const { data, error } = await supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
+      const { data, error } = await apiClient.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
       if (error || !data) return [];
       return data.map((l) => ({
         id: l.id,
@@ -510,18 +371,9 @@ export const adminRepository = {
   },
 
   async logAdminAction(adminEmail: string, action: string, targetType: string, targetId: string, oldValue?: any, newValue?: any): Promise<void> {
-    if (!supabase) {
-      const log: AdminAuditLog = {
-        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        adminEmail, action, targetType, targetId, oldValue, newValue,
-        createdAt: new Date().toISOString(),
-      };
-      writeMock(MOCK_AUDIT_KEY, [log, ...readMock<AdminAuditLog[]>(MOCK_AUDIT_KEY, [])].slice(0, 100));
-      return;
-    }
     try {
-      const { data: session } = await supabase.auth.getUser();
-      await supabase.from('audit_logs').insert({
+      const { data: session } = await apiClient.auth.getUser();
+      await apiClient.from('audit_logs').insert({
         admin_id: session?.user?.id || null,
         admin_email: adminEmail,
         action,

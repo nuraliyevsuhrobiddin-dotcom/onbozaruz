@@ -1,14 +1,10 @@
 /**
  * B2B (ulgurji savdo) repository.
  *
- * adminRepository.ts naqshini takrorlaydi: to'g'ridan-to'g'ri Supabase'ga
- * murojaat qiladi (src/api/http.ts orqali emas), chunki checkout bitta
- * SECURITY DEFINER RPC chaqiruvi orqali ishlaydi va buni umumiy REST
- * o'ramchisi qo'llab-quvvatlamaydi. Mock rejimda (Supabase sozlanmaganda)
- * localStorage'ga asoslangan yengil bekor qiluvchi qatlam ishlatiladi —
- * to'liq server emulyatsiyasi emas, faqat lokal test uchun yetarli.
+ * Talks to the API client directly (not src/api/http.ts) because checkout and
+ * cashback run through server-side RPCs that the generic REST wrapper does not cover.
  */
-import { supabaseClient } from './authClient';
+import { apiClient } from './authClient';
 import {
   BusinessProfile,
   BusinessAddress,
@@ -23,225 +19,11 @@ import {
   CreateB2BProductInput,
   B2BOrderStatus,
   B2BPaymentMethod,
-  BusinessType,
   B2BStorePublicMarker,
   B2BDirectOffer,
   B2BCashbackTransaction,
   B2BPlatformRequisites,
 } from './types';
-
-const supabase = supabaseClient;
-
-// ---------- Mock-mode (localStorage) fallback ----------
-const MOCK_KEYS = {
-  business: 'mollbazar-b2b-business-profiles',
-  supplier: 'mollbazar-b2b-supplier-profiles',
-  contracts: 'mollbazar-b2b-contracts',
-  products: 'mollbazar-b2b-products',
-  orders: 'mollbazar-b2b-orders',
-  orderItems: 'mollbazar-b2b-order-items',
-  ledger: 'mollbazar-b2b-commission-ledger',
-  cashbackRate: 'mollbazar-b2b-cashback-rate',
-  directOffers: 'mollbazar-b2b-direct-offers',
-  cashbackTransactions: 'mollbazar-b2b-cashback-transactions',
-  platformRequisites: 'mollbazar-b2b-platform-requisites',
-};
-
-const SEED_CASHBACK_TRANSACTIONS: B2BCashbackTransaction[] = [
-  {
-    id: 'cb-tx-1',
-    businessId: 'store-seed-1',
-    storeName: 'Baraka Supermarket',
-    orderNumber: 'ONB-892140',
-    supplierName: 'Agro Invest Distribyutor',
-    orderAmount: 12500000,
-    cashbackRate: 1.5,
-    amount: 187500,
-    type: 'earned',
-    status: 'completed',
-    description: 'ONB-892140 buyurtmasi uchun 1.5% keshbek',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-  },
-  {
-    id: 'cb-tx-2',
-    businessId: 'store-seed-1',
-    storeName: 'Baraka Supermarket',
-    orderNumber: 'ONB-781920',
-    supplierName: 'Gold Fresh Ulgurji Savdo',
-    orderAmount: 8200000,
-    cashbackRate: 1.5,
-    amount: 123000,
-    type: 'earned',
-    status: 'completed',
-    description: 'ONB-781920 buyurtmasi uchun 1.5% keshbek',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-  },
-  {
-    id: 'cb-tx-3',
-    businessId: 'store-seed-2',
-    storeName: 'Oazis Minimarket',
-    orderNumber: 'ONB-661240',
-    supplierName: 'Sharq Sut Zavodi',
-    orderAmount: 4500000,
-    cashbackRate: 1.5,
-    amount: 67500,
-    type: 'earned',
-    status: 'completed',
-    description: 'ONB-661240 buyurtmasi uchun 1.5% keshbek',
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-  {
-    id: 'cb-tx-4',
-    businessId: 'store-seed-5',
-    storeName: 'Afrosiyob Market',
-    orderNumber: 'ONB-553190',
-    supplierName: 'Samarqand Meva-Sabzavot MCHJ',
-    orderAmount: 18000000,
-    cashbackRate: 2.0,
-    amount: 360000,
-    type: 'earned',
-    status: 'completed',
-    description: 'ONB-553190 buyurtmasi uchun 2.0% keshbek',
-    createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-  },
-];
-
-const SEED_STORES = [
-  {
-    id: 'store-seed-1',
-    user_id: 'user-store-1',
-    store_name: 'Baraka Supermarket',
-    owner_name: 'Jasur Karimov',
-    phone: '+998 90 111 22 33',
-    business_type: 'supermarket',
-    region: 'Toshkent',
-    district: 'Chilonzor tumani',
-    address: 'Qatortol ko\'chasi, 42-uy',
-    latitude: 41.2785,
-    longitude: 69.2140,
-    cashback_balance: 340000,
-    description: 'Katta oziq-ovqat va nooziq-ovqat mahsulotlari supermarketi. Kunlik xaridorlar oqimi 1500+.',
-    status: 'active',
-    created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-  },
-  {
-    id: 'store-seed-2',
-    user_id: 'user-store-2',
-    store_name: 'Oazis Minimarket',
-    owner_name: 'Nodirbek Aliyev',
-    phone: '+998 91 222 33 44',
-    business_type: 'minimarket',
-    region: 'Toshkent',
-    district: 'Yunusobod tumani',
-    address: 'Amir Temur shoh ko\'chasi, 108',
-    latitude: 41.3530,
-    longitude: 69.2880,
-    cashback_balance: 180000,
-    description: '24/7 ishlaydigan zamonaviy minimarket. Ichimliklar va qandolat mahsulotlari qabul qilamiz.',
-    status: 'active',
-    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
-  },
-  {
-    id: 'store-seed-3',
-    user_id: 'user-store-3',
-    store_name: 'Ziyo Oziq-ovqat do\'koni',
-    owner_name: 'Farhod Umarov',
-    phone: '+998 93 333 44 55',
-    business_type: 'grocery',
-    region: 'Toshkent',
-    district: 'Mirzo Ulug\'bek tumani',
-    address: 'Buyuk Ipak Yo\'li, 15',
-    latitude: 41.3260,
-    longitude: 69.3350,
-    cashback_balance: 95000,
-    description: 'Mahalliy oziq-ovqat savdo do\'koni. Sifatli sut va go\'sht mahsulotlari yetkazib beruvchilari kerak.',
-    status: 'active',
-    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
-  },
-  {
-    id: 'store-seed-4',
-    user_id: 'user-store-4',
-    store_name: 'Davo Plus Dorixona',
-    owner_name: 'Dr. Shahlo Rahimova',
-    phone: '+998 97 444 55 66',
-    business_type: 'pharmacy',
-    region: 'Toshkent',
-    district: 'Shayxontohur tumani',
-    address: 'Navoiy ko\'chasi, 24',
-    latitude: 41.3210,
-    longitude: 69.2450,
-    cashback_balance: 520000,
-    description: 'Tibbiy buyumlar va dori vositalari dorixonalar tarmog\'i.',
-    status: 'active',
-    created_at: new Date(Date.now() - 40 * 86400000).toISOString(),
-  },
-  {
-    id: 'store-seed-5',
-    user_id: 'user-store-5',
-    store_name: 'Afrosiyob Market',
-    owner_name: 'Akmal Saidov',
-    phone: '+998 99 555 66 77',
-    business_type: 'supermarket',
-    region: 'Samarqand',
-    district: 'Samarqand shahri',
-    address: 'Registon ko\'chasi, 88',
-    latitude: 39.6542,
-    longitude: 66.9597,
-    cashback_balance: 410000,
-    description: 'Samarqand markazidagi yirik savdo majmuasi. To\'g\'ridan-to\'g\'ri ulgurji distribyutorlar bilan ishlaymiz.',
-    status: 'active',
-    created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
-  },
-  {
-    id: 'store-seed-6',
-    user_id: 'user-store-6',
-    store_name: 'Vodiy Baraka Do\'koni',
-    owner_name: 'Ilhom Jo\'rayev',
-    phone: '+998 94 666 77 88',
-    business_type: 'grocery',
-    region: 'Farg\'ona',
-    district: 'Farg\'ona shahri',
-    address: 'Al-Farg\'oniy ko\'chasi, 12',
-    latitude: 40.3864,
-    longitude: 71.7864,
-    cashback_balance: 230000,
-    description: 'Ulgurji va chakana oziq-ovqat savdo do\'koni.',
-    status: 'active',
-    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-  },
-];
-
-function readMock<T>(key: string, fallback: T): T {
-  if (typeof localStorage === 'undefined') return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw && key === MOCK_KEYS.business) {
-      localStorage.setItem(key, JSON.stringify(SEED_STORES));
-      return SEED_STORES as unknown as T;
-    }
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeMock<T>(key: string, value: T): void {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
-}
-
-function genId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function currentMockUserId(): string {
-  try {
-    const raw = localStorage.getItem('mollbazar-auth-session');
-    const user = raw ? JSON.parse(raw) : null;
-    return user?.id || 'mock-user';
-  } catch {
-    return 'mock-user';
-  }
-}
 
 // ---------- Mappers (snake_case DB row -> camelCase domain type) ----------
 export function mapBusinessProfile(r: any): BusinessProfile {
@@ -379,14 +161,9 @@ export function mapB2BOrderItem(r: any): B2BOrderItem {
 
 // ---------- Business profile ----------
 export async function fetchOwnBusinessProfile(): Promise<BusinessProfile | null> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.business, []);
-    const row = all.find((b) => b.user_id === currentMockUserId());
-    return row ? mapBusinessProfile(row) : null;
-  }
-  const { data: session } = await supabase.auth.getUser();
+  const { data: session } = await apiClient.auth.getUser();
   if (!session.user) return null;
-  const { data, error } = await supabase.from('business_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
+  const { data, error } = await apiClient.from('business_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
   if (error || !data) return null;
   return mapBusinessProfile(data);
 }
@@ -440,33 +217,10 @@ export async function registerBusinessBuyer(input: CreateBusinessProfileInput): 
 
   const coords = getStoreCoordinates(input.region, input.latitude, input.longitude);
 
-  if (!supabase) {
-    const row = {
-      id: genId('biz'),
-      user_id: currentMockUserId(),
-      store_name: input.storeName,
-      owner_name: input.ownerName,
-      phone: input.phone,
-      business_type: input.businessType,
-      region: input.region || '',
-      district: input.district || '',
-      address: input.address || '',
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      description: input.description || '',
-      logo_url: input.logoUrl || '',
-      status: 'active',
-      created_at: new Date().toISOString(),
-    };
-    const all = readMock<any[]>(MOCK_KEYS.business, []);
-    writeMock(MOCK_KEYS.business, [...all.filter((b) => b.user_id !== row.user_id), row]);
-    return mapBusinessProfile(row);
-  }
-
-  const { data: session } = await supabase.auth.getUser();
+  const { data: session } = await apiClient.auth.getUser();
   if (!session.user) throw new Error('Sessiya topilmadi');
 
-  const { data, error } = await supabase.from('business_profiles').insert({
+  const { data, error } = await apiClient.from('business_profiles').insert({
     user_id: session.user.id,
     store_name: input.storeName,
     owner_name: input.ownerName,
@@ -503,10 +257,7 @@ export async function registerBusinessBuyer(input: CreateBusinessProfileInput): 
 }
 
 export async function addBusinessAddress(businessId: string, input: Omit<BusinessAddress, 'id' | 'businessId'>): Promise<BusinessAddress> {
-  if (!supabase) {
-    return { id: genId('addr'), businessId, ...input };
-  }
-  const { data, error } = await supabase.from('business_addresses').insert({
+  const { data, error } = await apiClient.from('business_addresses').insert({
     business_id: businessId,
     label: input.label || 'Asosiy manzil',
     store_name: input.storeName || '',
@@ -538,34 +289,17 @@ export async function addBusinessAddress(businessId: string, input: Omit<Busines
 
 // ---------- Supplier profile ----------
 export async function fetchOwnSupplierProfile(): Promise<SupplierProfile | null> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.supplier, []);
-    const row = all.find((s) => s.user_id === currentMockUserId());
-    return row ? mapSupplierProfile(row) : null;
-  }
-  const { data: session } = await supabase.auth.getUser();
+  const { data: session } = await apiClient.auth.getUser();
   if (!session.user) return null;
-  const { data, error } = await supabase.from('supplier_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
+  const { data, error } = await apiClient.from('supplier_profiles').select('*').eq('user_id', session.user.id).maybeSingle();
   if (error || !data) return null;
   return mapSupplierProfile(data);
 }
 
 export async function registerSupplier(input: CreateSupplierProfileInput): Promise<SupplierProfile> {
-  if (!supabase) {
-    const row = {
-      id: genId('sup'), user_id: currentMockUserId(), company_name: input.companyName, supplier_type: input.supplierType,
-      owner_name: input.ownerName, phone: input.phone, email: input.email || '', region: input.region || '',
-      district: input.district || '', address: input.address || '', description: input.description || '',
-      categories: input.categories || [], tax_id: input.taxId || '', logo_url: input.logoUrl || '',
-      verification_status: 'pending', rejection_reason: '', commission_rate: 5, created_at: new Date().toISOString(),
-    };
-    const all = readMock<any[]>(MOCK_KEYS.supplier, []);
-    writeMock(MOCK_KEYS.supplier, [...all.filter((s) => s.user_id !== row.user_id), row]);
-    return mapSupplierProfile(row);
-  }
-  const { data: session } = await supabase.auth.getUser();
+  const { data: session } = await apiClient.auth.getUser();
   if (!session.user) throw new Error('Sessiya topilmadi');
-  const { data, error } = await supabase.from('supplier_profiles').insert({
+  const { data, error } = await apiClient.from('supplier_profiles').insert({
     user_id: session.user.id,
     company_name: input.companyName,
     supplier_type: input.supplierType,
@@ -585,11 +319,7 @@ export async function registerSupplier(input: CreateSupplierProfileInput): Promi
 }
 
 export async function listVerifiedSuppliers(search = ''): Promise<SupplierProfile[]> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.supplier, []).filter((s) => s.verification_status === 'approved');
-    return all.map(mapSupplierProfile);
-  }
-  let query = supabase.from('supplier_profiles').select('*').eq('verification_status', 'approved');
+  let query = apiClient.from('supplier_profiles').select('*').eq('verification_status', 'approved');
   if (search) query = query.ilike('company_name', `%${search}%`);
   const { data, error } = await query.order('created_at', { ascending: false });
   if (error || !data) return [];
@@ -597,35 +327,20 @@ export async function listVerifiedSuppliers(search = ''): Promise<SupplierProfil
 }
 
 export async function getSupplier(id: string): Promise<SupplierProfile | null> {
-  if (!supabase) {
-    const row = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === id);
-    return row ? mapSupplierProfile(row) : null;
-  }
-  const { data, error } = await supabase.from('supplier_profiles').select('*').eq('id', id).maybeSingle();
+  const { data, error } = await apiClient.from('supplier_profiles').select('*').eq('id', id).maybeSingle();
   if (error || !data) return null;
   return mapSupplierProfile(data);
 }
 
 // ---------- Contract ----------
 export async function fetchOwnContract(supplierId: string): Promise<Contract | null> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.contracts, []).filter((c) => c.supplier_id === supplierId);
-    const row = all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
-    return row ? mapContract(row) : null;
-  }
-  const { data, error } = await supabase.from('contracts').select('*').eq('supplier_id', supplierId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await apiClient.from('contracts').select('*').eq('supplier_id', supplierId).order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error || !data) return null;
   return mapContract(data);
 }
 
 export async function respondToContract(contractId: string, accept: boolean): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.contracts, []);
-    const next = all.map((c) => c.id === contractId ? { ...c, status: accept ? 'accepted' : 'rejected', accepted_at: accept ? new Date().toISOString() : null } : c);
-    writeMock(MOCK_KEYS.contracts, next);
-    return;
-  }
-  const { error } = await supabase.from('contracts').update({ status: accept ? 'accepted' : 'rejected' }).eq('id', contractId);
+  const { error } = await apiClient.from('contracts').update({ status: accept ? 'accepted' : 'rejected' }).eq('id', contractId);
   if (error) throw new Error(error.message);
 }
 
@@ -642,21 +357,7 @@ export interface B2BProductFilters {
 }
 
 export async function listB2BProducts(filters: B2BProductFilters = {}): Promise<B2BProduct[]> {
-  if (!supabase) {
-    let rows = readMock<any[]>(MOCK_KEYS.products, []).filter((p) => p.status === 'approved');
-    const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      rows = rows.filter((p) => p.name.toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q));
-    }
-    if (filters.category) rows = rows.filter((p) => p.category === filters.category);
-    if (filters.minMoq != null) rows = rows.filter((p) => p.moq >= filters.minMoq!);
-    return rows.map((r) => {
-      const sup = suppliers.find((s) => s.id === r.supplier_id);
-      return mapB2BProduct({ ...r, supplierName: sup?.company_name, supplierVerified: sup?.verification_status === 'approved' });
-    });
-  }
-  let query = supabase.from('b2b_products').select('*, supplier_profiles(company_name, verification_status, region)').eq('status', 'approved');
+  let query = apiClient.from('b2b_products').select('*, supplier_profiles(company_name, verification_status, region)').eq('status', 'approved');
   if (filters.search) query = query.or(`name.ilike.%${filters.search}%,brand.ilike.%${filters.search}%`);
   if (filters.category) query = query.eq('category', filters.category);
   if (filters.minPrice != null) query = query.gte('wholesale_price', filters.minPrice);
@@ -672,40 +373,19 @@ export async function listB2BProducts(filters: B2BProductFilters = {}): Promise<
 }
 
 export async function getB2BProduct(id: string): Promise<B2BProduct | null> {
-  if (!supabase) {
-    const row = readMock<any[]>(MOCK_KEYS.products, []).find((p) => p.id === id);
-    if (!row) return null;
-    const sup = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === row.supplier_id);
-    return mapB2BProduct({ ...row, supplierName: sup?.company_name, supplierVerified: sup?.verification_status === 'approved' });
-  }
-  const { data, error } = await supabase.from('b2b_products').select('*, supplier_profiles(company_name, verification_status)').eq('id', id).maybeSingle();
+  const { data, error } = await apiClient.from('b2b_products').select('*, supplier_profiles(company_name, verification_status)').eq('id', id).maybeSingle();
   if (error || !data) return null;
   return mapB2BProduct(data);
 }
 
 export async function listOwnB2BProducts(supplierId: string): Promise<B2BProduct[]> {
-  if (!supabase) {
-    return readMock<any[]>(MOCK_KEYS.products, []).filter((p) => p.supplier_id === supplierId).map(mapB2BProduct);
-  }
-  const { data, error } = await supabase.from('b2b_products').select('*').eq('supplier_id', supplierId).order('created_at', { ascending: false });
+  const { data, error } = await apiClient.from('b2b_products').select('*').eq('supplier_id', supplierId).order('created_at', { ascending: false });
   if (error || !data) return [];
   return data.map(mapB2BProduct);
 }
 
 export async function submitB2BProduct(input: CreateB2BProductInput): Promise<B2BProduct> {
-  if (!supabase) {
-    const row = {
-      id: genId('b2bp'), supplier_id: input.supplierId, name: input.name, brand: input.brand || '', category: input.category,
-      description: input.description || '', sku: input.sku || '', images: input.images, video_url: input.videoUrl || '',
-      wholesale_price: input.wholesalePrice, moq: input.moq, available_qty: input.availableQty, unit: input.unit,
-      packaging: input.packaging || '', delivery_available: input.deliveryAvailable, delivery_regions: input.deliveryRegions,
-      status: 'pending', rejection_reason: '', created_at: new Date().toISOString(),
-    };
-    const all = readMock<any[]>(MOCK_KEYS.products, []);
-    writeMock(MOCK_KEYS.products, [row, ...all]);
-    return mapB2BProduct(row);
-  }
-  const { data, error } = await supabase.from('b2b_products').insert({
+  const { data, error } = await apiClient.from('b2b_products').insert({
     supplier_id: input.supplierId,
     name: input.name,
     brand: input.brand || '',
@@ -727,11 +407,6 @@ export async function submitB2BProduct(input: CreateB2BProductInput): Promise<B2
 }
 
 export async function updateB2BProduct(id: string, patch: Partial<CreateB2BProductInput>): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.products, []);
-    writeMock(MOCK_KEYS.products, all.map((p) => p.id === id ? { ...p, ...patch } : p));
-    return;
-  }
   const payload: Record<string, unknown> = {};
   if (patch.name !== undefined) payload.name = patch.name;
   if (patch.brand !== undefined) payload.brand = patch.brand;
@@ -745,16 +420,12 @@ export async function updateB2BProduct(id: string, patch: Partial<CreateB2BProdu
   if (patch.deliveryAvailable !== undefined) payload.delivery_available = patch.deliveryAvailable;
   if (patch.deliveryRegions !== undefined) payload.delivery_regions = patch.deliveryRegions;
   if (patch.images !== undefined) payload.images = patch.images;
-  const { error } = await supabase.from('b2b_products').update(payload).eq('id', id);
+  const { error } = await apiClient.from('b2b_products').update(payload).eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function deleteB2BProduct(id: string): Promise<void> {
-  if (!supabase) {
-    writeMock(MOCK_KEYS.products, readMock<any[]>(MOCK_KEYS.products, []).filter((p) => p.id !== id));
-    return;
-  }
-  const { error } = await supabase.from('b2b_products').delete().eq('id', id);
+  const { error } = await apiClient.from('b2b_products').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
@@ -782,60 +453,7 @@ async function createOrderForSupplier(
   delivery: B2BDeliveryInfo,
   cashbackUsed: number = 0
 ): Promise<string> {
-  if (!supabase) {
-    // Mock rejimda RPC yo'q — atomiklik kafolatlanmaydi, faqat lokal test uchun.
-    let subtotal = 0;
-    const orderId = genId('b2bo');
-    const items: any[] = [];
-    for (const line of lines) {
-      if (line.quantity < line.product.moq) throw new Error(`Miqdor MOQ dan kam: ${line.product.name} (min ${line.product.moq})`);
-      if (line.product.availableQty < line.quantity) throw new Error(`Yetarli zaxira yo'q: ${line.product.name}`);
-      const lineTotal = line.product.wholesalePrice * line.quantity;
-      subtotal += lineTotal;
-      items.push({
-        id: genId('b2boi'), order_id: orderId, product_id: line.product.id, product_name: line.product.name,
-        product_image: line.product.images[0] || '', unit: line.product.unit, unit_price: line.product.wholesalePrice,
-        quantity: line.quantity, line_total: lineTotal,
-      });
-    }
-    const supplier = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === supplierId);
-    if (supplier?.verification_status !== 'approved') throw new Error("Yetkazib beruvchi hali tasdiqlanmagan");
-    const cashbackApplied = Math.min(Math.max(0, cashbackUsed), subtotal);
-    const commissionRate = Number(supplier?.commission_rate ?? 5);
-    const commissionAmount = Math.round(subtotal * commissionRate) / 100;
-    const order = {
-      id: orderId, order_number: `ONB-${String(Date.now()).slice(-6)}`, business_id: businessId, supplier_id: supplierId,
-      buyer_user_id: currentMockUserId(), subtotal, delivery_fee: 0, total: subtotal - cashbackApplied, payment_method: paymentMethod,
-      payment_status: 'cash_pending', status: 'pending', rejection_reason: '', commission_rate: commissionRate,
-      commission_amount: commissionAmount, supplier_amount: subtotal - commissionAmount, cashback_used: cashbackApplied,
-      delivery_store_name: delivery.storeName, delivery_phone: delivery.phone, delivery_region: delivery.region,
-      delivery_district: delivery.district, delivery_address: delivery.address, delivery_note: delivery.note || '',
-      created_at: new Date().toISOString(),
-    };
-    if (cashbackApplied > 0) {
-      deductBuyerCashback(businessId, cashbackApplied);
-      void recordCashbackTransaction({
-        businessId, storeName: delivery.storeName, orderId, orderNumber: order.order_number,
-        cashbackRate: 0, amount: -cashbackApplied, type: 'redeemed', status: 'completed',
-        description: 'Buyurtmada ishlatildi',
-      });
-    }
-    writeMock(MOCK_KEYS.orders, [order, ...readMock<any[]>(MOCK_KEYS.orders, [])]);
-    writeMock(MOCK_KEYS.orderItems, [...items, ...readMock<any[]>(MOCK_KEYS.orderItems, [])]);
-    writeMock(MOCK_KEYS.ledger, [{
-      id: genId('ledger'), order_id: orderId, supplier_id: supplierId, gross_amount: subtotal, commission_rate: commissionRate,
-      commission_amount: commissionAmount, supplier_amount: subtotal - commissionAmount, payment_method: paymentMethod,
-      status: 'pending', created_at: new Date().toISOString(),
-    }, ...readMock<any[]>(MOCK_KEYS.ledger, [])]);
-    const products = readMock<any[]>(MOCK_KEYS.products, []);
-    writeMock(MOCK_KEYS.products, products.map((p) => {
-      const line = lines.find((l) => l.product.id === p.id);
-      return line ? { ...p, available_qty: p.available_qty - line.quantity } : p;
-    }));
-    return orderId;
-  }
-
-  const { data, error } = await supabase.rpc('create_b2b_order', {
+  const { data, error } = await apiClient.rpc('create_b2b_order', {
     p_business_id: businessId,
     p_supplier_id: supplierId,
     p_items: lines.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
@@ -937,18 +555,9 @@ export async function checkoutB2BCart(
 
 // ---------- Orders ----------
 export async function listB2BOrdersForBuyer(): Promise<B2BOrder[]> {
-  if (!supabase) {
-    const orders = readMock<any[]>(MOCK_KEYS.orders, []).filter((o) => o.buyer_user_id === currentMockUserId());
-    const items = readMock<any[]>(MOCK_KEYS.orderItems, []);
-    const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
-    return orders.map((o) => ({
-      ...mapB2BOrder({ ...o, supplierName: suppliers.find((s) => s.id === o.supplier_id)?.company_name }),
-      items: items.filter((i) => i.order_id === o.id).map(mapB2BOrderItem),
-    }));
-  }
-  const { data: session } = await supabase.auth.getUser();
+  const { data: session } = await apiClient.auth.getUser();
   if (!session.user) return [];
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_orders')
     .select('*, supplier_profiles(company_name)')
     .eq('buyer_user_id', session.user.id)
@@ -958,16 +567,7 @@ export async function listB2BOrdersForBuyer(): Promise<B2BOrder[]> {
 }
 
 export async function listB2BOrdersForSupplier(supplierId: string): Promise<B2BOrder[]> {
-  if (!supabase) {
-    const orders = readMock<any[]>(MOCK_KEYS.orders, []).filter((o) => o.supplier_id === supplierId);
-    const items = readMock<any[]>(MOCK_KEYS.orderItems, []);
-    const businesses = readMock<any[]>(MOCK_KEYS.business, []);
-    return orders.map((o) => ({
-      ...mapB2BOrder({ ...o, businessName: businesses.find((b) => b.id === o.business_id)?.store_name }),
-      items: items.filter((i) => i.order_id === o.id).map(mapB2BOrderItem),
-    }));
-  }
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_orders')
     .select('*, business_profiles(store_name)')
     .eq('supplier_id', supplierId)
@@ -977,15 +577,7 @@ export async function listB2BOrdersForSupplier(supplierId: string): Promise<B2BO
 }
 
 export async function getB2BOrder(orderId: string): Promise<B2BOrder | null> {
-  if (!supabase) {
-    const row = readMock<any[]>(MOCK_KEYS.orders, []).find((o) => o.id === orderId);
-    if (!row) return null;
-    const items = readMock<any[]>(MOCK_KEYS.orderItems, []).filter((i) => i.order_id === orderId);
-    const supplierName = readMock<any[]>(MOCK_KEYS.supplier, []).find((s) => s.id === row.supplier_id)?.company_name;
-    const businessName = readMock<any[]>(MOCK_KEYS.business, []).find((b) => b.id === row.business_id)?.store_name;
-    return { ...mapB2BOrder({ ...row, supplierName, businessName }), items: items.map(mapB2BOrderItem) };
-  }
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_orders')
     .select('*, supplier_profiles(company_name), business_profiles(store_name)')
     .eq('id', orderId)
@@ -996,130 +588,62 @@ export async function getB2BOrder(orderId: string): Promise<B2BOrder | null> {
 }
 
 export async function getB2BOrderItems(orderId: string): Promise<B2BOrderItem[]> {
-  if (!supabase) {
-    return readMock<any[]>(MOCK_KEYS.orderItems, []).filter((i) => i.order_id === orderId).map(mapB2BOrderItem);
-  }
-  const { data, error } = await supabase.from('b2b_order_items').select('*').eq('order_id', orderId);
+  const { data, error } = await apiClient.from('b2b_order_items').select('*').eq('order_id', orderId);
   if (error || !data) return [];
   return data.map(mapB2BOrderItem);
 }
 
 export async function supplierUpdateOrderStatus(orderId: string, status: B2BOrderStatus, rejectionReason?: string): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.orders, []);
-    writeMock(MOCK_KEYS.orders, all.map((o) => o.id === orderId ? { ...o, status, rejection_reason: rejectionReason || '' } : o));
-
-    // Mirrors the real handle_b2b_order_status_change SQL trigger: settle
-    // commission on delivery, void it (and restock) on cancel/reject.
-    if (status === 'delivered') {
-      const ledger = readMock<any[]>(MOCK_KEYS.ledger, []);
-      writeMock(MOCK_KEYS.ledger, ledger.map((l) => l.order_id === orderId ? { ...l, status: 'settled' } : l));
-    } else if (status === 'cancelled' || status === 'rejected') {
-      const ledger = readMock<any[]>(MOCK_KEYS.ledger, []);
-      writeMock(MOCK_KEYS.ledger, ledger.map((l) => l.order_id === orderId ? { ...l, status: 'voided' } : l));
-      const items = readMock<any[]>(MOCK_KEYS.orderItems, []).filter((i) => i.order_id === orderId);
-      const products = readMock<any[]>(MOCK_KEYS.products, []);
-      writeMock(MOCK_KEYS.products, products.map((p) => {
-        const item = items.find((i) => i.product_id === p.id);
-        return item ? { ...p, available_qty: p.available_qty + item.quantity } : p;
-      }));
-    }
-    return;
-  }
   const payload: Record<string, unknown> = { status };
   if (rejectionReason !== undefined) payload.rejection_reason = rejectionReason;
-  const { error } = await supabase.from('b2b_orders').update(payload).eq('id', orderId);
+  const { error } = await apiClient.from('b2b_orders').update(payload).eq('id', orderId);
   if (error) throw new Error(error.message);
 }
 
 export async function supplierConfirmCashPayment(orderId: string): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.orders, []);
-    const order = all.find((o) => o.id === orderId);
-    const rate = getB2BCashbackRate();
-    const cashbackEarned = order ? Math.round(Number(order.total || 0) * (rate / 100)) : 0;
-    writeMock(MOCK_KEYS.orders, all.map((o) => o.id === orderId ? { ...o, payment_status: 'cash_confirmed', cashback_earned: cashbackEarned } : o));
-
-    // Award cashback to the buyer upon payment confirmation
-    if (order && order.business_id) {
-      creditBuyerCashback(order.business_id, cashbackEarned);
-
-      // Record transaction
-      void recordCashbackTransaction({
-        businessId: order.business_id,
-        storeName: order.delivery_store_name || 'Do\'kon',
-        orderId: order.id,
-        orderNumber: order.order_number,
-        supplierName: order.supplier_name || 'Yetkazib beruvchi',
-        orderAmount: Number(order.total || 0),
-        cashbackRate: rate,
-        amount: cashbackEarned,
-        type: 'earned',
-        status: 'completed',
-        description: `${order.order_number} buyurtmasi uchun ${rate}% keshbek`,
-      });
-    }
-    return;
-  }
-  // payment_status ustuniga to'g'ridan-to'g'ri UPDATE endi rad etiladi (DB
-  // GRANT darajasida) — bu RPC keshbekni ham SHU tranzaksiyada, atomik
-  // ravishda hisoblab yozadi (supabase_schema.sql: supplier_confirm_cash_payment).
-  const { error } = await supabase.rpc('supplier_confirm_cash_payment', { p_order_id: orderId });
+  // payment_status cannot be updated directly; this RPC confirms the cash payment
+  // and credits the buyer's cashback in one transaction (public/api/_lib/rpc.php).
+  const { error } = await apiClient.rpc('supplier_confirm_cash_payment', { p_order_id: orderId });
   if (error) throw new Error(error.message);
 }
 
 // ---------- Cashback & Wallet ----------
-/** Faqat mock rejim uchun sinxron o'qish — Supabase rejimida fetchB2BCashbackRate() ishlatiladi. */
-export function getB2BCashbackRate(): number {
-  return readMock<number>(MOCK_KEYS.cashbackRate, 1.5);
-}
-
 export async function fetchB2BCashbackRate(): Promise<number> {
-  if (!supabase) return getB2BCashbackRate();
-  const { data } = await supabase.from('b2b_config').select('cashback_rate').eq('id', true).maybeSingle();
+  const { data } = await apiClient.from('b2b_config').select('cashback_rate').eq('id', true).maybeSingle();
   return Number(data?.cashback_rate ?? 1.5);
 }
 
 export async function setB2BCashbackRate(rate: number): Promise<void> {
-  if (!supabase) {
-    writeMock(MOCK_KEYS.cashbackRate, rate);
-    return;
-  }
-  const { error } = await supabase.rpc('set_b2b_cashback_rate', { p_rate: rate });
+  const { error } = await apiClient.rpc('set_b2b_cashback_rate', { p_rate: rate });
   if (error) throw new Error(error.message);
 }
 
+/** Shown until the admin enters real payment details: never a placeholder card number. */
 export const DEFAULT_PLATFORM_REQUISITES: B2BPlatformRequisites = {
-  adminCardNumber: '8600 4902 1122 3344',
-  adminCardHolder: 'MOLLBAZAR B2B RASMIY HISOBI',
-  adminBankAccount: '20208000900012345001',
-  adminBankMfo: '00444',
-  adminBankName: 'ATB Kapitalbank Toshkent sh.',
-  adminPaymentPhone: '+998 90 123 45 67',
-  adminPaymentInstructions: "To'lov izohida korxona / do'kon nomini ko'rsating.",
+  adminCardNumber: '',
+  adminCardHolder: '',
+  adminBankAccount: '',
+  adminBankMfo: '',
+  adminBankName: '',
+  adminPaymentPhone: '',
+  adminPaymentInstructions: '',
 };
 
 export async function fetchPlatformRequisites(): Promise<B2BPlatformRequisites> {
-  if (!supabase) return readMock<B2BPlatformRequisites>(MOCK_KEYS.platformRequisites, DEFAULT_PLATFORM_REQUISITES);
-  const { data } = await supabase.from('b2b_config').select('*').eq('id', true).maybeSingle();
+  const { data } = await apiClient.from('b2b_config').select('*').eq('id', true).maybeSingle();
   if (!data) return DEFAULT_PLATFORM_REQUISITES;
   return {
-    adminCardNumber: data.admin_card_number || DEFAULT_PLATFORM_REQUISITES.adminCardNumber,
-    adminCardHolder: data.admin_card_holder || DEFAULT_PLATFORM_REQUISITES.adminCardHolder,
-    adminBankAccount: data.admin_bank_account || DEFAULT_PLATFORM_REQUISITES.adminBankAccount,
-    adminBankMfo: data.admin_bank_mfo || DEFAULT_PLATFORM_REQUISITES.adminBankMfo,
-    adminBankName: data.admin_bank_name || DEFAULT_PLATFORM_REQUISITES.adminBankName,
-    adminPaymentPhone: data.admin_payment_phone || DEFAULT_PLATFORM_REQUISITES.adminPaymentPhone,
-    adminPaymentInstructions: data.admin_payment_instructions || DEFAULT_PLATFORM_REQUISITES.adminPaymentInstructions,
+    adminCardNumber: data.admin_card_number || '',
+    adminCardHolder: data.admin_card_holder || '',
+    adminBankAccount: data.admin_bank_account || '',
+    adminBankMfo: data.admin_bank_mfo || '',
+    adminBankName: data.admin_bank_name || '',
+    adminPaymentPhone: data.admin_payment_phone || '',
+    adminPaymentInstructions: data.admin_payment_instructions || '',
   };
 }
 
 export async function setPlatformRequisites(req: Partial<B2BPlatformRequisites>): Promise<void> {
-  if (!supabase) {
-    const curr = readMock<B2BPlatformRequisites>(MOCK_KEYS.platformRequisites, DEFAULT_PLATFORM_REQUISITES);
-    writeMock(MOCK_KEYS.platformRequisites, { ...curr, ...req });
-    return;
-  }
   const payload: any = { updated_at: new Date().toISOString() };
   if (req.adminCardNumber !== undefined) payload.admin_card_number = req.adminCardNumber;
   if (req.adminCardHolder !== undefined) payload.admin_card_holder = req.adminCardHolder;
@@ -1129,38 +653,13 @@ export async function setPlatformRequisites(req: Partial<B2BPlatformRequisites>)
   if (req.adminPaymentPhone !== undefined) payload.admin_payment_phone = req.adminPaymentPhone;
   if (req.adminPaymentInstructions !== undefined) payload.admin_payment_instructions = req.adminPaymentInstructions;
 
-  const { error } = await supabase.from('b2b_config').update(payload).eq('id', true);
+  const { error } = await apiClient.from('b2b_config').update(payload).eq('id', true);
   if (error) throw new Error(error.message);
 }
 
 export async function fetchBuyerCashbackBalance(businessId: string): Promise<number> {
-  if (!supabase) {
-    const stores = readMock<any[]>(MOCK_KEYS.business, []);
-    const found = stores.find((s) => s.id === businessId);
-    return Number(found?.cashback_balance ?? 0);
-  }
-  const { data } = await supabase.from('business_profiles').select('cashback_balance').eq('id', businessId).maybeSingle();
+  const { data } = await apiClient.from('business_profiles').select('cashback_balance').eq('id', businessId).maybeSingle();
   return Number(data?.cashback_balance ?? 0);
-}
-
-/** Faqat mock rejim uchun — Supabase rejimida balans faqat SECURITY DEFINER RPC'lar orqali o'zgaradi. */
-export function creditBuyerCashback(businessId: string, amount: number): void {
-  if (amount <= 0) return;
-  const stores = readMock<any[]>(MOCK_KEYS.business, []);
-  writeMock(
-    MOCK_KEYS.business,
-    stores.map((s) => s.id === businessId ? { ...s, cashback_balance: Number(s.cashback_balance || 0) + amount } : s)
-  );
-}
-
-/** Faqat mock rejim uchun — Supabase rejimida balans faqat SECURITY DEFINER RPC'lar orqali o'zgaradi. */
-export function deductBuyerCashback(businessId: string, amount: number): void {
-  if (amount <= 0) return;
-  const stores = readMock<any[]>(MOCK_KEYS.business, []);
-  writeMock(
-    MOCK_KEYS.business,
-    stores.map((s) => s.id === businessId ? { ...s, cashback_balance: Math.max(0, Number(s.cashback_balance || 0) - amount) } : s)
-  );
 }
 
 function mapCashbackTransaction(r: any): B2BCashbackTransaction {
@@ -1183,11 +682,7 @@ function mapCashbackTransaction(r: any): B2BCashbackTransaction {
 }
 
 export async function listCashbackTransactions(businessId?: string): Promise<B2BCashbackTransaction[]> {
-  if (!supabase) {
-    const all = readMock<B2BCashbackTransaction[]>(MOCK_KEYS.cashbackTransactions, SEED_CASHBACK_TRANSACTIONS);
-    return businessId ? all.filter((tx) => tx.businessId === businessId) : all;
-  }
-  let query = supabase
+  let query = apiClient
     .from('b2b_cashback_transactions')
     .select('*, business_profiles(store_name), b2b_orders(order_number, total, supplier_profiles(company_name))')
     .order('created_at', { ascending: false });
@@ -1197,20 +692,6 @@ export async function listCashbackTransactions(businessId?: string): Promise<B2B
   return data.map(mapCashbackTransaction);
 }
 
-/** Faqat mock rejim uchun — Supabase rejimida yozuvlar RPC'lar ichida yaratiladi. */
-export async function recordCashbackTransaction(
-  tx: Omit<B2BCashbackTransaction, 'id' | 'createdAt'>
-): Promise<B2BCashbackTransaction> {
-  const item: B2BCashbackTransaction = {
-    id: genId('cb-tx'),
-    ...tx,
-    createdAt: new Date().toISOString(),
-  };
-  const all = readMock<B2BCashbackTransaction[]>(MOCK_KEYS.cashbackTransactions, SEED_CASHBACK_TRANSACTIONS);
-  writeMock(MOCK_KEYS.cashbackTransactions, [item, ...all]);
-  return item;
-}
-
 export async function requestCashbackWithdrawal(
   businessId: string,
   storeName: string,
@@ -1218,23 +699,7 @@ export async function requestCashbackWithdrawal(
   payoutDetails: string
 ): Promise<void> {
   if (amount <= 0) throw new Error("Chiqarish summasi 0 dan katta bo'lishi kerak");
-  if (!supabase) {
-    const bal = await fetchBuyerCashbackBalance(businessId);
-    if (bal < amount) throw new Error("Hamyonda yetarli keshbek mablag'i yo'q");
-    deductBuyerCashback(businessId, amount);
-    await recordCashbackTransaction({
-      businessId,
-      storeName,
-      amount: -amount,
-      cashbackRate: 0,
-      type: 'withdrawn',
-      status: 'pending',
-      payoutDetails,
-      description: `Keshbekni yechib olish so'rovi (${payoutDetails})`,
-    });
-    return;
-  }
-  const { error } = await supabase.rpc('request_cashback_withdrawal', {
+  const { error } = await apiClient.rpc('request_cashback_withdrawal', {
     p_business_id: businessId,
     p_amount: amount,
     p_payout_details: payoutDetails,
@@ -1243,20 +708,7 @@ export async function requestCashbackWithdrawal(
 }
 
 export async function adminUpdateWithdrawalStatus(txId: string, status: 'completed' | 'rejected'): Promise<void> {
-  if (!supabase) {
-    const all = readMock<B2BCashbackTransaction[]>(MOCK_KEYS.cashbackTransactions, SEED_CASHBACK_TRANSACTIONS);
-    const target = all.find((t) => t.id === txId);
-    if (target && status === 'rejected') {
-      // refund back to store
-      creditBuyerCashback(target.businessId, Math.abs(target.amount));
-    }
-    writeMock(
-      MOCK_KEYS.cashbackTransactions,
-      all.map((t) => t.id === txId ? { ...t, status } : t)
-    );
-    return;
-  }
-  const { error } = await supabase.rpc('admin_update_cashback_withdrawal', { p_tx_id: txId, p_status: status });
+  const { error } = await apiClient.rpc('admin_update_cashback_withdrawal', { p_tx_id: txId, p_status: status });
   if (error) throw new Error(error.message);
 }
 
@@ -1266,20 +718,7 @@ export async function adminGrantBonusCashback(
   amount: number,
   description: string
 ): Promise<void> {
-  if (!supabase) {
-    creditBuyerCashback(businessId, amount);
-    await recordCashbackTransaction({
-      businessId,
-      storeName,
-      amount,
-      cashbackRate: 0,
-      type: 'admin_bonus',
-      status: 'completed',
-      description: description || "Admin tomonidan taqdim etilgan maxsus bonus",
-    });
-    return;
-  }
-  const { error } = await supabase.rpc('admin_grant_business_cashback', {
+  const { error } = await apiClient.rpc('admin_grant_business_cashback', {
     p_business_id: businessId,
     p_amount: amount,
     p_description: description || '',
@@ -1289,111 +728,25 @@ export async function adminGrantBonusCashback(
 
 // ---------- Map Stores (Privacy-protected) ----------
 export async function listStoresForMap(): Promise<B2BStorePublicMarker[]> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.business, SEED_STORES);
-    return all
-      .filter((s) => s.status !== 'suspended')
-      .map((s) => {
-        const coords = getStoreCoordinates(s.region, s.latitude, s.longitude);
-        return {
-          id: s.id,
-          storeName: s.store_name ?? s.storeName,
-          businessType: s.business_type ?? s.businessType ?? 'grocery',
-          region: s.region || 'Toshkent',
-          district: s.district || 'Shahar markazi',
-          address: s.address || '',
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          logoUrl: s.logo_url ?? s.logoUrl,
-          description: s.description || '',
-          createdAt: s.created_at ?? s.createdAt ?? new Date().toISOString(),
-        };
-      });
-  }
-
-  // 1. Try RPC get_public_stores_for_map if available
-  try {
-    const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_stores_for_map');
-    // An empty result is valid (for example, before the first store is
-    // registered). Do not replace it with mock stores in a real project.
-    if (!rpcError && Array.isArray(rpcData)) {
-      return rpcData.map((s: any) => {
-        const coords = getStoreCoordinates(s.region, s.latitude, s.longitude);
-        return {
-          id: s.id,
-          storeName: s.store_name,
-          businessType: s.business_type || 'grocery',
-          region: s.region || 'Toshkent',
-          district: s.district || '',
-          address: s.address || '',
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          logoUrl: s.logo_url,
-          description: s.description,
-          createdAt: s.created_at,
-        };
-      });
-    }
-  } catch {
-    // Fall through to direct table queries
-  }
-
-  // 2. Direct table queries fallback (business_profiles + business_addresses)
-  try {
-    const [profilesRes, addressesRes] = await Promise.all([
-      supabase.from('business_profiles').select('*').neq('status', 'suspended'),
-      supabase.from('business_addresses').select('*'),
-    ]);
-
-    const profiles = profilesRes.data || [];
-    const addresses = addressesRes.data || [];
-
-    const addrMap = new Map<string, any>();
-    for (const a of addresses) {
-      if (!addrMap.has(a.business_id) || a.is_default) {
-        addrMap.set(a.business_id, a);
-      }
-    }
-
-    if (profiles.length > 0) {
-      return profiles.map((p: any) => {
-        const addr = addrMap.get(p.id);
-        const rawLat = addr?.latitude ?? p.latitude;
-        const rawLng = addr?.longitude ?? p.longitude;
-        const coords = getStoreCoordinates(p.region || addr?.region, rawLat, rawLng);
-
-        return {
-          id: p.id,
-          storeName: p.store_name,
-          businessType: p.business_type || 'grocery',
-          region: p.region || addr?.region || 'Toshkent',
-          district: p.district || addr?.district || '',
-          address: addr?.address || p.address || '',
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          logoUrl: p.logo_url,
-          description: p.description,
-          createdAt: p.created_at,
-        };
-      });
-    }
-  } catch (err) {
-    console.warn('Failed to load stores for map from supabase:', err);
-  }
-
-  return SEED_STORES.map((s) => ({
-    id: s.id,
-    storeName: s.store_name,
-    businessType: s.business_type as BusinessType,
-    region: s.region,
-    district: s.district,
-    address: s.address,
-    latitude: s.latitude,
-    longitude: s.longitude,
-    logoUrl: undefined,
-    description: s.description,
-    createdAt: s.created_at,
-  }));
+  // The RPC returns only public store fields (no owner phone or user id).
+  const { data, error } = await apiClient.rpc('get_public_stores_for_map');
+  if (error) throw new Error(error.message);
+  return (Array.isArray(data) ? data : []).map((s: any) => {
+    const coords = getStoreCoordinates(s.region, s.latitude, s.longitude);
+    return {
+      id: s.id,
+      storeName: s.store_name,
+      businessType: s.business_type || 'grocery',
+      region: s.region || 'Toshkent',
+      district: s.district || '',
+      address: s.address || '',
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      logoUrl: s.logo_url,
+      description: s.description,
+      createdAt: s.created_at,
+    };
+  });
 }
 
 // ---------- Direct B2B In-App Offers ----------
@@ -1430,13 +783,7 @@ async function addPublicStoreNames(offers: B2BDirectOffer[]): Promise<B2BDirectO
 export async function sendDirectOffer(
   input: Omit<B2BDirectOffer, 'id' | 'status' | 'createdAt'>
 ): Promise<B2BDirectOffer> {
-  if (!supabase) {
-    const offer: B2BDirectOffer = { id: genId('offer'), ...input, status: 'pending', createdAt: new Date().toISOString() };
-    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
-    writeMock(MOCK_KEYS.directOffers, [offer, ...all]);
-    return offer;
-  }
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_direct_offers')
     .insert({
       supplier_id: input.supplierId,
@@ -1452,11 +799,7 @@ export async function sendDirectOffer(
 }
 
 export async function listDirectOffersForStore(businessId: string): Promise<B2BDirectOffer[]> {
-  if (!supabase) {
-    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
-    return all.filter((o) => o.businessId === businessId);
-  }
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_direct_offers')
     .select('*, supplier_profiles(company_name)')
     .eq('business_id', businessId)
@@ -1466,11 +809,7 @@ export async function listDirectOffersForStore(businessId: string): Promise<B2BD
 }
 
 export async function listDirectOffersForSupplier(supplierId: string): Promise<B2BDirectOffer[]> {
-  if (!supabase) {
-    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
-    return all.filter((o) => o.supplierId === supplierId);
-  }
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_direct_offers')
     .select('*, supplier_profiles(company_name)')
     .eq('supplier_id', supplierId)
@@ -1480,29 +819,18 @@ export async function listDirectOffersForSupplier(supplierId: string): Promise<B
 }
 
 export async function respondToDirectOffer(offerId: string, status: 'accepted' | 'declined'): Promise<void> {
-  if (!supabase) {
-    const all = readMock<B2BDirectOffer[]>(MOCK_KEYS.directOffers, []);
-    writeMock(MOCK_KEYS.directOffers, all.map((o) => o.id === offerId ? { ...o, status } : o));
-    return;
-  }
-  const { error } = await supabase.from('b2b_direct_offers').update({ status }).eq('id', offerId);
+  const { error } = await apiClient.from('b2b_direct_offers').update({ status }).eq('id', offerId);
   if (error) throw new Error(error.message);
 }
 
 // ---------- Finance ----------
 export async function fetchSupplierFinanceSummary(supplierId: string, sinceIso?: string): Promise<SupplierFinanceSummary> {
   const empty: SupplierFinanceSummary = { grossSales: 0, totalCommission: 0, netAmount: 0, completedOrders: 0, pendingOrders: 0, cashOrders: 0, onlineOrders: 0 };
-  if (!supabase) {
-    let ledger = readMock<any[]>(MOCK_KEYS.ledger, []).filter((l) => l.supplier_id === supplierId);
-    if (sinceIso) ledger = ledger.filter((l) => l.created_at >= sinceIso);
-    const orders = readMock<any[]>(MOCK_KEYS.orders, []).filter((o) => o.supplier_id === supplierId);
-    return summarize(ledger, orders);
-  }
-  let ledgerQuery = supabase.from('commission_ledger').select('*').eq('supplier_id', supplierId);
+  let ledgerQuery = apiClient.from('commission_ledger').select('*').eq('supplier_id', supplierId);
   if (sinceIso) ledgerQuery = ledgerQuery.gte('created_at', sinceIso);
   const [ledgerRes, ordersRes] = await Promise.all([
     ledgerQuery,
-    supabase.from('b2b_orders').select('status, payment_method').eq('supplier_id', supplierId),
+    apiClient.from('b2b_orders').select('status, payment_method').eq('supplier_id', supplierId),
   ]);
   if (ledgerRes.error || !ledgerRes.data) return empty;
   return summarize(ledgerRes.data, ordersRes.data || []);
@@ -1548,18 +876,14 @@ export const b2bRepository = {
   supplierConfirmCashPayment,
   fetchSupplierFinanceSummary,
   listStoresForMap,
-  getB2BCashbackRate,
   fetchB2BCashbackRate,
   setB2BCashbackRate,
   fetchBuyerCashbackBalance,
-  creditBuyerCashback,
-  deductBuyerCashback,
   sendDirectOffer,
   listDirectOffersForStore,
   listDirectOffersForSupplier,
   respondToDirectOffer,
   listCashbackTransactions,
-  recordCashbackTransaction,
   requestCashbackWithdrawal,
   adminUpdateWithdrawalStatus,
   adminGrantBonusCashback,

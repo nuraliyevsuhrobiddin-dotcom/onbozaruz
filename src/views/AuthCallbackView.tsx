@@ -33,7 +33,7 @@ export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
         }
       } catch (callbackError: unknown) {
         if (active) {
-          setError(callbackError instanceof Error ? callbackError.message : 'Email tasdiqlanmadi.');
+          setError(callbackError instanceof Error ? callbackError.message : "Kirish amalga oshmadi. Qayta urinib ko'ring.");
         }
       }
     })();
@@ -48,7 +48,7 @@ export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
       <section className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm border border-slate-200">
         {error ? (
           <>
-            <h1 className="text-xl font-bold text-slate-900">Email tasdiqlanmadi</h1>
+            <h1 className="text-xl font-bold text-slate-900">Kirish amalga oshmadi</h1>
             <p className="mt-3 text-sm text-red-600">{error}</p>
             <a href="/#home" className="mt-6 inline-block text-sm font-bold text-[#D84315]">
               Bosh sahifaga qaytish
@@ -57,7 +57,7 @@ export function AuthCallbackView({ onSuccess }: AuthCallbackViewProps) {
         ) : (
           <>
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-[#D84315]" />
-            <h1 className="mt-4 text-xl font-bold text-slate-900">Email tasdiqlanmoqda...</h1>
+            <h1 className="mt-4 text-xl font-bold text-slate-900">Kirilmoqda...</h1>
             <p className="mt-2 text-sm text-slate-500">Bir necha soniya kuting.</p>
           </>
         )}

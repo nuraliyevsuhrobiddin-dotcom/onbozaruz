@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Search, CheckCircle, XCircle, Trash2, CheckSquare, Square } from 'lucide-react';
-import { Post } from '../../data/mockAgroData';
+import { Post } from '../../data/catalog';
 import { adminRepository } from '../../api/adminRepository';
+import { formatPrice } from '../../utils/price';
 
 const REJECTION_REASONS = [
   "Rasm sifati talabga javob bermaydi",
@@ -304,7 +305,7 @@ export const AdminPostsTab: React.FC<AdminPostsTabProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium">{post.sellerName} · {post.location}</p>
-                  <p className="text-[10px] font-bold text-[#D84315]">{post.price}</p>
+                  <p className="text-[10px] font-bold text-[#D84315]">{formatPrice(post.price)}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {postStatus !== 'approved' && (

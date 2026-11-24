@@ -1,31 +1,10 @@
 /**
- * B2B admin repository — adminRepository.ts naqshini takrorlaydi (to'g'ridan
- * to'g'ri Supabase, mock rejimda localStorage'ga asoslangan yengil qatlam).
+ * B2B admin data access: supplier verification, product moderation, orders,
+ * commission ledger and store management.
  */
-import { supabaseClient } from './authClient';
+import { apiClient } from './authClient';
 import { SupplierProfile, B2BProduct, B2BOrder, CommissionLedgerEntry, SupplierVerificationStatus, B2BProductStatus } from './types';
-import { B2B_CONTRACT_VERSION } from '../data/b2bContractTemplate';
 import { mapSupplierProfile, mapB2BProduct, mapB2BOrder, mapB2BOrderItem, mapBusinessProfile } from './b2bRepository';
-
-const supabase = supabaseClient;
-
-const MOCK_KEYS = {
-  business: 'mollbazar-b2b-business-profiles',
-  supplier: 'mollbazar-b2b-supplier-profiles',
-  products: 'mollbazar-b2b-products',
-  orders: 'mollbazar-b2b-orders',
-  orderItems: 'mollbazar-b2b-order-items',
-  ledger: 'mollbazar-b2b-commission-ledger',
-  contracts: 'mollbazar-b2b-contracts',
-};
-
-function readMock<T>(key: string, fallback: T): T {
-  if (typeof localStorage === 'undefined') return fallback;
-  try { const raw = localStorage.getItem(key); return raw ? (JSON.parse(raw) as T) : fallback; } catch { return fallback; }
-}
-function writeMock<T>(key: string, value: T): void {
-  if (typeof localStorage !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
-}
 
 function mapLedger(r: any): CommissionLedgerEntry {
   return {
@@ -37,101 +16,41 @@ function mapLedger(r: any): CommissionLedgerEntry {
 
 // ---------- Suppliers ----------
 export async function listAllSuppliers(): Promise<SupplierProfile[]> {
-  if (!supabase) return readMock<any[]>(MOCK_KEYS.supplier, []).map(mapSupplierProfile);
-  const { data, error } = await supabase.from('supplier_profiles').select('*').order('created_at', { ascending: false });
+  const { data, error } = await apiClient.from('supplier_profiles').select('*').order('created_at', { ascending: false });
   if (error || !data) return [];
   return data.map(mapSupplierProfile);
 }
 
 export async function updateSupplierVerification(id: string, status: SupplierVerificationStatus, rejectionReason = ''): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.supplier, []);
-    const supplier = all.find((s) => s.id === id);
-    writeMock(MOCK_KEYS.supplier, all.map((s) => s.id === id ? { ...s, verification_status: status, rejection_reason: rejectionReason } : s));
-
-    // Mirrors the real handle_supplier_verification_change SQL trigger:
-    // approving a supplier auto-issues their cooperation contract so the
-    // dashboard's contract gate has something to load in mock mode too.
-    if (status === 'approved' && supplier) {
-      const contracts = readMock<any[]>(MOCK_KEYS.contracts, []);
-      if (!contracts.some((c) => c.supplier_id === id)) {
-        writeMock(MOCK_KEYS.contracts, [...contracts, {
-          id: `contract-${Date.now()}`,
-          supplier_id: id,
-          contract_version: B2B_CONTRACT_VERSION,
-          commission_rate: supplier.commission_rate ?? 5,
-          status: 'pending',
-          accepted_at: null,
-          terminated_at: null,
-          termination_reason: '',
-          created_at: new Date().toISOString(),
-        }]);
-      }
-    }
-    return;
-  }
-  const { error } = await supabase.from('supplier_profiles').update({ verification_status: status, rejection_reason: rejectionReason }).eq('id', id);
+  const { error } = await apiClient.from('supplier_profiles').update({ verification_status: status, rejection_reason: rejectionReason }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function updateSupplierCommissionRate(id: string, rate: number): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.supplier, []);
-    writeMock(MOCK_KEYS.supplier, all.map((s) => s.id === id ? { ...s, commission_rate: rate } : s));
-    return;
-  }
-  const { error } = await supabase.from('supplier_profiles').update({ commission_rate: rate }).eq('id', id);
+  const { error } = await apiClient.from('supplier_profiles').update({ commission_rate: rate }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 // ---------- B2B products ----------
 export async function listAllB2BProducts(): Promise<B2BProduct[]> {
-  if (!supabase) {
-    const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
-    return readMock<any[]>(MOCK_KEYS.products, []).map((p) => mapB2BProduct({ ...p, supplier_profiles: { company_name: suppliers.find((s) => s.id === p.supplier_id)?.company_name } }));
-  }
-  const { data, error } = await supabase.from('b2b_products').select('*, supplier_profiles(company_name)').order('created_at', { ascending: false });
+  const { data, error } = await apiClient.from('b2b_products').select('*, supplier_profiles(company_name)').order('created_at', { ascending: false });
   if (error || !data) return [];
   return data.map(mapB2BProduct);
 }
 
 export async function updateB2BProductModeration(id: string, status: B2BProductStatus, rejectionReason = ''): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.products, []);
-    writeMock(MOCK_KEYS.products, all.map((p) => p.id === id ? { ...p, status, rejection_reason: rejectionReason } : p));
-    return;
-  }
-  const { error } = await supabase.from('b2b_products').update({ status, rejection_reason: rejectionReason }).eq('id', id);
+  const { error } = await apiClient.from('b2b_products').update({ status, rejection_reason: rejectionReason }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 export async function deleteB2BProductByAdmin(id: string): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.products, []);
-    writeMock(MOCK_KEYS.products, all.filter((p) => p.id !== id));
-    return;
-  }
-  const { error } = await supabase.from('b2b_products').delete().eq('id', id);
+  const { error } = await apiClient.from('b2b_products').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 
 // ---------- B2B orders ----------
 export async function listAllB2BOrders(): Promise<B2BOrder[]> {
-  if (!supabase) {
-    const suppliers = readMock<any[]>(MOCK_KEYS.supplier, []);
-    const businesses = readMock<any[]>(MOCK_KEYS.business, []);
-    const allItems = readMock<any[]>(MOCK_KEYS.orderItems, []);
-    return readMock<any[]>(MOCK_KEYS.orders, []).map((o) => {
-      const mapped = mapB2BOrder({
-        ...o,
-        supplier_profiles: { company_name: suppliers.find((s) => s.id === (o.supplier_id || o.supplierId))?.company_name },
-        business_profiles: { store_name: businesses.find((b) => b.id === (o.business_id || o.businessId))?.store_name },
-      });
-      mapped.items = allItems.filter((it) => (it.order_id || it.orderId) === o.id).map(mapB2BOrderItem);
-      return mapped;
-    });
-  }
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('b2b_orders')
     .select('*, b2b_order_items(*), supplier_profiles(company_name), business_profiles(store_name)')
     .order('created_at', { ascending: false })
@@ -146,16 +65,14 @@ export async function listAllB2BOrders(): Promise<B2BOrder[]> {
 
 // ---------- Commission ledger ----------
 export async function listCommissionLedger(): Promise<CommissionLedgerEntry[]> {
-  if (!supabase) return readMock<any[]>(MOCK_KEYS.ledger, []).map(mapLedger);
-  const { data, error } = await supabase.from('commission_ledger').select('*').order('created_at', { ascending: false }).limit(100);
+  const { data, error } = await apiClient.from('commission_ledger').select('*').order('created_at', { ascending: false }).limit(100);
   if (error || !data) return [];
   return data.map(mapLedger);
 }
 
 // ---------- Stores / Businesses on Map ----------
 export async function listAllBusinessStores(): Promise<import('./types').BusinessProfile[]> {
-  if (!supabase) return readMock<any[]>(MOCK_KEYS.business, []).map(mapBusinessProfile);
-  const { data, error } = await supabase.from('business_profiles').select('*').order('created_at', { ascending: false });
+  const { data, error } = await apiClient.from('business_profiles').select('*').order('created_at', { ascending: false });
   if (error || !data) return [];
   return data.map(mapBusinessProfile);
 }
@@ -164,37 +81,10 @@ export async function updateBusinessStoreByAdmin(
   id: string,
   patch: Partial<import('./types').BusinessProfile>
 ): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.business, []);
-    writeMock(
-      MOCK_KEYS.business,
-      all.map((b) => {
-        if (b.id === id) {
-          return {
-            ...b,
-            store_name: patch.storeName ?? b.store_name,
-            owner_name: patch.ownerName ?? b.owner_name,
-            phone: patch.phone ?? b.phone,
-            business_type: patch.businessType ?? b.business_type,
-            region: patch.region ?? b.region,
-            district: patch.district ?? b.district,
-            address: patch.address ?? b.address,
-            latitude: patch.latitude !== undefined ? patch.latitude : b.latitude,
-            longitude: patch.longitude !== undefined ? patch.longitude : b.longitude,
-            description: patch.description ?? b.description,
-            status: patch.status ?? b.status,
-            cashback_balance: patch.cashbackBalance !== undefined ? patch.cashbackBalance : b.cashback_balance,
-          };
-        }
-        return b;
-      })
-    );
-    return;
-  }
   // Protected business status/cashback fields and default-address coordinates
   // live in separate tables. The checked RPC updates them atomically and
   // keeps those columns unavailable to ordinary authenticated clients.
-  const { error } = await supabase.rpc('admin_update_business_store', {
+  const { error } = await apiClient.rpc('admin_update_business_store', {
     p_business_id: id,
     p_store_name: patch.storeName ?? null,
     p_owner_name: patch.ownerName ?? null,
@@ -213,12 +103,7 @@ export async function updateBusinessStoreByAdmin(
 }
 
 export async function deleteBusinessStoreByAdmin(id: string): Promise<void> {
-  if (!supabase) {
-    const all = readMock<any[]>(MOCK_KEYS.business, []);
-    writeMock(MOCK_KEYS.business, all.filter((b) => b.id !== id));
-    return;
-  }
-  const { error } = await supabase.from('business_profiles').delete().eq('id', id);
+  const { error } = await apiClient.from('business_profiles').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }
 

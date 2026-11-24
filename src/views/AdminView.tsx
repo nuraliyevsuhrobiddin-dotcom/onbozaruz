@@ -84,7 +84,7 @@ export const AdminView: React.FC = () => {
   }
 
   // ─── Security Guard: UI layer ───────────────────────────────────────────
-  // Real protection is enforced at DB level via Supabase RLS policies.
+  // Real protection is enforced by the server's access rules (public/api/_lib/policies.php).
   // This UI guard prevents rendering sensitive admin components for non-admins.
   if (!isAdminUser || !currentUser) {
     return (
@@ -109,8 +109,7 @@ export const AdminView: React.FC = () => {
     );
   }
 
-  // Legacy Market/product moderation UI was removed (see supabase_schema.sql
-  // "Eski Market ... UI olib tashlanadi") — only e'lon (post) approvals are
+  // Legacy Market/product moderation UI was removed: only e'lon (post) approvals are
   // actionable from this panel now, so the badge only reflects those.
   const pendingCount = adminPosts.filter((p) => p.status === 'pending').length;
 

@@ -14,17 +14,17 @@ import {
   User,
 } from 'lucide-react';
 import { authClient, type AuthUser, type SignUpFields, translateAuthError } from '../api/authClient';
+import { emailService } from '../api/emailService';
 
 interface AuthViewProps {
   onSuccess: (user: AuthUser, isNewUser?: boolean) => void | Promise<void>;
   onBack?: () => void;
 }
 
-type AuthMode = 'login' | 'signup' | 'confirmation_pending';
+type AuthMode = 'login' | 'signup' | 'forgot' | 'confirmation_pending';
 type ContactMode = 'email' | 'phone';
 
-// Telefon/SMS orqali kirish Supabase'da SMS-provayder (Twilio va h.k.)
-// sozlanmaguncha vaqtincha yashirilgan. Provayder ulangach, shu bitta
+// Telefon/SMS orqali kirish SMS-provayder ulanmaguncha vaqtincha yashirilgan. Provayder ulangach, shu bitta
 // qiymatni true qilish yetarli — qolgan hamma joy avtomatik qayta yoqiladi.
 const PHONE_SIGNUP_ENABLED = false;
 
@@ -57,6 +57,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   const [identifier, setIdentifier] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -95,7 +96,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   };
   const switchMode = (next: AuthMode) => {
     if (busyRef.current) return;
-    setMode(next); setShowPassword(false); resetMessages();
+    setMode(next); setShowPassword(false); setPassword2(''); resetMessages();
   };
 
   const validate = () => {
@@ -104,6 +105,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
     if (contactMode === 'email' && !emailRegex.test(identifier.trim())) return "To'g'ri email manzilini kiriting.";
     if (contactMode === 'phone' && !phoneRegex.test(identifier.replace(/\s/g, ''))) return '+998 XX XXX XX XX formatida telefon kiriting.';
     if (password.length < 6) return "Parol kamida 6 ta belgidan iborat bo'lsin.";
+    if (mode === 'signup' && password !== password2) return 'Parollar bir xil emas.';
     return '';
   };
 
@@ -150,7 +152,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
         // Muvaffaqiyatli kirdi yoki ro'yxatdan o'tdi va sessiya ochildi
         await onSuccess(result.user, mode === 'signup');
       } else if (result.requiresConfirmation) {
-        // Supabase email tasdiqlash talab qilmoqda
+        // Server email tasdiqlashni talab qilmoqda
         setMode('confirmation_pending');
         setSuccess(result.successMessage || "Emailingizga tasdiqlash havolasi yuborildi. Iltimos tekshiring.");
       } else {
@@ -174,6 +176,28 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
     }
   };
 
+  const requestReset = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busyRef.current) return;
+    resetMessages();
+    const email = identifier.trim().toLowerCase();
+    if (!emailRegex.test(email)) { setError("To'g'ri email manzilini kiriting."); return; }
+    busyRef.current = true;
+    const version = ++requestVersion.current;
+    setLoading(true);
+    try {
+      const result = await emailService.sendPasswordResetEmail(email);
+      if (version !== requestVersion.current) return;
+      // The same answer whether or not the address is registered (no account probing).
+      if (result.ok) setSuccess(`Agar ${email} ro'yxatdan o'tgan bo'lsa, unga parolni tiklash havolasi yuborildi. Pochtangizni, kerak bo'lsa «Spam» papkasini ham tekshiring.`);
+      else setError(translateAuthError(result.error || "Xatni yuborib bo'lmadi."));
+    } catch (err) {
+      if (version === requestVersion.current) setError(translateAuthError(err instanceof Error ? err.message : 'Tarmoq xatosi'));
+    } finally {
+      if (version === requestVersion.current) { busyRef.current = false; setLoading(false); }
+    }
+  };
+
   const resend = async () => {
     if (!identifier || contactMode !== 'email' || busyRef.current) return;
     busyRef.current = true;
@@ -192,14 +216,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f5efe6] px-4 py-6 text-[#26231f] sm:px-6 sm:py-10">
-      <div className="pointer-events-none absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#5b35f5]/[.10] blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#d6b27c]/[.16] blur-3xl" />
+    <main className="relative min-h-screen overflow-x-clip bg-[#f5efe6] px-4 py-6 text-[#26231f] sm:px-6 sm:py-10">
+      {/* Decorative glow in its own clipped layer, so focusing a field can never scroll the screen sideways. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#5b35f5]/[.10] blur-3xl" />
+        <div className="absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-[#d6b27c]/[.16] blur-3xl" />
+      </div>
 
       <div className="relative mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[450px] flex-col justify-center">
         <div className="mb-7 flex items-center justify-between px-1">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="MollBazar" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
+            <img src="/logo.png?v=2" alt="MollBazar" className="h-11 w-11 rounded-2xl object-cover shadow-[0_6px_16px_rgba(49,38,26,.12)] ring-1 ring-black/[.06]" />
             <div>
               <div className="text-xl font-black tracking-[-.04em] text-[#26231f]">MollBazar</div>
               <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[.18em] text-[#887c70]">B2B ulgurji bozor</div>
@@ -219,6 +246,19 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
               <button disabled={busy} onClick={() => switchMode('login')} className={`mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>Tasdiqladim, kirish <ArrowRight className="h-4 w-4" /></button>
               {contactMode === 'email' && <button onClick={resend} disabled={busy} className={`mt-3 min-h-11 px-3 text-xs font-bold text-[#766b61] transition hover:text-[#5b35f5] disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}>{resending ? 'Yuborilmoqda...' : 'Xat kelmadimi? Qayta yuborish'}</button>}
             </div>
+          ) : mode === 'forgot' ? (
+            <form onSubmit={requestReset} className="space-y-4" noValidate>
+              <div className="mb-2">
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#5b35f5]">Parolni tiklash</p>
+                <h1 className="text-[27px] font-black tracking-[-.045em] text-[#26231f]">Parolni unutdingizmi?</h1>
+                <p className="mt-2 text-sm leading-6 text-[#766b61]">Emailingizni kiriting — yangi parol o'rnatish uchun havola yuboramiz.</p>
+              </div>
+              <div className="relative"><Mail className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-email" type="email" autoComplete="email" aria-label="Email manzili" disabled={busy} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="sizning@emailingiz.uz" className={inputClass} /></div>
+              {error && <div role="alert" className="flex items-start gap-2 rounded-2xl border border-[#f1c9c3] bg-[#fff3f1] p-3 text-xs font-semibold leading-5 text-[#a33229]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
+              {success && <div role="status" className="flex items-start gap-2 rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-xs font-semibold leading-5 text-[#28643a]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />{success}</div>}
+              <button disabled={busy} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Havola yuborish <ArrowRight className="h-4 w-4" /></>}</button>
+              <button type="button" disabled={busy} onClick={() => switchMode('login')} className={`flex min-h-11 w-full items-center justify-center gap-1.5 text-xs font-bold text-[#766b61] transition hover:text-[#5b35f5] ${focusRing}`}><ArrowLeft className="h-3.5 w-3.5" /> Kirishga qaytish</button>
+            </form>
           ) : <>
             <div className="mb-6">
               <p className="mb-2 text-[11px] font-black uppercase tracking-[.18em] text-[#5b35f5]">Xush kelibsiz</p>
@@ -257,6 +297,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onBack }) => {
                 <div className="relative"><span className={`absolute left-4 top-4 ${iconClass}`}>{contactMode === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}</span><input id={`auth-${contactMode}`} disabled={busy} autoComplete={contactMode === 'email' ? 'email' : 'tel'} aria-label={contactMode === 'email' ? 'Email manzili' : 'Telefon raqami'} type={contactMode === 'email' ? 'email' : 'tel'} value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder={contactMode === 'email' ? 'sizning@emailingiz.uz' : '+998 90 123 45 67'} className={inputClass} /></div>
               </div>
               <label className="block" htmlFor="auth-password"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parol</span><div className="relative"><Lock className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-password" disabled={busy} autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} aria-label="Parol" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Kamida 6 ta belgi" className={`${inputClass} pr-12`} /><button type="button" onClick={() => setShowPassword(v => !v)} className={`absolute right-2 top-1/2 flex min-h-9 min-w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[#93887d] transition hover:bg-[#f4eee6] hover:text-[#4c433b] ${focusRing}`} aria-label={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"} aria-pressed={showPassword}>{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></label>
+              {mode === 'signup' && <label className="block" htmlFor="auth-password2"><span className="mb-1.5 block text-xs font-bold text-[#4c433b]">Parolni takrorlang</span><div className="relative"><Lock className={`absolute left-4 top-4 h-4 w-4 ${iconClass}`} /><input id="auth-password2" disabled={busy} autoComplete="new-password" aria-label="Parolni takrorlang" type={showPassword ? 'text' : 'password'} value={password2} onChange={e => setPassword2(e.target.value)} placeholder="Parolni yana bir bor kiriting" className={inputClass} /></div></label>}
+              {mode === 'login' && <div className="-mt-1 flex justify-end"><button type="button" disabled={busy} onClick={() => switchMode('forgot')} className={`min-h-9 px-1 text-xs font-bold text-[#5b35f5] transition hover:text-[#4527c9] ${focusRing}`}>Parolni unutdingizmi?</button></div>}
               {error && <div role="alert" className="flex items-start gap-2 rounded-2xl border border-[#f1c9c3] bg-[#fff3f1] p-3 text-xs font-semibold leading-5 text-[#a33229]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
               {success && <div role="status" className="rounded-2xl border border-[#cfe5d2] bg-[#f0f8f1] p-3 text-xs font-semibold leading-5 text-[#28643a]">{success}</div>}
               <button disabled={busy} className={`flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#5b35f5] to-[#7c3aed] px-4 py-3.5 text-sm font-black text-white shadow-[0_8px_18px_rgba(91,53,245,.24)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 ${focusRing}`}>{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{mode === 'login' ? 'Kirish' : 'Akkaunt yaratish'}<ArrowRight className="h-4 w-4" /></>}</button>

@@ -29,6 +29,7 @@ import {
   type NotificationPermissionStatus,
 } from '../utils/deviceNotifications';
 import { playNotificationSound, unlockAudioContext } from '../utils/notificationSound';
+import { formatRelativeTime } from '../utils/time';
 
 const ICON_BY_TYPE: Record<NotificationType, typeof Bell> = {
   comment: MessageCircle,
@@ -71,18 +72,6 @@ const TONE_BY_TYPE: Record<NotificationType, string> = {
   b2b_offer_status: 'text-indigo-600 bg-indigo-50',
   broadcast: 'text-purple-600 bg-purple-50',
 };
-
-function formatRelativeTime(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  if (minutes < 1) return 'Hozirgina';
-  if (minutes < 60) return `${minutes} daqiqa oldin`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} soat oldin`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days} kun oldin`;
-  return new Date(iso).toLocaleDateString('uz-UZ');
-}
 
 export const NotificationsDrawerModal: React.FC = () => {
   const {

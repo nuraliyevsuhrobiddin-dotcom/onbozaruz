@@ -11,8 +11,7 @@ async function repository(client, api = {}, env = {}) {
     context, initializeImportMeta(meta) { meta.env = env; },
   });
   const dependencies = {
-    '../data/mockAgroData': { CATEGORIES: [] },
-    './authClient': { supabaseClient: client },
+    './authClient': { apiClient: client },
     './http': { api, normalizeApiRow: rows => rows },
   };
   await module.link(name => {
@@ -57,15 +56,6 @@ test('approval verifies the returned status and clears rejection reason', async 
   const repo = await repository({ from: () => query });
   await assert.rejects(repo.updatePostModeration('post', 'approved'), /saqlanmadi/);
   assert.equal(payload.rejection_reason, '');
-});
-
-test('mock moderation persists via the same transport as listing creation', async () => {
-  const calls = [];
-  const repo = await repository(null, { patch: async (...args) => calls.push(args), delete: async (...args) => calls.push(args) });
-  await repo.updatePostModeration('post', 'rejected', 'Sabab');
-  await repo.deletePostByAdmin('post');
-  assert.equal(calls[0][1].rejectionReason, 'Sabab');
-  assert.equal(calls[1][0], '/posts/post');
 });
 
 async function storeActions(repository) {
@@ -131,12 +121,24 @@ test('broadcast propagates recipient lookup failures', async () => {
   await assert.rejects(repo.sendBroadcastAnnouncement('Title', 'Body'), /Read failed/);
 });
 
-test('broadcast writes the canonical body and returns the accepted recipient count', async () => {
-  let sent;
-  const repo = await repository({ from: table => table === 'profiles'
-    ? { select: async () => ({ data: [{ id: 'user' }], error: null }) }
-    : { insert: async rows => { sent = rows; return { error: null }; } } });
+test('broadcast writes the canonical body, records history and returns the recipient count', async () => {
+  const inserts = {};
+  const repo = await repository({
+    auth: { getUser: async () => ({ data: { user: { id: 'admin' } } }) },
+    from: table => table === 'profiles'
+      ? { select: async () => ({ data: [{ id: 'user' }], error: null }) }
+      : { insert: async rows => { inserts[table] = rows; return { error: null }; } },
+  });
   assert.equal(await repo.sendBroadcastAnnouncement('Title', 'Body'), 1);
-  assert.equal(sent[0].body, 'Body');
-  assert.equal('message' in sent[0], false);
+  assert.equal(inserts.notifications[0].body, 'Body');
+  assert.equal('message' in inserts.notifications[0], false);
+  assert.deepEqual({ ...inserts.broadcast_announcements }, { admin_id: 'admin', title: 'Title', message: 'Body', target_role: 'all', sent_count: 1 });
+});
+
+test('category writes report server errors instead of saving only in the browser', async () => {
+  const failing = { upsert: () => failing, select: () => failing, single: async () => ({ data: null, error: { message: 'Denied' } }),
+    delete: () => ({ eq: async () => ({ error: { message: 'Denied' } }) }) };
+  const repo = await repository({ from: () => failing });
+  await assert.rejects(repo.saveCategory({ name: 'Meva' }), /Denied/);
+  await assert.rejects(repo.deleteCategory('meva'), /Denied/);
 });

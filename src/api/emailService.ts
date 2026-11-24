@@ -1,10 +1,10 @@
 /**
  * MollBazar - Frontend Email Service Client
  * Welcome xati autentifikatsiyalangan server endpointidan yuboriladi.
- * Confirmation va password-reset xatlarini token egasi bo'lgan Supabase Auth
- * yuboradi; frontend hech qachon Resend orqali erkin HTML/recipient bermaydi.
+ * Tasdiqlash va parolni tiklash xatlarini server (public/api/_lib/auth.php) o'zi
+ * yuboradi; frontend hech qachon xat matni yoki qabul qiluvchini bermaydi.
  */
-import { getAuthCallbackUrl, getSupabaseAccessToken, supabaseClient } from './authClient';
+import { getAuthCallbackUrl, getAccessToken, apiClient } from './authClient';
 
 export interface SendEmailResponse {
   ok: boolean;
@@ -22,7 +22,7 @@ export interface OrderNotificationPayload {
 
 async function postApi<T>(endpoint: string, body: unknown, requireAuth = false): Promise<T> {
   try {
-    const accessToken = requireAuth ? await getSupabaseAccessToken() : null;
+    const accessToken = requireAuth ? await getAccessToken() : null;
     if (requireAuth && !accessToken) {
       return { ok: false, error: 'Bu amal uchun qaytadan tizimga kiring.' } as T;
     }
@@ -56,8 +56,7 @@ export const emailService = {
     _verificationUrl?: string,
     _token?: string
   ): Promise<SendEmailResponse> {
-    if (!supabaseClient) return { ok: false, error: 'Supabase sozlanmagan.' };
-    const { error } = await supabaseClient.auth.resend({
+    const { error } = await apiClient.auth.resend({
       type: 'signup',
       email: email.trim().toLowerCase(),
       options: { emailRedirectTo: getAuthCallbackUrl() },
@@ -84,8 +83,7 @@ export const emailService = {
     _name?: string,
     _resetUrl?: string
   ): Promise<SendEmailResponse> {
-    if (!supabaseClient) return { ok: false, error: 'Supabase sozlanmagan.' };
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    const { error } = await apiClient.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
       redirectTo: getAuthCallbackUrl(),
     });
     return error ? { ok: false, error: error.message } : { ok: true, message: 'Parolni tiklash havolasi yuborildi.' };
@@ -101,7 +99,7 @@ export const emailService = {
   ): Promise<SendEmailResponse> {
     return {
       ok: false,
-      error: 'Buyurtma xabarlari Supabase bildirishnomalari orqali yuboriladi.',
+      error: 'Buyurtma xabarlari sayt ichidagi bildirishnomalar orqali yuboriladi.',
     };
   },
 

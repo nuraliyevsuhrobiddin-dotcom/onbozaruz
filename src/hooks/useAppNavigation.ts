@@ -4,6 +4,7 @@ import { encodeB2BHash, parseB2BHash } from '../utils/b2bRoute';
 
 const navigationEvent = 'mollbazar:navigate';
 const specialRoute = () => window.location.pathname === '/auth/callback' ? 'callback'
+  : window.location.pathname === '/auth/reset' ? 'reset'
   : window.location.pathname === '/privacy-policy' || window.location.hash === '#privacy-policy' ? 'privacy' : null;
 
 /** URL changes restore the complete route atomically, without pushing it again. */
@@ -17,7 +18,12 @@ export function useAppNavigation() {
       setSpecial(nextSpecial);
       if (nextSpecial) return;
       const [tab, ...rest] = window.location.hash.slice(1).split('/');
-      const activeTab: NavTab = ['home', 'search', 'market', 'profile', 'admin'].includes(tab) ? tab as NavTab : 'home';
+      const isAdmin = useAgroStore.getState().isAdminUser;
+      let activeTab: NavTab = ['home', 'search', 'market', 'profile', 'admin'].includes(tab) ? tab as NavTab : 'home';
+      if (activeTab === 'admin' && !isAdmin) {
+        activeTab = 'home';
+        window.location.hash = '#home';
+      }
       const activeSubView: SubView = activeTab === 'profile' && ['edit-profile', 'orders', 'settings'].includes(rest[0])
         ? rest[0] as SubView : null;
       useAgroStore.setState({
@@ -48,7 +54,7 @@ export function useAppNavigation() {
     else history.pushState(historyState, '', hash);
   }, [activeTab, activeSubView, b2bRoute, special]);
 
-  return { isAuthCallback: special === 'callback', isPrivacyPolicy: special === 'privacy' };
+  return { isAuthCallback: special === 'callback', isPasswordReset: special === 'reset', isPrivacyPolicy: special === 'privacy' };
 }
 
 export function replaceAppRoute(url: string) {

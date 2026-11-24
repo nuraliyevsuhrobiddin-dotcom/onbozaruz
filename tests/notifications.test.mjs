@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
-import { timingSafeEqual } from 'node:crypto';
 
 async function load(relativePath, globals, dependencies = {}, env = {}) {
   const context = createContext({ console, URL, Uint8Array, atob, AbortSignal, setTimeout, clearTimeout, ...globals });
@@ -22,10 +21,6 @@ async function load(relativePath, globals, dependencies = {}, env = {}) {
   return module.namespace;
 }
 
-const pushEndpointPolicy = await load('../api/_lib/pushEndpoint.ts', { Buffer });
-const storedEndpoint = 'https://fcm.googleapis.com/fcm/send/test';
-const storedKeys = { p256dh: Buffer.concat([Buffer.from([4]), Buffer.alloc(64, 1)]).toString('base64url'), auth: Buffer.alloc(16, 1).toString('base64url') };
-
 async function push(fetcher, token = async () => 'token', extra = {}) {
   const subscription = { toJSON: () => ({ endpoint: 'https://push.test', keys: { auth: 'auth', p256dh: 'key' } }) };
   return load('../src/utils/webPush.ts', {
@@ -33,7 +28,7 @@ async function push(fetcher, token = async () => 'token', extra = {}) {
     Notification: { permission: 'granted' }, fetch: fetcher,
     console: { warn() {} }, ...extra,
   }, {
-    '../api/authClient': { getSupabaseAccessToken: token },
+    '../api/authClient': { getAccessToken: token },
     './serviceWorker': { ensureServiceWorker: async () => ({ pushManager: { getSubscription: async () => subscription } }) },
   }, { VITE_WEB_PUSH_VAPID_PUBLIC_KEY: 'dGVzdA' });
 }
@@ -105,9 +100,9 @@ test('Worker readiness times out and clears its timer', async () => {
   assert.ok(cleared);
 });
 
-test('Realtime reconnect, online and visible events recover missed rows and cleanup stops callbacks', async () => {
+test('Notification polling refreshes on start, interval, online and visible events, and cleanup stops it', async () => {
   const events = new Map();
-  let status, insert, interval, refreshes = 0, received = 0, removed = false;
+  let interval, refreshes = 0;
   const document = {
     visibilityState: 'visible',
     addEventListener: (name, fn) => events.set(name, fn),
@@ -116,106 +111,27 @@ test('Realtime reconnect, online and visible events recover missed rows and clea
   const window = {
     ...document, setInterval: fn => { interval = fn; return 7; }, clearInterval: id => assert.equal(id, 7),
   };
-  const channel = {
-    on: (_type, filter, fn) => { assert.equal(filter.filter, 'user_id=eq.user-1'); insert = fn; return channel; },
-    subscribe: fn => { status = fn; return channel; },
-  };
-  const api = await load('../src/api/notificationsRealtime.ts', { window, document, navigator: { onLine: true } }, {
-    './authClient': { supabaseClient: { channel: () => channel, removeChannel: async () => { removed = true; } } },
-  });
-  const stop = api.subscribeToNotifications('user-1', () => { received++; }, async () => { refreshes++; });
-  status('SUBSCRIBED');
+  const api = await load('../src/api/notificationsRealtime.ts', { window, document, navigator: { onLine: true } });
+  const stop = api.subscribeToNotifications(async () => { refreshes++; });
   await new Promise(resolve => setImmediate(resolve));
+  assert.equal(refreshes, 1);
   await events.get('online')();
+  assert.equal(refreshes, 2);
   document.visibilityState = 'hidden';
   await events.get('visibilitychange')();
   assert.equal(refreshes, 2);
   document.visibilityState = 'visible';
   await events.get('visibilitychange')();
-  assert.equal(refreshes, 3);
-  insert({ new: { id: 'n1', user_id: 'user-1' } });
-  assert.equal(received, 1);
+  interval();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(refreshes, 4);
   stop();
-  assert.ok(removed);
   assert.equal(events.size, 0);
   interval();
-  insert({ new: { id: 'n2' } });
-  assert.equal(received, 1);
-  assert.equal(refreshes, 3);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(refreshes, 4);
 });
 
-async function delivery({ statusCode, secret = 'shared-secret', endpoint = storedEndpoint } = {}) {
-  const sent = [], deleted = [];
-  let response;
-  const notification = { id: 'notification-1', user_id: 'user-1', title: 'Order', target_type: 'b2b_order', target_id: 'order-1' };
-  const client = { from: table => {
-    let deleting = false;
-    const query = {
-      select: () => query,
-      eq: (key, value) => { if (deleting) deleted.push(value); return query; },
-      maybeSingle: async () => ({ data: notification }),
-      returns: async () => ({ data: [{ endpoint, ...storedKeys }] }),
-      delete: () => { assert.equal(table, 'push_subscriptions'); deleting = true; return query; },
-    };
-    return query;
-  } };
-  const api = await load('../api/push/deliver.ts', {
-    Buffer, process: { env: {
-      WEB_PUSH_DELIVERY_SECRET: 'shared-secret', WEB_PUSH_VAPID_PUBLIC_KEY: 'public', WEB_PUSH_VAPID_PRIVATE_KEY: 'private',
-    } }, console: { error() {} },
-  }, {
-    crypto: { timingSafeEqual },
-    '@supabase/supabase-js': { createClient: () => client },
-    'web-push': {
-      setVapidDetails() {},
-      sendNotification: async (_subscription, body) => {
-        sent.push(JSON.parse(body));
-        if (statusCode) throw { statusCode };
-      },
-    },
-    '../_lib/requestBody': { readJsonBody: async () => ({ notification_id: 'notification-1' }) },
-    '../_lib/pushEndpoint': pushEndpointPolicy,
-    '../_lib/supabaseAuth': {
-      getSupabaseServerConfig: () => ({ url: 'https://db.test', serviceRoleKey: 'server-only' }),
-      sendApiJson: (_res, status, body) => { response = { status, body }; },
-    },
-  });
-  await api.default({ method: 'POST', headers: { 'x-mollbazar-push-secret': secret } }, { setHeader() {} });
-  return { response, sent, deleted };
-}
-
-test('Server push sends a root-relative order link', async () => {
-  const { response, sent } = await delivery();
-  assert.equal(response.status, 200);
-  assert.equal(response.body.delivered, 1);
-  assert.equal(sent[0].data.url, '/#market/order/order-1');
-});
-
-test('Server push rejects incorrect delivery credentials', async () => {
-  const { response, sent } = await delivery({ secret: 'wrong' });
-  assert.equal(response.status, 401);
-  assert.equal(sent.length, 0);
-});
-
-test('Temporary push delivery failures are reported instead of hidden as success', async () => {
-  const { response, deleted } = await delivery({ statusCode: 503 });
-  assert.equal(response.status, 502);
-  assert.equal(response.body.ok, false);
-  assert.equal(response.body.failed, 1);
-  assert.equal(deleted.length, 0);
-});
-
-test('Expired push endpoints are removed', async () => {
-  const { response, deleted } = await delivery({ statusCode: 410 });
-  assert.equal(response.body.expired, 1);
-  assert.deepEqual(deleted, [storedEndpoint]);
-});
-
-test('Previously stored internal push URLs never reach the network', async () => {
-  const { sent, deleted } = await delivery({ endpoint: 'https://127.0.0.1/admin' });
-  assert.equal(sent.length, 0);
-  assert.deepEqual(deleted, ['https://127.0.0.1/admin']);
-});
 
 test('logout revokes the current browser push endpoint', async () => {
   let revoked = false;

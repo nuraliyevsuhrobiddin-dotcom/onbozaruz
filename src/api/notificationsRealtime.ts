@@ -1,68 +1,26 @@
 /**
- * Realtime subscription for the notifications table.
+ * Notification updates.
  *
- * Listens for new rows scoped to a single user (RLS also enforces this
- * server-side). No-ops when Supabase isn't configured (mock mode).
+ * Shared hosting (Ahost/cPanel) cannot keep WebSocket connections open, so the
+ * notification list is refreshed on an interval, when the tab becomes visible
+ * again and when the device comes back online. The store's refresh callback
+ * detects new rows and plays the sound / shows the banner.
  */
-import { supabaseClient } from './authClient';
-import type { Notification } from './types';
+const POLL_INTERVAL_MS = 20000;
 
-function mapRowToNotification(row: Record<string, unknown>): Notification {
-  return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    type: row.type as Notification['type'],
-    title: row.title as string,
-    // `message` was used by an older broadcast implementation. Keep this
-    // fallback so notifications already stored with that column still render.
-    body: (row.body as string) || (row.message as string) || '',
-    targetType: (row.target_type as Notification['targetType']) || '',
-    targetId: (row.target_id as string) || '',
-    actorId: (row.actor_id as string) || undefined,
-    actorName: (row.actor_name as string) || '',
-    actorAvatar: (row.actor_avatar as string) || '',
-    isRead: Boolean(row.is_read),
-    createdAt: (row.created_at as string) || new Date().toISOString(),
-  };
-}
-
-export function subscribeToNotifications(
-  userId: string,
-  onInsert: (notification: Notification) => void,
-  onRefresh: () => Promise<void> = async () => undefined
-): () => void {
-  if (!supabaseClient) return () => undefined;
-  const client = supabaseClient;
+export function subscribeToNotifications(onRefresh: () => Promise<void>): () => void {
   let disposed = false;
   let refreshing = false;
   const refresh = async () => {
     if (disposed || refreshing || document.visibilityState === 'hidden' || !navigator.onLine) return;
     refreshing = true;
     try { await onRefresh(); }
-    catch (error) { console.warn('[RealtimeNotifications] Refresh failed:', error); }
+    catch (error) { console.warn('[Notifications] Refresh failed:', error); }
     finally { refreshing = false; }
   };
 
-  const channel = client
-    .channel(`notifications:${userId}`)
-    .on(
-      'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-      (payload: { new: Record<string, unknown> }) => {
-        if (!disposed && payload.new) {
-          onInsert(mapRowToNotification(payload.new));
-        }
-      }
-    )
-    .subscribe((status, err) => {
-      if (status === 'SUBSCRIBED') void refresh();
-      if (err || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        console.warn(`[RealtimeNotifications] Channel status '${status}' for user ${userId}:`, err);
-      }
-    });
-
-  // Recover missed inserts after mobile suspension or a broken websocket.
-  const interval = window.setInterval(() => void refresh(), 30000);
+  void refresh();
+  const interval = window.setInterval(() => void refresh(), POLL_INTERVAL_MS);
   window.addEventListener('online', refresh);
   document.addEventListener('visibilitychange', refresh);
 
@@ -71,6 +29,5 @@ export function subscribeToNotifications(
     window.clearInterval(interval);
     window.removeEventListener('online', refresh);
     document.removeEventListener('visibilitychange', refresh);
-    void client.removeChannel(channel);
   };
 }

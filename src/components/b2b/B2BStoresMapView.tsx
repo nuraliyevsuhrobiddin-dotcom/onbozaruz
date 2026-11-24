@@ -17,7 +17,6 @@ import { useAgroStore } from '../../store/useAgroStore';
 import { b2bRepository } from '../../api/b2bRepository';
 import { B2BStorePublicMarker } from '../../api/types';
 import { B2BSendOfferModal } from './B2BSendOfferModal';
-import { DEMO_MAP_STORES, isDemoMapStore } from '../../data/demoMapStores';
 
 const CATEGORY_PINS: Record<string, { label: string; color: string; bg: string; border: string; emoji: string }> = {
   all: { label: 'Barchasi', color: '#3B82F6', bg: 'bg-blue-50 text-blue-700 border-blue-200', border: 'border-blue-500', emoji: '🏬' },
@@ -71,7 +70,7 @@ export const B2BStoresMapView: React.FC = () => {
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
 
-  const [stores, setStores] = useState<B2BStorePublicMarker[]>(DEMO_MAP_STORES);
+  const [stores, setStores] = useState<B2BStorePublicMarker[]>([]);
   const [selectedStore, setSelectedStore] = useState<B2BStorePublicMarker | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -84,7 +83,7 @@ export const B2BStoresMapView: React.FC = () => {
     setIsLoading(true);
     b2bRepository.listStoresForMap().then((data) => {
       if (isMounted) {
-        setStores([...data, ...DEMO_MAP_STORES]);
+        setStores(data);
         setIsLoading(false);
       }
     }).catch(() => {
@@ -350,8 +349,6 @@ export const B2BStoresMapView: React.FC = () => {
             <div className="flex items-center gap-2 pt-1">
               <button
                 onClick={() => setIsOfferModalOpen(true)}
-                disabled={isDemoMapStore(selectedStore)}
-                title={isDemoMapStore(selectedStore) ? 'Namunaviy do\'konga taklif yuborilmaydi' : undefined}
                 className="flex-1 py-3.5 px-4 rounded-2xl bg-blue-500 hover:bg-blue-600 text-white font-black text-xs sm:text-sm shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer border border-blue-400/30"
               >
                 <Send className="w-4 h-4" />
@@ -360,7 +357,6 @@ export const B2BStoresMapView: React.FC = () => {
 
               <button
                 onClick={() => handleOpenNavigation(selectedStore.latitude, selectedStore.longitude)}
-                disabled={isDemoMapStore(selectedStore)}
                 className="py-3.5 px-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors shrink-0 cursor-pointer"
                 title="Xaritada yo'l ko'rsatish"
               >

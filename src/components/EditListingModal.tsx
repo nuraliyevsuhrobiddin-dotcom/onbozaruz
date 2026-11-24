@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from './ui/Modal';
 import { useAgroStore } from '../store/useAgroStore';
-import { REGIONS } from '../data/mockAgroData';
+import { REGIONS } from '../data/catalog';
 import { Edit3, Save, Trash2, Tag, MapPin, DollarSign, Package } from 'lucide-react';
 import { categoriesForScope } from '../utils/categoryScope';
+import { hasPriceAmount } from '../utils/price';
 
 export const EditListingModal: React.FC = () => {
   const {
@@ -65,6 +66,11 @@ export const EditListingModal: React.FC = () => {
       return;
     }
 
+    if (isPost && !hasPriceAmount(price)) {
+      showToast("Narxni raqam bilan kiriting, masalan: 15,000 so'm/kg");
+      return;
+    }
+
     const selectedCategoryObj = allCategories.find((c) => c.id === category);
 
     if (isPost) {
@@ -72,7 +78,8 @@ export const EditListingModal: React.FC = () => {
       const saved = await updatePost(editModalItem.id, {
         title,
         price,
-        numericPrice: Number(numericPrice) || 0,
+        // Keep the sortable number in step with the text price when it was left empty.
+        numericPrice: Number(numericPrice) || Number(price.replace(/[^0-9]/g, '')) || 0,
         category,
         categoryName: selectedCategoryObj?.name || 'Meva-Sabzavot',
         location,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Loader2, Banknote, CreditCard, ShieldCheck, MapPin, ChevronDown, Sparkles, LocateFixed } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
-import { REGIONS } from '../../data/mockAgroData';
+import { REGIONS } from '../../data/catalog';
 import { B2BPaymentMethod } from '../../api/types';
 import { formatMoney, formatPhone, UZ_DISTRICTS } from '../../utils/b2bUtils';
 

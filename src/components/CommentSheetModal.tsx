@@ -3,7 +3,6 @@ import { BottomSheet } from './ui/BottomSheet';
 import { useAgroStore } from '../store/useAgroStore';
 import { Send, Heart, MessageCircle } from 'lucide-react';
 import { commentsRepository } from '../api/repositories/commentsRepository';
-import { isSupabaseConfigured } from '../api/authClient';
 
 type CommentItem = {
   id: string | number;
@@ -30,80 +29,58 @@ export const CommentSheetModal: React.FC = () => {
     setNewComment('');
     let active = true;
     void (async () => {
-      if (isSupabaseConfigured && commentPost) {
-        try {
-          const rows = await commentsRepository.list(commentPost.id);
-          if (active) {
-            setCommentsList(rows.map((row) => ({
-              id: row.id,
-              user: row.userName,
-              text: row.content,
-              time: row.createdAt,
-            })));
-            setLoadedKey(storageKey);
-          }
-          return;
-        } catch {
-          // Fall back to the local draft only if the backend is unavailable.
-        }
-      }
-
       try {
-        const saved = window.localStorage.getItem(storageKey);
-        if (active) {
-          const parsed = saved ? JSON.parse(saved) : [];
-          setCommentsList(Array.isArray(parsed) ? parsed : []);
-          setLoadedKey(storageKey);
-        }
-      } catch {
-        if (active) { setCommentsList([]); setLoadedKey(storageKey); }
+        const rows = commentPost ? await commentsRepository.list(commentPost.id) : [];
+        if (!active) return;
+        setCommentsList(rows.map((row) => ({
+          id: row.id,
+          user: row.userName,
+          text: row.content,
+          time: row.createdAt,
+        })));
+      } catch (error: unknown) {
+        if (!active) return;
+        setCommentsList([]);
+        showToast(error instanceof Error ? `Izohlar yuklanmadi: ${error.message}` : 'Izohlar yuklanmadi');
       }
+      if (active) setLoadedKey(storageKey);
     })();
     return () => {
       active = false;
     };
-  }, [commentPost, storageKey]);
-
-  useEffect(() => {
-    if (!storageKey || loadedKey !== storageKey) return;
-    if (!isSupabaseConfigured) {
-      try { window.localStorage.setItem(storageKey, JSON.stringify(commentsList)); } catch { /* Storage may be full or disabled. */ }
-    }
-  }, [commentsList, storageKey, loadedKey]);
+  }, [commentPost, storageKey, showToast]);
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = newComment.trim();
     if (!text || isSubmitting || loadedKey !== storageKey) return;
     const userName = currentUser?.name || currentUser?.handle || 'Foydalanuvchi';
-    if (isSupabaseConfigured && (!currentUser || !commentPost)) {
+    if (!currentUser || !commentPost) {
       showToast('Izoh yozish uchun tizimga kiring');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const created = isSupabaseConfigured && currentUser && commentPost
-        ? await commentsRepository.create({
-            postId: commentPost.id,
-            userId: currentUser.id,
-            userName,
-            userAvatar: currentUser.avatar || '',
-            content: text,
-          })
-        : null;
+      const created = await commentsRepository.create({
+        postId: commentPost.id,
+        userId: currentUser.id,
+        userName,
+        userAvatar: currentUser.avatar || '',
+        content: text,
+      });
 
-      if (activePostId.current === commentPost?.id) setCommentsList((items) => [
+      if (activePostId.current === commentPost.id) setCommentsList((items) => [
         ...items,
         {
-          id: created?.id || Date.now(),
-          user: created?.userName || userName,
-          text: created?.content || text,
-          time: created?.createdAt || 'Hozirgina',
+          id: created.id,
+          user: created.userName || userName,
+          text: created.content || text,
+          time: created.createdAt || 'Hozirgina',
         },
       ]);
-      if (commentPost) addCommentToPost(commentPost.id);
-      if (activePostId.current === commentPost?.id) setNewComment('');
+      addCommentToPost(commentPost.id);
+      if (activePostId.current === commentPost.id) setNewComment('');
       showToast('Izoh qo\'shildi');
     } catch (error: unknown) {
       showToast(error instanceof Error ? `Izoh saqlanmadi: ${error.message}` : 'Izoh saqlanmadi');

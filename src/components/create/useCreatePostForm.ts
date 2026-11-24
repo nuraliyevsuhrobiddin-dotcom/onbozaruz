@@ -3,9 +3,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAgroStore } from '../../store/useAgroStore';
-import { REGIONS } from '../../data/mockAgroData';
-import { MEDIA_MAX_SIZE_MB } from './constants';
+import { REGIONS } from '../../data/catalog';
+import { MEDIA_MAX_SIZE_MB, VIDEO_SOURCE_MAX_SIZE_MB } from './constants';
+import { canCompressVideoHere, compressVideo, preloadVideoCompressor } from '../../utils/videoCompress';
 import { formatNumeric, formatPhone, isPhoneComplete, parseNumeric } from './formatting';
+import { PRICE_UNITS, hasPriceAmount, priceUnitOf, type PriceUnit } from '../../utils/price';
+import { regionFromIsoCode, regionFromPlace } from '../../utils/region';
 import { clearDraft, createEmptyDraftValues, draftToForm, loadDraft, saveDraft } from './createPostDraft';
 import { deleteListingMedia, uploadListingMedia } from '../../api/authClient';
 import { hasCoordinates, type GeoPoint } from '../../utils/geo';
@@ -13,7 +16,7 @@ import { hasCoordinates, type GeoPoint } from '../../utils/geo';
 export const postSchema = z.object({
   title: z.string().min(5, 'Kamida 5 ta belgi kiriting'),
   category: z.string().min(1, 'Kategoriyani tanlang'),
-  price: z.string().min(2, 'Narxni kiriting'),
+  price: z.string().refine(hasPriceAmount, 'Narxni raqam bilan kiriting'),
   minOrder: z.string().min(1, 'Minimal buyurtmani kiriting'),
   location: z.string().min(2, 'Joylashuvni kiriting'),
   phone: z.string().refine(isPhoneComplete, "To'liq telefon raqamini kiriting"),
@@ -24,6 +27,27 @@ export const postSchema = z.object({
 
 export type PostFormData = z.infer<typeof postSchema>;
 export type Step = 1 | 2 | 3 | 4;
+
+/** What the create form shows about the picked video while it is being prepared. */
+export interface VideoPrepInfo {
+  status: 'working' | 'done' | 'kept';
+  progress: number;
+  before: number;
+  after?: number;
+}
+
+/**
+ * Background compression of the picked video. It starts as soon as the file is
+ * chosen, so it is usually finished while the seller fills in the listing.
+ * `result` never rejects except on abort: on any problem it resolves to the original file.
+ */
+interface VideoPrep {
+  source: File;
+  controller: AbortController;
+  progress: number;
+  onProgress: ((share: number) => void) | null;
+  result: Promise<File>;
+}
 
 const DEFAULT_REGION = REGIONS[1] || 'Toshkent sh.';
 
@@ -46,6 +70,7 @@ export function useCreatePostForm() {
   const [mediaContentType, setMediaContentType] = useState('image/jpeg');
   const [mediaMode, setMediaMode] = useState<'image' | 'video'>('video');
   const [selectedRegion, setSelectedRegion] = useState(DEFAULT_REGION);
+  const [priceUnitChoice, setPriceUnitChoice] = useState<PriceUnit>(PRICE_UNITS[0]);
   const [durationDays, setDurationDays] = useState<number | null>(30);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
@@ -53,6 +78,58 @@ export function useCreatePostForm() {
   const locationRequestRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const prepRef = useRef<VideoPrep | null>(null);
+  const [videoPrepInfo, setVideoPrepInfo] = useState<VideoPrepInfo | null>(null);
+
+  const cancelVideoPrep = useCallback(() => {
+    prepRef.current?.controller.abort();
+    prepRef.current = null;
+    setVideoPrepInfo(null);
+  }, []);
+
+  const startVideoPrep = useCallback((file: File): VideoPrep => {
+    prepRef.current?.controller.abort();
+    const controller = new AbortController();
+    const prep: VideoPrep = { source: file, controller, progress: 0, onProgress: null, result: Promise.resolve(file) };
+    let shownPercent = -1;
+    const isCurrent = () => prepRef.current === prep;
+    prep.result = compressVideo(file, {
+      signal: controller.signal,
+      onProgress: (share) => {
+        prep.progress = share;
+        prep.onProgress?.(share);
+        const percent = Math.floor(share * 100);
+        if (percent !== shownPercent && isCurrent()) {
+          shownPercent = percent;
+          setVideoPrepInfo({ status: 'working', progress: share, before: file.size });
+        }
+      },
+    }).then((outcome) => {
+      const ready = outcome.kind === 'compressed' ? outcome.video.file : file;
+      if (isCurrent()) {
+        setVideoPrepInfo({ status: outcome.kind === 'compressed' ? 'done' : 'kept', progress: 1, before: file.size, after: ready.size });
+      }
+      return ready;
+    }, (error: unknown) => {
+      if (controller.signal.aborted) throw error;
+      // Compression is an optimisation: on any failure the original is uploaded.
+      console.warn('[MollBazar] video compression skipped:', error);
+      if (isCurrent()) setVideoPrepInfo({ status: 'kept', progress: 1, before: file.size, after: file.size });
+      return file;
+    });
+    // An aborted preparation is simply dropped.
+    prep.result.catch(() => {});
+    prepRef.current = prep;
+    setVideoPrepInfo({ status: 'working', progress: 0, before: file.size });
+    return prep;
+  }, []);
+
+  // Leaving the page must not keep the phone's encoder busy.
+  useEffect(() => () => prepRef.current?.controller.abort(), []);
+
+  useEffect(() => {
+    if (isCreateModalOpen) preloadVideoCompressor();
+  }, [isCreateModalOpen]);
 
   const {
     register,
@@ -161,8 +238,10 @@ export function useCreatePostForm() {
         e.target.value = '';
         return;
       }
-      if (file.size > MEDIA_MAX_SIZE_MB * 1024 * 1024) {
-        showToast(`Media hajmi ${MEDIA_MAX_SIZE_MB} MB dan oshmasligi kerak`);
+      // Large phone videos are fine when this browser can compress them before upload.
+      const maxMb = supportedVideo && canCompressVideoHere() ? VIDEO_SOURCE_MAX_SIZE_MB : MEDIA_MAX_SIZE_MB;
+      if (file.size > maxMb * 1024 * 1024) {
+        showToast(`Media hajmi ${maxMb} MB dan oshmasligi kerak`);
         e.target.value = '';
         return;
       }
@@ -185,6 +264,8 @@ export function useCreatePostForm() {
       setSelectedMediaUrl(previewUrl);
 
       const selectedType = supportedVideo ? 'video' : 'image';
+      if (selectedType === 'video') startVideoPrep(file);
+      else cancelVideoPrep();
       setMediaType(selectedType);
       const standardContentType = selectedType === 'video'
         ? (videoTypeByExtension[extension] || file.type || 'video/mp4')
@@ -249,14 +330,16 @@ export function useCreatePostForm() {
               seekToNextFrame();
               return;
             }
+            // Keep the video's aspect ratio; the longer side is at most 1280px.
+            const scale = Math.min(1, 1280 / Math.max(video.videoWidth, video.videoHeight));
             const canvas = document.createElement('canvas');
-            canvas.width = Math.min(video.videoWidth, 720);
-            canvas.height = Math.min(video.videoHeight, 1280);
+            canvas.width = Math.round(video.videoWidth * scale);
+            canvas.height = Math.round(video.videoHeight * scale);
             const ctx = canvas.getContext('2d');
             if (ctx && canvas.width > 0 && canvas.height > 0) {
               ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
               if (dataUrl && dataUrl.length > 500) {
                 if (!fallbackPosterUrl) fallbackPosterUrl = dataUrl;
 
@@ -288,7 +371,9 @@ export function useCreatePostForm() {
         video.onloadedmetadata = () => {
           const duration = Number.isFinite(video.duration) ? video.duration : 0;
           const maxTime = Math.max(0.1, duration - 0.15);
-          captureTimes = [duration * 0.15, duration * 0.35, duration * 0.60, 0.1]
+          // The poster is what viewers see before playback starts at 0s, so use
+          // the earliest non-black frame: the switch to the playing video is then seamless.
+          captureTimes = [0.1, 0.5, 1, duration * 0.15, duration * 0.35]
             .map((time) => Math.min(Math.max(time, 0.1), maxTime))
             .filter((time, index, all) => all.indexOf(time) === index);
           seekToNextFrame();
@@ -306,10 +391,11 @@ export function useCreatePostForm() {
         setSelectedPosterUrl('');
       }
     },
-    [mediaMode, selectedMediaUrl, showToast]
+    [cancelVideoPrep, mediaMode, selectedMediaUrl, showToast, startVideoPrep]
   );
 
   const removeMedia = useCallback(() => {
+    cancelVideoPrep();
     if (selectedMediaUrl.startsWith('blob:')) {
       URL.revokeObjectURL(selectedMediaUrl);
     }
@@ -321,7 +407,7 @@ export function useCreatePostForm() {
     setMediaMode('video');
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
-  }, [selectedMediaUrl]);
+  }, [cancelVideoPrep, selectedMediaUrl]);
 
   // ── Joylashuv ──
   const getCurrentPosition = () =>
@@ -352,21 +438,22 @@ export function useCreatePostForm() {
       const timeout = window.setTimeout(() => controller.abort(), 6000);
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`,
+          // Uzbek (Latin) names first, English as the fallback: never the browser's own language.
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=uz,en&lat=${latitude}&lon=${longitude}`,
           { signal: controller.signal }
         );
         if (response.ok) {
           const data = await response.json();
-          const address = data.address || {};
-          const district =
-            address.city || address.town || address.village || address.county || address.suburb;
+          const address: Record<string, string | undefined> = data.address || {};
+          // Inside cities the service sometimes puts a mahalla in "city"; skip to the district then.
+          const place = [address.city, address.town, address.village, address.county, address.district, address.suburb]
+            .find((name) => name && !/mahalla/i.test(name));
           const region = address.state || address.region;
           locationLabel =
-            [district, region].filter(Boolean).join(', ') || data.display_name || '';
-          const matchedRegion = REGIONS.find(
-            (item) =>
-              item !== 'Barchasi' && locationLabel.toLowerCase().includes(item.toLowerCase())
-          );
+            [place, region].filter((part, index, parts) => part && parts.indexOf(part) === index).join(', ') ||
+            data.display_name || '';
+          const matchedRegion =
+            regionFromIsoCode(address['ISO3166-2-lvl4']) ?? regionFromPlace(region, place, locationLabel);
           if (matchedRegion && requestId === locationRequestRef.current) setSelectedRegion(matchedRegion);
         }
       } catch {
@@ -405,8 +492,17 @@ export function useCreatePostForm() {
   }, []);
 
   // ── Formatlash ──
+  // The amount and the unit are picked separately; the stored price is "15,000 so'm/kg".
+  const priceUnit = priceUnitOf(formValues.price) ?? priceUnitChoice;
+  const priceAmount = formatNumeric(formValues.price || '');
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setValue('price', formatNumeric(e.target.value), { shouldValidate: true });
+    const amount = formatNumeric(e.target.value);
+    setValue('price', amount ? `${amount} ${priceUnit}` : '', { shouldValidate: true });
+  };
+  const handlePriceUnit = (unit: PriceUnit) => {
+    setPriceUnitChoice(unit);
+    const amount = formatNumeric(getValues('price') || '');
+    if (amount) setValue('price', `${amount} ${unit}`, { shouldValidate: true });
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -420,7 +516,7 @@ export function useCreatePostForm() {
     if (step === 3) {
       return !!(
         formValues.title &&
-        formValues.price &&
+        hasPriceAmount(formValues.price) &&
         formValues.minOrder &&
         formValues.location &&
         hasCoordinates(locationPoint) &&
@@ -473,6 +569,13 @@ export function useCreatePostForm() {
       const postTitle = data.title.trim();
       const confirmedPoint = { ...locationPoint };
       const fileToUpload = selectedMediaFile || selectedMediaUrl;
+      // The publish takes over the running preparation, so resetting the form
+      // below does not cancel it.
+      const videoPrep = mediaType === 'video' && selectedMediaFile
+        ? (prepRef.current?.source === selectedMediaFile ? prepRef.current : startVideoPrep(selectedMediaFile))
+        : null;
+      prepRef.current = null;
+      setVideoPrepInfo(null);
       const previewMediaUrl = selectedMediaUrl;
       const posterToUpload = selectedPosterUrl;
       const mediaTypeToUpload = mediaType;
@@ -480,7 +583,8 @@ export function useCreatePostForm() {
       const currentUserId = currentUser.id;
       const currentUserAvatar = currentUser.avatar || '';
       const sellerName = currentUser.businessName?.trim() || currentUser.name.trim() || currentUser.handle;
-      const location = data.location.toLowerCase().includes(selectedRegion.toLowerCase())
+      // The region is added only when the place name does not already name one.
+      const location = regionFromPlace(data.location)
         ? data.location.trim()
         : `${data.location.trim()}, ${selectedRegion}`;
       const expiresAt = durationDays
@@ -519,20 +623,50 @@ export function useCreatePostForm() {
       let uploadedMediaUrl = '';
       let uploadedPosterUrl = '';
       try {
+        let mediaToUpload: string | File = fileToUpload;
+        let contentType = mediaContentTypeToUpload;
+        if (videoPrep) {
+          let shownPercent = -1;
+          const showPreparing = (share: number) => {
+            const percent = Math.floor(share * 100);
+            if (percent === shownPercent) return;
+            shownPercent = percent;
+            setUploadingPostStatus({ isUploading: true, title: postTitle, stage: 'preparing', progress: share });
+          };
+          showPreparing(videoPrep.progress);
+          videoPrep.onProgress = showPreparing;
+          const ready = await videoPrep.result;
+          videoPrep.onProgress = null;
+          if (ready !== videoPrep.source) {
+            mediaToUpload = ready;
+            contentType = 'video/mp4';
+          } else if (ready.size > MEDIA_MAX_SIZE_MB * 1024 * 1024) {
+            throw new Error(`Video ${MEDIA_MAX_SIZE_MB} MB dan katta va bu telefonda uni kichraytirib bo'lmadi. Qisqaroq video tanlang.`);
+          }
+        }
+
         let extension = 'jpg';
         if (mediaTypeToUpload === 'video') {
-          extension = mediaContentTypeToUpload.includes('webm')
+          extension = contentType.includes('webm')
             ? 'webm'
-            : mediaContentTypeToUpload.includes('quicktime')
+            : contentType.includes('quicktime')
               ? 'mov'
               : 'mp4';
         } else {
-          extension = mediaContentTypeToUpload.includes('png') ? 'png' : mediaContentTypeToUpload.includes('webp') ? 'webp' : 'jpg';
+          extension = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
         }
+        let shownUploadPercent = -1;
+        setUploadingPostStatus({ isUploading: true, title: postTitle, stage: 'uploading', progress: 0 });
         const mediaUrl = await uploadListingMedia(
-          fileToUpload,
+          mediaToUpload,
           `${currentUserId}/${now}-media.${extension}`,
-          mediaContentTypeToUpload
+          contentType,
+          (share) => {
+            const percent = Math.floor(share * 100);
+            if (percent === shownUploadPercent) return;
+            shownUploadPercent = percent;
+            setUploadingPostStatus({ isUploading: true, title: postTitle, stage: 'uploading', progress: share });
+          }
         );
         uploadedMediaUrl = mediaUrl;
         const posterUrl = posterToUpload
@@ -555,7 +689,8 @@ export function useCreatePostForm() {
           title: postTitle,
           category: data.category,
           categoryName: categoryObj?.name || 'Boshqa',
-          price: data.price.trim(),
+          // A bare number gets the currency, so the feed never shows just "7,000".
+          price: /[a-zA-ZЀ-ӿ]/.test(data.price) ? data.price.trim() : `${data.price.trim()} so'm`,
           numericPrice,
           minOrder: data.minOrder.trim(),
           type: mediaTypeToUpload,
@@ -620,6 +755,7 @@ export function useCreatePostForm() {
       setCreateModalOpen,
       setUploadingPostStatus,
       showToast,
+      startVideoPrep,
     ]
   );
 
@@ -635,7 +771,7 @@ export function useCreatePostForm() {
     if (!selectedMediaUrl) missing.push('Rasm yoki video');
     if (!values.title || values.title.trim().length < 5) missing.push('Sarlavha (kamida 5 belgi)');
     if (!values.category) missing.push('Kategoriya');
-    if (!values.price || values.price.trim().length < 2) missing.push('Narx');
+    if (!hasPriceAmount(values.price)) missing.push('Narx');
     if (!values.minOrder || values.minOrder.trim().length < 1) missing.push('Min. buyurtma');
     if (!values.location || values.location.trim().length < 2) missing.push('Joylashuv');
     if (!hasCoordinates(locationPoint)) missing.push('Xaritadagi joylashuv');
@@ -659,6 +795,7 @@ export function useCreatePostForm() {
     selectedMediaUrl,
     selectedPosterUrl,
     mediaType,
+    videoPrepInfo,
     selectedRegion,
     setSelectedRegion,
     durationDays,
@@ -672,6 +809,9 @@ export function useCreatePostForm() {
     handleFileChange,
     removeMedia,
     handlePriceChange,
+    handlePriceUnit,
+    priceAmount,
+    priceUnit,
     handlePhoneChange,
     handleCategorySelect,
     handleDetectLocation,

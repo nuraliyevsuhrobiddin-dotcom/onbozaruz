@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LogIn, Loader2 } from 'lucide-react';
 import { backToProfile } from '../hooks/useAppNavigation';
 import { useAgroStore } from '../store/useAgroStore';
-import { Post } from '../data/mockAgroData';
+import { Post } from '../data/catalog';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { ProfileListingsGrid, ProfileTabType } from '../components/profile/ProfileListingsGrid';
 import { EditProfileSubView } from '../components/profile/EditProfileSubView';
@@ -24,6 +24,7 @@ export const ProfileView: React.FC = () => {
     isAdminUser,
     setEditModalItem,
     deletePost,
+    setPostSold,
     currentUser,
     isAuthenticated,
     isAuthLoading,
@@ -156,6 +157,7 @@ export const ProfileView: React.FC = () => {
         onSelectPost={handleSelectPost}
         onEditItem={(item) => setEditModalItem(item)}
         onDeleteItem={(id) => deletePost(id)}
+        onToggleSold={(item) => { void setPostSold(item.id, !item.isSold); }}
         onOpenCreateModal={() => setCreateModalOpen(true)}
       />
     </div>

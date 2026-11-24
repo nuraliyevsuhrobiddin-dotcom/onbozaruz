@@ -179,8 +179,8 @@ export const EditProfileSubView: React.FC<EditProfileSubViewProps> = ({
       await updateUserProfile({
         name: form.name.trim(),
         handle: cleanHandle,
-        // Login email belongs to Supabase Auth; it must be changed through its
-        // verified email-change flow rather than silently changing profiles.email.
+        // The login email belongs to the auth server and is never changed by
+        // silently rewriting profiles.email.
         phone: cleanPhone,
         avatar: finalAvatarUrl,
         cover: finalCoverUrl,

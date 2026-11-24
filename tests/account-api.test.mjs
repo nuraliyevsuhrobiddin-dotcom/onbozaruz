@@ -29,7 +29,7 @@ async function loadAuth({ fetch = async () => { throw new Error('Unexpected netw
   const code = stripTypeScriptTypes(await readFile(new URL('../src/api/authClient.ts', import.meta.url), 'utf8'));
   const module = new SourceTextModule(code, {
     context,
-    initializeImportMeta(meta) { meta.env = { VITE_SUPABASE_URL: 'https://test.invalid', VITE_SUPABASE_ANON_KEY: 'fake-test-key' }; },
+    initializeImportMeta(meta) { meta.env = { VITE_API_URL: 'https://test.invalid', VITE_API_PUBLIC_KEY: 'fake-test-key' }; },
   });
   await module.link(specifier => {
     const exports = specifier === '@supabase/supabase-js' ? { createClient: () => client }

@@ -1,21 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Megaphone, Send, Bell, Users, Store, Building2, History,
 } from 'lucide-react';
-import { adminRepository } from '../../api/adminRepository';
+import { adminRepository, type BroadcastItem } from '../../api/adminRepository';
 
 interface AdminBroadcastTabProps {
   onLogAction: (action: string, targetId: string, oldVal: any, newVal: any) => void;
   showToast: (msg: string) => void;
 }
 
-interface BroadcastItem {
-  id: string;
-  title: string;
-  message: string;
-  targetRole: 'all' | 'business' | 'supplier';
-  createdAt: string;
-}
 
 export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
   onLogAction,
@@ -27,20 +20,15 @@ export const AdminBroadcastTab: React.FC<AdminBroadcastTabProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [history, setHistory] = useState<BroadcastItem[]>([]);
 
-  const loadHistory = () => {
-    try {
-      const raw = localStorage.getItem('mollbazar-admin-broadcasts');
-      if (raw) {
-        setHistory(JSON.parse(raw));
-      }
-    } catch {
-      // ignore
-    }
-  };
+  const loadHistory = useCallback(() => {
+    adminRepository.getBroadcastHistory()
+      .then(setHistory)
+      .catch((err: Error) => showToast(`Xabarnomalar tarixi yuklanmadi: ${err.message}`));
+  }, [showToast]);
 
   useEffect(() => {
     loadHistory();
-  }, []);
+  }, [loadHistory]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

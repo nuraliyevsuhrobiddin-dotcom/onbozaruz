@@ -3,9 +3,6 @@
  * UI-ga qattiq kodlangan qiymatlarni markazlashtiradi.
  */
 
-/** Narx o'lchov birliklari uchun tez tugmalar */
-export const PRICE_QUICK = ['so\'m/kg', 'so\'m / qop', 'so\'m / dona', 'so\'m / tonna'] as const;
-
 /** Minimal buyurtma uchun tez tanlashlar */
 export const MIN_ORDER_QUICK = ['10 kg', '100 kg', '300 kg', '500 kg', '1 tonna', '10 qop'] as const;
 
@@ -30,10 +27,11 @@ export const DURATION_OPTIONS: { label: string; days: number | null }[] = [
 ];
 
 /** Media fayl uchun ruxsat etilgan maksimal hajm (MB). */
-// Supabase Storage loyihasidagi File size limit ham kamida 100 MB bo'lishi kerak.
-// Keep this aligned with the Supabase Storage bucket limit. Playback performance
-// is improved at delivery time; rejecting a valid seller video is not useful.
+// Keep this aligned with the server upload limit (max_upload_bytes in the PHP API
+// config). Rejecting a valid seller video is not useful.
 export const MEDIA_MAX_SIZE_MB = 100;
+/** Videos up to this size are accepted when the phone can compress them below MEDIA_MAX_SIZE_MB. */
+export const VIDEO_SOURCE_MAX_SIZE_MB = 1024;
 
 /** Ruxsat etilgan media turlari */
 export const ACCEPTED_MEDIA_TYPES = 'image/*,video/*';

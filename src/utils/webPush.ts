@@ -1,4 +1,4 @@
-import { getSupabaseAccessToken } from '../api/authClient';
+import { getAccessToken } from '../api/authClient';
 import { ensureServiceWorker } from './serviceWorker';
 
 const VAPID_PUBLIC_KEY = String(import.meta.env.VITE_WEB_PUSH_VAPID_PUBLIC_KEY || '').trim();
@@ -12,7 +12,7 @@ function base64UrlToUint8Array(value: string): Uint8Array<ArrayBuffer> {
 /**
  * Registers the current browser with the push service. It is intentionally a
  * no-op until VAPID has been configured, so in-app notifications keep working
- * in local/mock environments.
+ * in local environments.
  */
 export async function syncWebPushSubscription(): Promise<boolean> {
   if (!VAPID_PUBLIC_KEY
@@ -25,7 +25,7 @@ export async function syncWebPushSubscription(): Promise<boolean> {
   }
 
   try {
-    const token = await getSupabaseAccessToken();
+    const token = await getAccessToken();
     if (!token) return false;
     const registration = await ensureServiceWorker();
     if (!registration) return false;

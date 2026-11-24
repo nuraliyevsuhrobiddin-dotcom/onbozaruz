@@ -12,7 +12,9 @@ import {
   LayoutGrid,
   ListFilter,
 } from 'lucide-react';
-import { Post } from '../../data/mockAgroData';
+import { Post } from '../../data/catalog';
+import { SoldBadge } from '../ui/SoldBadge';
+import { formatPrice } from '../../utils/price';
 
 export type ProfileTabType = 'posts' | 'saved';
 
@@ -32,6 +34,8 @@ interface ProfileListingsGridProps {
   onSelectPost: (post: Post) => void;
   onEditItem: (item: Post) => void;
   onDeleteItem: (id: string) => void;
+  /** Mark the owner's listing as sold or put it back on sale. */
+  onToggleSold: (item: Post) => void;
   onOpenCreateModal: () => void;
 }
 
@@ -44,6 +48,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
   onSelectPost,
   onEditItem,
   onDeleteItem,
+  onToggleSold,
   onOpenCreateModal,
 }) => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
@@ -172,6 +177,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
             {/* Dynamic Categories */}
             {availableCategories.map((cat) => {
               const count = activeItems.filter((i) => i.category === cat).length;
+              const label = activeItems.find((i) => i.category === cat)?.categoryName || cat;
               return (
                 <button
                   key={cat}
@@ -183,7 +189,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  {cat} ({count})
+                  {label} ({count})
                 </button>
               );
             })}
@@ -242,7 +248,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                         alt={item.title}
                         onError={(event) => {
                           event.currentTarget.onerror = null;
-                          event.currentTarget.src = '/logo.png';
+                          event.currentTarget.src = '/logo.png?v=2';
                         }}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -271,8 +277,14 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                       </span>
                     )}
 
+                    {item.isSold && (
+                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center pointer-events-none">
+                        <SoldBadge size="sm" />
+                      </div>
+                    )}
+
                     {/* Expires At Badge */}
-                    {item.expiresAt && (
+                    {item.expiresAt && !item.isSold && (
                       <span className="absolute left-1.5 bottom-1.5 rounded-full bg-black/60 text-white px-1.5 py-0.5 text-[8px] font-black shadow-sm backdrop-blur-sm flex items-center gap-0.5">
                         <Clock className="w-2.5 h-2.5" />
                         {formatDaysRemaining(item.expiresAt)}
@@ -284,6 +296,17 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                       <div className="flex justify-end gap-1">
                         {activeGridTab === 'posts' && (
                           <>
+                            <button
+                              type="button"
+                              title={item.isSold ? 'Sotuvga qaytarish' : 'Sotildi deb belgilash'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleSold(item);
+                              }}
+                              className="px-1.5 py-1 rounded-lg bg-white/20 hover:bg-white/40 backdrop-blur-md text-[9px] font-black transition-colors"
+                            >
+                              {item.isSold ? 'Qaytarish' : 'Sotildi'}
+                            </button>
                             <button
                               type="button"
                               title="Tahrirlash"
@@ -313,7 +336,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                       </div>
 
                       <div>
-                        <span className="text-[11px] font-black text-emerald-400 block">{item.price}</span>
+                        <span className="text-[11px] font-black text-emerald-400 block">{formatPrice(item.price)}</span>
                         <span className="line-clamp-1 text-[10px] font-bold">{item.title}</span>
                       </div>
                     </div>
@@ -343,7 +366,7 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                             alt={item.title}
                             onError={(event) => {
                               event.currentTarget.onerror = null;
-                              event.currentTarget.src = '/logo.png';
+                              event.currentTarget.src = '/logo.png?v=2';
                             }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
@@ -364,10 +387,11 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
                           {item.title}
                         </h4>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-black text-[#D84315]">{item.price}</span>
-                          {item.category && (
+                          <span className={`text-xs font-black ${item.isSold ? 'text-slate-400 line-through' : 'text-[#D84315]'}`}>{formatPrice(item.price)}</span>
+                          {item.isSold && <SoldBadge size="sm" />}
+                          {(item.categoryName || item.category) && (
                             <span className="px-2 py-0.5 rounded-md bg-slate-200/70 text-slate-700 text-[10px] font-bold capitalize">
-                              {item.category}
+                              {item.categoryName || item.category}
                             </span>
                           )}
                           {isPending && (
@@ -386,6 +410,18 @@ export const ProfileListingsGrid: React.FC<ProfileListingsGridProps> = ({
 
                     {activeGridTab === 'posts' && (
                       <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          title={item.isSold ? 'Sotuvga qaytarish' : 'Sotildi deb belgilash'}
+                          aria-pressed={Boolean(item.isSold)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleSold(item);
+                          }}
+                          className={`px-2.5 py-2 rounded-xl border text-[10px] font-black transition-colors ${item.isSold ? 'bg-[#D84315] border-[#D84315] text-white hover:bg-[#bf360c]' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-200'}`}
+                        >
+                          {item.isSold ? 'Sotildi ✓' : 'Sotildi'}
+                        </button>
                         <button
                           type="button"
                           title="Tahrirlash"

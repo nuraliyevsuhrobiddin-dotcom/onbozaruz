@@ -220,7 +220,17 @@ export const B2BFinanceView: React.FC = () => {
                 </span>
               </div>
 
+              {!platformRequisites.adminCardNumber && !platformRequisites.adminBankAccount && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2 text-xs text-amber-800">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed font-semibold">
+                    To'lov rekvizitlari hali kiritilmagan. To'lov qilishdan oldin MollBazar administratori bilan bog'laning.
+                  </p>
+                </div>
+              )}
+
               {/* Card visual */}
+              {platformRequisites.adminCardNumber && (
               <div className="bg-gradient-to-br from-blue-600 to-violet-700 rounded-2xl p-4 text-white space-y-3 shadow-xl shadow-blue-500/20">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black uppercase tracking-wider text-blue-200">Admin Plastik Kartasi</span>
@@ -253,8 +263,10 @@ export const B2BFinanceView: React.FC = () => {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Bank details */}
+              {platformRequisites.adminBankAccount && (
               <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-black text-slate-800 text-xs">
@@ -282,6 +294,7 @@ export const B2BFinanceView: React.FC = () => {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* Instructions */}
               {platformRequisites.adminPaymentInstructions && (

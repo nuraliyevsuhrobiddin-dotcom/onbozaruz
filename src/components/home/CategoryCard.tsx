@@ -4,9 +4,13 @@ import { useAgroStore } from '../../store/useAgroStore';
 import { categoriesForScope } from '../../utils/categoryScope';
 
 export const CategoryCard: React.FC = () => {
-  const { setSelectedCategoryModalId, categories: allCategories } = useAgroStore();
+  const { setSelectedCategoryModalId, categories: allCategories, posts } = useAgroStore();
   const categories = categoriesForScope(allCategories, 'post');
   const categoryList = Array.from(new Map(categories.slice(1).map((c) => [c.id, c])).values());
+  // Live counts from the loaded feed; categories with listings come first.
+  const counts = new Map<string, number>();
+  for (const post of posts) counts.set(post.category, (counts.get(post.category) || 0) + 1);
+  const sorted = [...categoryList].sort((a, b) => (counts.get(b.id) || 0) - (counts.get(a.id) || 0));
 
   return (
     <section className="category-discovery bg-white rounded-[22px] border border-slate-200/80 p-3 shadow-sm space-y-2.5 select-none">
@@ -16,7 +20,7 @@ export const CategoryCard: React.FC = () => {
       </h3>
 
       <div className="category-discovery-list flex gap-2 overflow-x-auto no-scrollbar pb-1">
-        {categoryList.map((cat) => (
+        {sorted.map((cat) => (
           <button
             key={cat.id}
             onClick={() => setSelectedCategoryModalId(cat.id)}
@@ -26,7 +30,7 @@ export const CategoryCard: React.FC = () => {
               {cat.name}
             </span>
             <span className="mt-1 inline-flex rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-slate-500 border border-slate-200/80">
-              {cat.count} e'lon
+              {counts.get(cat.id) || 0} e'lon
             </span>
           </button>
         ))}

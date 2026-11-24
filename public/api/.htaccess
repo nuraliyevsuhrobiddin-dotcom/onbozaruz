@@ -1,0 +1,36 @@
+# MollBazar API — routes every /api/* request to index.php
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /api/
+
+  # Make the Authorization header visible to PHP under CGI / PHP-FPM.
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  # Internal code and runtime data are never reachable over HTTP.
+  RewriteRule ^(_lib|_data)(/|$) - [F,L]
+
+  # Only index.php runs here: any other .php file left on the server (for
+  # example scripts from an earlier version) is blocked.
+  RewriteCond %{REQUEST_URI} !/api/index\.php$
+  RewriteRule \.php$ - [F,L]
+
+  # Uploaded media (api/storage/v1/object/public/...) is served directly.
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+<FilesMatch "^\.(user\.ini|htaccess)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>

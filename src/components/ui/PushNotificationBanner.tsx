@@ -181,7 +181,7 @@ export const PushNotificationBanner: React.FC = () => {
               <div className="flex items-center gap-2 min-w-0">
                 <div className="relative shrink-0">
                   <img
-                    src="/logo.png"
+                    src="/logo.png?v=2"
                     alt="MollBazar"
                     className="w-6 h-6 rounded-lg object-cover shadow-xs border border-slate-100 dark:border-slate-800"
                   />

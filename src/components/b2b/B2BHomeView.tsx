@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Search, CheckCircle2, ShoppingBag, ArrowRight, ShieldCheck,
   ShoppingCart, Package, Building2, Store, MapPin, Sparkles,
-  TrendingUp, Zap, ChevronRight,
+  TrendingUp, Zap, ChevronRight, Wheat, Handshake,
 } from 'lucide-react';
 import { useAgroStore } from '../../store/useAgroStore';
 import { categoriesForScope } from '../../utils/categoryScope';
@@ -66,18 +66,18 @@ export const B2BHomeView: React.FC = () => {
     <div className="relative w-full max-w-170 lg:max-w-none mx-auto py-3 px-3 space-y-4 select-none pb-28 bg-slate-50 text-slate-900">
 
       {/* ── Top Header Bar ── */}
-      <div className="flex items-center justify-between bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-[#DB2777] flex items-center justify-center text-white shadow-lg shadow-pink-500/20">
+      <div className="flex items-center justify-between gap-2 bg-white rounded-2xl p-3 border border-slate-200 shadow-sm">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="w-9 h-9 shrink-0 rounded-xl bg-[#DB2777] flex items-center justify-center text-white shadow-lg shadow-pink-500/20">
             <ShoppingBag className="w-4.5 h-4.5" />
           </div>
-          <div>
-            <h1 className="font-black text-sm text-slate-900 leading-tight">MollBazar B2B</h1>
-            <p className="text-[10px] text-slate-500 font-semibold">Ulgurji savdo maydoni</p>
+          <div className="min-w-0">
+            <h1 className="truncate font-black text-sm text-slate-900 leading-tight">MollBazar B2B</h1>
+            <p className="truncate text-[10px] text-slate-500 font-semibold">Ulgurji savdo maydoni</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <button
             onClick={() => setB2BRoute({ view: 'map' })}
             title="Do'konlar Xaritasi"
@@ -105,7 +105,7 @@ export const B2BHomeView: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#DB2777] hover:bg-[#be185d] text-white transition-colors text-xs font-black relative shadow-lg shadow-pink-500/20 cursor-pointer border border-pink-500"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
-            <span className="font-bold">Savat</span>
+            <span className="hidden font-bold min-[360px]:inline">Savat</span>
             {cartTotalQty > 0
               ? <span className="min-w-[18px] h-4.5 px-1 rounded-full bg-amber-400 text-slate-900 text-[9px] font-black flex items-center justify-center">{cartTotalQty}</span>
               : <span className="text-[10px] text-pink-100 font-medium">0</span>
@@ -218,7 +218,7 @@ export const B2BHomeView: React.FC = () => {
       </div>
 
       {/* ── Quick Nav Cards ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
         {[
           {
             label: "Do'konlar xaritasi", sub: 'GPS bilan', icon: <MapPin className="w-4 h-4" />,
@@ -253,6 +253,18 @@ export const B2BHomeView: React.FC = () => {
             badgeCls: 'bg-emerald-400/20 text-emerald-400 border border-emerald-400/25',
             iconBg: 'bg-emerald-600 shadow-emerald-500/20',
             onClick: () => { if (!isAuthenticated) { setAuthPromptOpen(true); } else { setB2BRoute({ view: 'orders' }); } },
+          },
+          {
+            label: 'Xarid talablari', sub: 'Agro savdo', icon: <Wheat className="w-4 h-4" />,
+            badge: null, badgeCls: '',
+            iconBg: 'bg-lime-600 shadow-lime-500/20',
+            onClick: () => setB2BRoute({ view: 'requests' }),
+          },
+          {
+            label: 'Kelishuvlarim', sub: 'Agro takliflar', icon: <Handshake className="w-4 h-4" />,
+            badge: null, badgeCls: '',
+            iconBg: 'bg-teal-600 shadow-teal-500/20',
+            onClick: () => { if (!isAuthenticated) { setAuthPromptOpen(true); } else { setB2BRoute({ view: 'deals' }); } },
           },
         ].map((item) => (
           <button

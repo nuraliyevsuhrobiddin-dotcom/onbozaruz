@@ -38,6 +38,12 @@ export interface Post {
   rejectionReason?: string;
   /** Muddati tugagan sana (ISO). null/undefined = cheksiz. */
   expiresAt?: string | null;
+  /** Sotuvchi mahsulot sotilganini belgilagan. */
+  isSold?: boolean;
+  /** Server qo'ygan sotilgan vaqt (ISO). */
+  soldAt?: string | null;
+  /** E'lon joylangan vaqt (ISO), server beradi. */
+  createdAt?: string;
 }
 
 export type CategoryScope = 'post' | 'market' | 'both';

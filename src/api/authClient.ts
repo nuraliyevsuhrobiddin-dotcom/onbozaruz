@@ -1,43 +1,40 @@
 /**
- * MollBazar Auth Client
+ * MollBazar API client: authentication, sessions and media uploads.
  *
- * Supabase URL va ANON KEY bo'lsa — Supabase Auth ishlatiladi.
- * Bo'lmasa — localStorage asosidagi mock auth ishlatiladi.
- * Bu tuzilma real backendga o'tishni eng oson qiladi.
+ * The backend is this site's own PHP API on Ahost (public/api). It speaks the
+ * Supabase wire protocol, so the supabase-js client is used as the HTTP client.
  */
 
 import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
 import * as tus from 'tus-js-client';
 import { processAndCompressImage } from '../utils/avatarUtils';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+/** A relative API path (the default, `/api`) always targets the current origin. */
+function resolveApiUrl(raw: string): string {
+  const value = raw.trim().replace(/\/$/, '');
+  if (!value.startsWith('/')) return value;
+  return typeof window !== 'undefined' ? `${window.location.origin}${value}` : `https://mollbazar.uz${value}`;
+}
 
-export const isSupabaseConfigured =
-  !!SUPABASE_URL &&
-  !!SUPABASE_ANON_KEY &&
-  !SUPABASE_URL.includes('your-project-id') &&
-  !SUPABASE_ANON_KEY.includes('your-supabase-anon-key');
+export const API_URL = resolveApiUrl(import.meta.env.VITE_API_URL || '/api');
+/** Public, non-secret identifier sent as `apikey`; the PHP API treats it as "anonymous". */
+export const API_PUBLIC_KEY = import.meta.env.VITE_API_PUBLIC_KEY || 'mollbazar-public-anon-key';
 
+export const apiClient = createClient(API_URL, API_PUBLIC_KEY, {
+  auth: {
+    flowType: 'pkce',
+    detectSessionInUrl: true,
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
 
-
-
-export const supabaseClient = isSupabaseConfigured
-  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
-      auth: {
-        flowType: 'pkce',
-        detectSessionInUrl: true,
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    })
-  : null;
-
-const supabase = supabaseClient;
-
-// Supabase recommends resumable/TUS uploads for files above 6 MB.  Video
-// posts can be up to 100 MB, so use the regular API only for small media.
-const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
+// Shared hosting caps a single PHP upload at 2 MB, so anything larger goes
+// through resumable (tus) uploads. Chunks are sent with PATCH, which PHP's
+// upload limits do not apply to; the host's firewall (ModSecurity) does reject
+// raw request bodies above ~1-4 MB, so chunks stay at 1 MB (measured on Ahost).
+const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 1.5 * 1024 * 1024;
+const RESUMABLE_CHUNK_BYTES = 1024 * 1024;
 
 const PRODUCTION_AUTH_CALLBACK_URL = 'https://mollbazar.uz/auth/callback';
 
@@ -78,6 +75,12 @@ export function translateAuthError(message: string): string {
   ) {
     return "Tasdiqlash havolasi muddati tugagan yoki yaroqsiz. Qayta xat yuborish tugmasini bosing.";
   }
+  if (lower.includes('email link is invalid') || lower.includes('otp_expired') || lower.includes('has expired')) {
+    return "Havola eskirgan yoki allaqachon ishlatilgan. Yangi havola so'rang.";
+  }
+  if (lower.includes('should be different') || lower.includes('same_password')) {
+    return 'Yangi parol eski paroldan farq qilishi kerak.';
+  }
   if (lower.includes('password should be at least') || lower.includes('password is too short')) {
     return "Parol kamida 6 ta belgidan iborat bo'lishi kerak.";
   }
@@ -100,37 +103,32 @@ export function translateAuthError(message: string): string {
   return message;
 }
 
-
 export function subscribeToAuthState(
   callback: (event: AuthChangeEvent, session: Session | null) => void
 ): (() => void) {
-  if (!supabase) return () => undefined;
-
-  const { data } = supabase.auth.onAuthStateChange(callback);
+  const { data } = apiClient.auth.onAuthStateChange(callback);
   return () => data.subscription.unsubscribe();
 }
 
 export async function completeAuthCallback(): Promise<void> {
-  if (!supabase) throw new Error('Supabase sozlanmagan');
-
   // Check if session is already active
-  const initialSession = await supabase.auth.getSession();
+  const initialSession = await apiClient.auth.getSession();
   if (initialSession.data.session) return;
 
   // ── Strategy 1: PKCE code exchange (?code=xxx) ──
   const code = new URLSearchParams(window.location.search).get('code');
   if (code) {
     try {
-      const exchange = await supabase.auth.exchangeCodeForSession(code);
+      const exchange = await apiClient.auth.exchangeCodeForSession(code);
       if (exchange.error) {
         // Re-check session in case auto-exchange in onAuthStateChange succeeded
-        const recheck = await supabase.auth.getSession();
+        const recheck = await apiClient.auth.getSession();
         if (recheck.data.session) return;
         throw new Error(translateAuthError(exchange.error.message));
       }
       return; // Success via PKCE
     } catch (error: unknown) {
-      const recheck = await supabase.auth.getSession();
+      const recheck = await apiClient.auth.getSession();
       if (recheck.data.session) return;
       const msg = error instanceof Error ? error.message : 'Tasdiqlash kodi yaroqsiz';
       throw new Error(translateAuthError(msg));
@@ -144,12 +142,12 @@ export async function completeAuthCallback(): Promise<void> {
   const refreshToken = hashParams.get('refresh_token');
   if (accessToken) {
     try {
-      const { error: setErr } = await supabase.auth.setSession({
+      const { error: setErr } = await apiClient.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken || '',
       });
       if (setErr) {
-        const recheck = await supabase.auth.getSession();
+        const recheck = await apiClient.auth.getSession();
         if (recheck.data.session) return;
         throw new Error(translateAuthError(setErr.message));
       }
@@ -159,7 +157,7 @@ export async function completeAuthCallback(): Promise<void> {
       }
       return; // Success via implicit flow
     } catch (error: unknown) {
-      const recheck = await supabase.auth.getSession();
+      const recheck = await apiClient.auth.getSession();
       if (recheck.data.session) return;
       const msg = error instanceof Error ? error.message : 'Token yaroqsiz';
       throw new Error(translateAuthError(msg));
@@ -167,64 +165,40 @@ export async function completeAuthCallback(): Promise<void> {
   }
 
   // ── Final fallback: check if onAuthStateChange auto-populated the session ──
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await apiClient.auth.getSession();
   if (error) throw new Error(translateAuthError(error.message));
   if (!data.session) {
     throw new Error('Tasdiqlash sessiyasi topilmadi. Havola muddati tugagan bo\'lishi mumkin.');
   }
 }
 
-export async function getSupabaseAccessToken(): Promise<string | null> {
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
+export async function getAccessToken(): Promise<string | null> {
+  const { data } = await apiClient.auth.getSession();
   return data.session?.access_token || null;
-}
-
-/**
- * Large uploads should avoid the API hostname when the project uses the
- * standard Supabase domain. The Storage hostname is the route Supabase
- * optimizes for TUS/resumable transfers; custom domains keep the regular API
- * hostname, which remains fully compatible with the same endpoint.
- */
-function getResumableStorageEndpoint(): string {
-  const fallback = `${SUPABASE_URL!.replace(/\/$/, '')}/storage/v1/upload/resumable`;
-
-  try {
-    const url = new URL(SUPABASE_URL!);
-    if (url.hostname.endsWith('.supabase.co') && !url.hostname.endsWith('.storage.supabase.co')) {
-      url.hostname = url.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co');
-    }
-    url.pathname = `${url.pathname.replace(/\/$/, '')}/storage/v1/upload/resumable`;
-    url.search = '';
-    url.hash = '';
-    return url.toString();
-  } catch {
-    return fallback;
-  }
 }
 
 async function uploadResumableListingMedia(
   file: Blob,
   path: string,
-  contentType: string
+  contentType: string,
+  onProgress?: (share: number) => void
 ): Promise<string> {
-  if (!supabase) throw new Error('Supabase sozlanmagan');
-
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await apiClient.auth.getSession();
   if (error || !data.session?.access_token) {
     throw new Error("Video yuklash uchun sessiya topilmadi. Qaytadan tizimga kiring.");
   }
 
   return new Promise<string>((resolve, reject) => {
     const upload = new tus.Upload(file, {
-      endpoint: getResumableStorageEndpoint(),
+      endpoint: `${API_URL}/storage/v1/upload/resumable`,
       retryDelays: [0, 1_000, 3_000, 5_000, 10_000],
-      chunkSize: RESUMABLE_UPLOAD_THRESHOLD_BYTES,
-      uploadDataDuringCreation: true,
+      chunkSize: RESUMABLE_CHUNK_BYTES,
+      // Keep the creation POST empty: POST bodies are subject to post_max_size.
+      uploadDataDuringCreation: false,
       removeFingerprintOnSuccess: true,
       headers: {
         authorization: `Bearer ${data.session.access_token}`,
-        apikey: SUPABASE_ANON_KEY!,
+        apikey: API_PUBLIC_KEY,
         'x-upsert': 'false',
       },
       metadata: {
@@ -234,8 +208,11 @@ async function uploadResumableListingMedia(
         cacheControl: '31536000',
       },
       onError: (error) => reject(error),
+      onProgress: (sent, total) => {
+        if (total > 0) onProgress?.(sent / total);
+      },
       onSuccess: () => {
-        resolve(supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl);
+        resolve(apiClient.storage.from('listing-media').getPublicUrl(path).data.publicUrl);
       },
     });
 
@@ -246,7 +223,8 @@ async function uploadResumableListingMedia(
 export async function uploadListingMedia(
   input: string | File | Blob,
   path: string,
-  contentType: string
+  contentType: string,
+  onProgress?: (share: number) => void
 ): Promise<string> {
   if (!input) return '';
   if (typeof input === 'string' && (input.startsWith('http://') || input.startsWith('https://'))) {
@@ -255,83 +233,59 @@ export async function uploadListingMedia(
 
   let fileOrBlob: Blob;
   try {
-    if (typeof input === 'string') {
-      const response = await fetch(input);
-      fileOrBlob = await response.blob();
-    } else {
-      fileOrBlob = input;
-    }
-  } catch (error: unknown) {
-    console.warn('[uploadListingMedia] Error loading media:', error);
-    return typeof input === 'string' ? input : '';
+    fileOrBlob = typeof input === 'string' ? await (await fetch(input)).blob() : input;
+  } catch {
+    // Never save a local blob:/data: address as the listing's media URL.
+    throw new Error("Faylni o'qib bo'lmadi. Uni qaytadan tanlang.");
   }
 
   let storageError = '';
-  if (supabase) {
-    try {
-      if (fileOrBlob.size > RESUMABLE_UPLOAD_THRESHOLD_BYTES) {
-        return await uploadResumableListingMedia(fileOrBlob, path, contentType);
-      }
-      const { error } = await supabase.storage.from('listing-media').upload(path, fileOrBlob, {
-        contentType,
-        // Every caller supplies a new path.  Disabling upsert means a normal
-        // upload only needs INSERT permission; it also prevents a user from
-        // accidentally replacing another user's object after a path collision.
-        upsert: false,
-        cacheControl: '31536000',
-      });
-
-      if (!error) {
-        return supabase.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
-      }
-      storageError = error.message;
-      console.warn('[uploadListingMedia] Supabase Storage upload warning:', error.message);
-    } catch (err) {
-      storageError = err instanceof Error ? err.message : 'Storage bilan bog\'lanib bo\'lmadi';
-      console.warn('[uploadListingMedia] Storage upload exception:', err);
-    }
-
-    const normalizedError = storageError.toLowerCase();
-    if (normalizedError.includes('maximum allowed size') || normalizedError.includes('file size')) {
-      throw new Error("Fayl hajmi Storage chegarasidan katta. Supabase SQL sxemasidagi 100 MB bucket sozlamasini ishga tushiring yoki kichikroq video tanlang.");
-    }
-    if (normalizedError.includes('mime') || normalizedError.includes('content type')) {
-      throw new Error("Bu video formati Storage tomonidan qabul qilinmadi. MP4, WebM yoki MOV formatini tanlang.");
-    }
-    if (normalizedError.includes('row-level security') || normalizedError.includes('new row violates')) {
-      throw new Error("Media yuklash ruxsati topilmadi. Supabase SQL sxemasidagi listing-media Storage policylarini ishga tushiring.");
-    }
-    throw new Error(
-      `Media yuklanmadi${storageError ? `: ${storageError}` : ''}. Internetni tekshirib, qayta urinib ko'ring.`
-    );
-  }
-
-  // Fallback: convert small image to Data URL or Object URL
   try {
-    if (fileOrBlob.size < 3 * 1024 * 1024) {
-      return await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(typeof input === 'string' ? input : URL.createObjectURL(fileOrBlob));
-        reader.readAsDataURL(fileOrBlob);
-      });
+    if (fileOrBlob.size > RESUMABLE_UPLOAD_THRESHOLD_BYTES) {
+      return await uploadResumableListingMedia(fileOrBlob, path, contentType, onProgress);
     }
-  } catch {
-    // Ignore fallback conversion failure
+    // A named multipart field: PHP ignores file parts whose field name is empty.
+    const body = new FormData();
+    body.append('file', fileOrBlob, path.split('/').pop() || 'media');
+    const { error } = await apiClient.storage.from('listing-media').upload(path, body, {
+      contentType,
+      // Every caller supplies a new path. Disabling upsert means a normal upload
+      // only needs INSERT permission and can never replace someone else's file.
+      upsert: false,
+      cacheControl: '31536000',
+    });
+    if (!error) {
+      return apiClient.storage.from('listing-media').getPublicUrl(path).data.publicUrl;
+    }
+    storageError = error.message;
+  } catch (err) {
+    storageError = err instanceof Error ? err.message : "Server bilan bog'lanib bo'lmadi";
   }
 
-  return typeof input === 'string' ? input : URL.createObjectURL(fileOrBlob);
+  const normalizedError = storageError.toLowerCase();
+  if (normalizedError.includes('maximum allowed size') || normalizedError.includes('file size')) {
+    throw new Error("Fayl hajmi 100 MB chegarasidan katta. Kichikroq video tanlang.");
+  }
+  if (normalizedError.includes('mime') || normalizedError.includes('content type')) {
+    throw new Error("Bu fayl formati qabul qilinmadi. Rasm uchun JPG, PNG, WebP; video uchun MP4, WebM yoki MOV tanlang.");
+  }
+  if (normalizedError.includes('row-level security') || normalizedError.includes('new row violates')) {
+    throw new Error("Media yuklash uchun qaytadan tizimga kiring.");
+  }
+  throw new Error(
+    `Media yuklanmadi${storageError ? `: ${storageError}` : ''}. Internetni tekshirib, qayta urinib ko'ring.`
+  );
 }
 
 export async function deleteListingMedia(urlOrPath: string): Promise<void> {
-  if (!urlOrPath || !supabase) return;
+  if (!urlOrPath) return;
   try {
     let storagePath = urlOrPath;
     if (urlOrPath.includes('/listing-media/')) {
       storagePath = urlOrPath.split('/listing-media/')[1] || '';
     }
     if (storagePath && !storagePath.startsWith('http')) {
-      await supabase.storage.from('listing-media').remove([storagePath]);
+      await apiClient.storage.from('listing-media').remove([storagePath]);
     }
   } catch {
     // Ignore storage deletion error if file does not exist.
@@ -373,20 +327,8 @@ export async function uploadProfileMedia(
 }
 
 export async function incrementPostViewsOnServer(postId: string): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase.rpc('increment_post_views', { p_post_id: postId });
+  const { error } = await apiClient.rpc('increment_post_views', { p_post_id: postId });
   if (error) throw new Error(`Ko'rishlar soni saqlanmadi: ${error.message}`);
-}
-
-/** Zaxirani atom tarzda kamaytiradi. Mock rejimda har doim muvaffaqiyat qaytaradi. */
-export async function decrementProductStockOnServer(productId: string, quantity: number): Promise<boolean> {
-  if (!supabase) return true;
-  const { data, error } = await supabase.rpc('decrement_product_stock', {
-    p_product_id: productId,
-    p_quantity: quantity,
-  });
-  if (error) throw new Error(`Zaxira yangilanmadi: ${error.message}`);
-  return Boolean(data);
 }
 
 // ---------- Types ----------
@@ -440,99 +382,12 @@ export interface AuthResult {
 
 export type OAuthProvider = 'google' | 'oneid';
 
-// ---------- Mock Auth (localStorage) ----------
-const MOCK_USERS_KEY = 'mollbazar-auth-users';
-const MOCK_SESSION_KEY = 'mollbazar-auth-session';
-
-function getMockUsers(): Record<string, { password: string; user: AuthUser }> {
-  try {
-    return JSON.parse(localStorage.getItem(MOCK_USERS_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function saveMockUsers(users: Record<string, { password: string; user: AuthUser }>) {
-  localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(users));
-}
-
-function getMockSession(): AuthUser | null {
-  try {
-    return JSON.parse(localStorage.getItem(MOCK_SESSION_KEY) || 'null');
-  } catch {
-    return null;
-  }
-}
-
-function saveMockSession(user: AuthUser | null) {
-  if (user) {
-    localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(user));
-  } else {
-    localStorage.removeItem(MOCK_SESSION_KEY);
-  }
-}
-
-// ---------- Mock Auth Implementation ----------
-async function mockSignUp(fields: SignUpFields): Promise<AuthResult> {
-  await new Promise((r) => setTimeout(r, 400));
-  const users = getMockUsers();
-  const key = (fields.email || fields.phone).toLowerCase().trim();
-
-  if (users[key]) {
-    return { ok: false, error: 'Bu email bilan ro\'yxatdan o\'tilgan. Iltimos kiring.' };
-  }
-
-  const cleanHandle = fields.handle
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, '')
-    .replace(/[^a-z0-9_]/g, '') || `user_${Date.now().toString().slice(-5)}`;
-
-  const user: AuthUser = {
-    id: `user-${Date.now()}`,
-    email: key,
-    name: fields.name.trim(),
-    handle: cleanHandle,
-    phone: fields.phone.trim(),
-    location: fields.location || '',
-    businessName: fields.businessName || '',
-    role: fields.role || 'seller',
-    bio: fields.businessName ? `${fields.businessName} rasmiy agro sahifasi` : '',
-    createdAt: new Date().toISOString(),
-    status: 'active',
-  };
-
-  users[key] = { password: fields.password, user };
-  saveMockUsers(users);
-  saveMockSession(user);
-
-  return { ok: true, user };
-}
-
-async function mockSignIn(email: string, password: string): Promise<AuthResult> {
-  await new Promise((r) => setTimeout(r, 400));
-  const users = getMockUsers();
-  const key = email.toLowerCase().trim();
-  const record = users[key];
-
-  if (!record) {
-    return { ok: false, error: 'Bu email topilmadi. Iltimos ro\'yxatdan o\'ting.' };
-  }
-  if (record.password !== password) {
-    return { ok: false, error: 'Parol noto\'g\'ri. Qayta urinib ko\'ring.' };
-  }
-
-  saveMockSession(record.user);
-  return { ok: true, user: record.user };
-}
-
-async function supabaseSignInWithProvider(provider: OAuthProvider): Promise<AuthResult> {
-  if (!supabase) return { ok: false, error: 'Ijtimoiy kirish hozircha sozlanmagan.' };
+async function signInWithProvider(provider: OAuthProvider): Promise<AuthResult> {
   if (provider === 'oneid') {
     return { ok: false, error: 'OneID integratsiyasi hali ulanmagan. Email yoki telefon orqali kiring.' };
   }
 
-  const { error } = await supabase.auth.signInWithOAuth({
+  const { error } = await apiClient.auth.signInWithOAuth({
     provider: 'google',
     options: { redirectTo: getAuthCallbackUrl() },
   });
@@ -541,17 +396,8 @@ async function supabaseSignInWithProvider(provider: OAuthProvider): Promise<Auth
     : { ok: true, successMessage: 'Google oynasi ochilmoqda...' };
 }
 
-async function mockSignOut(): Promise<void> {
-  saveMockSession(null);
-}
-
-function mockGetCurrentUser(): AuthUser | null {
-  return getMockSession();
-}
-
-async function supabaseRestoreSession(): Promise<AuthUser | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase.auth.getUser();
+async function restoreSession(): Promise<AuthUser | null> {
+  const { data, error } = await apiClient.auth.getUser();
   if (error && (error.name === 'AuthRetryableFetchError' || (error.status ?? 0) >= 500)) {
     throw new Error(translateAuthError(error.message));
   }
@@ -559,7 +405,7 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
 
   const user = data.user;
   const meta = user.user_metadata as Record<string, string> | undefined;
-  const { data: existingProfile, error: profileError } = await supabase
+  const { data: existingProfile, error: profileError } = await apiClient
     .from('profiles').select('*').eq('id', user.id).maybeSingle();
   if (profileError) throw new Error(translateAuthError(profileError.message));
   let profile = existingProfile;
@@ -567,7 +413,7 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
   // A failed read is not a missing profile. Never overwrite an existing row
   // with stale signup metadata after a transient network/RLS failure.
   if (!profile) {
-    const { data: createdProfile, error: createError } = await supabase.from('profiles').insert({
+    const { data: createdProfile, error: createError } = await apiClient.from('profiles').insert({
       id: user.id,
       email: user.email || '',
       name: meta?.name || (user.email || '').split('@')[0],
@@ -579,7 +425,7 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
       updated_at: new Date().toISOString(),
     }).select('*').single();
     if (createError?.code === '23505') {
-      const retry = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const retry = await apiClient.from('profiles').select('*').eq('id', user.id).single();
       if (retry.error) throw new Error(translateAuthError(retry.error.message));
       profile = retry.data;
     } else {
@@ -608,39 +454,8 @@ async function supabaseRestoreSession(): Promise<AuthUser | null> {
   };
 }
 
-async function supabaseGetUserProfile(userId: string): Promise<AuthUser | null> {
-  if (!supabase) return null;
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (error || !profile) return null;
-
-  return {
-    id: profile.id,
-    email: profile.email || '',
-    name: profile.name || '',
-    handle: profile.handle || '',
-    phone: profile.phone || '',
-    location: profile.location || '',
-    businessName: profile.business_name || '',
-    bio: profile.bio || '',
-    role: (profile.role as UserRole) || 'seller',
-    avatar: profile.avatar_url || '',
-    cover: profile.cover_url || '',
-    website: profile.website || '',
-    telegram: profile.telegram || '',
-    createdAt: profile.created_at || new Date().toISOString(),
-    isAdmin: Boolean(profile.is_admin),
-    status: (profile.status as 'active' | 'banned') || 'active',
-  };
-}
-
-async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser | null> {
-  if (!supabase) return null;
-  const { data: sessionData, error: sessionError } = await supabase.auth.getUser();
+async function updateUser(fields: Partial<AuthUser>): Promise<AuthUser | null> {
+  const { data: sessionData, error: sessionError } = await apiClient.auth.getUser();
   if (sessionError || !sessionData.user) {
     throw new Error('Sessiya topilmadi. Qaytadan kiring.');
   }
@@ -667,7 +482,7 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
   // update (not upsert): the profile row always exists by now — handle_new_user()
   // creates it at signup. Upsert would also require satisfying the INSERT policy's
   // WITH CHECK for no reason, since we're never actually inserting here.
-  const { data, error } = await supabase
+  const { data, error } = await apiClient
     .from('profiles')
     .update(profileUpdate)
     .eq('id', userId)
@@ -698,11 +513,9 @@ async function supabaseUpdateUser(fields: Partial<AuthUser>): Promise<AuthUser |
   };
 }
 
-// ---------- Supabase Auth (real backend) ----------
-async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
+// ---------- Auth ----------
+async function signUp(fields: SignUpFields): Promise<AuthResult> {
   try {
-    if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
-
     const cleanEmail = fields.email.trim().toLowerCase();
     const cleanPhone = fields.phone.trim();
     if (!cleanEmail && !cleanPhone) {
@@ -720,7 +533,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
     const contact = cleanEmail
       ? { email: cleanEmail }
       : { phone: cleanPhone };
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await apiClient.auth.signUp({
       ...contact,
       password: fields.password,
       options: {
@@ -750,7 +563,7 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
 
     if (data.session) {
       try {
-        await supabase.from('profiles').upsert({
+        await apiClient.from('profiles').upsert({
           id: data.user.id,
           email: data.user.email || cleanEmail || '',
           name: fields.name.trim(),
@@ -786,25 +599,23 @@ async function supabaseSignUp(fields: SignUpFields): Promise<AuthResult> {
       successMessage: "Ro'yxatdan o'tish muvaffaqiyatli! Emailingizga tasdiqlash havolasi yuborildi.",
     };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Supabase ulanishda xatolik yuz berdi';
+    const message = err instanceof Error ? err.message : "Server bilan bog'lanib bo'lmadi";
     return { ok: false, error: translateAuthError(message) };
   }
 }
 
-async function supabaseSignIn(email: string, password: string): Promise<AuthResult> {
+async function signIn(email: string, password: string): Promise<AuthResult> {
   try {
-    if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
-
     const cleanIdentifier = email.trim().toLowerCase();
     const credentials = cleanIdentifier.includes('@')
       ? { email: cleanIdentifier, password }
       : { phone: cleanIdentifier, password };
-    const { data, error } = await supabase.auth.signInWithPassword(credentials);
+    const { data, error } = await apiClient.auth.signInWithPassword(credentials);
 
     if (error) return { ok: false, error: translateAuthError(error.message) };
     if (!data.user) return { ok: false, error: 'Foydalanuvchi topilmadi' };
 
-    const user = await supabaseRestoreSession();
+    const user = await restoreSession();
     if (!user) return { ok: false, error: 'Profil ma\'lumotlarini yuklab bo\'lmadi' };
 
     return { ok: true, user };
@@ -814,9 +625,8 @@ async function supabaseSignIn(email: string, password: string): Promise<AuthResu
   }
 }
 
-async function supabaseResendConfirmation(email: string): Promise<AuthResult> {
-  if (!supabase) return { ok: false, error: 'Supabase sozlanmagan' };
-  const { error } = await supabase.auth.resend({
+async function resendConfirmationEmail(email: string): Promise<AuthResult> {
+  const { error } = await apiClient.auth.resend({
     type: 'signup',
     email: email.trim().toLowerCase(),
     options: { emailRedirectTo: getAuthCallbackUrl() },
@@ -826,15 +636,13 @@ async function supabaseResendConfirmation(email: string): Promise<AuthResult> {
     : { ok: true, successMessage: 'Tasdiqlash havolasi qayta yuborildi.' };
 }
 
-async function supabaseSignOut(): Promise<void> {
-  if (!supabase) return;
-  const { error } = await supabase.auth.signOut();
+async function signOut(): Promise<void> {
+  const { error } = await apiClient.auth.signOut();
   if (error) throw new Error(translateAuthError(error.message));
 }
 
-async function supabaseDeleteAccount(): Promise<void> {
-  if (!supabase) return;
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+async function deleteAccount(): Promise<void> {
+  const { data: sessionData, error: sessionError } = await apiClient.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   const userId = sessionData.session?.user?.id;
   if (sessionError || !accessToken || !userId) {
@@ -852,86 +660,17 @@ async function supabaseDeleteAccount(): Promise<void> {
     throw new Error(result.error || "Akkauntni o'chirib bo'lmadi. Keyinroq qayta urinib ko'ring.");
   }
 
-  await supabase.auth.signOut();
+  await apiClient.auth.signOut();
 }
 
-// ---------- Unified Auth API ----------
+// ---------- Public Auth API ----------
 export const authClient = {
-  async signUp(fields: SignUpFields): Promise<AuthResult> {
-    if (isSupabaseConfigured) return supabaseSignUp(fields);
-    return mockSignUp(fields);
-  },
-
-  async signIn(email: string, password: string): Promise<AuthResult> {
-    if (isSupabaseConfigured) return supabaseSignIn(email, password);
-    return mockSignIn(email, password);
-  },
-
-  async signInWithProvider(provider: OAuthProvider): Promise<AuthResult> {
-    if (isSupabaseConfigured) return supabaseSignInWithProvider(provider);
-    return provider === 'oneid'
-      ? { ok: false, error: 'OneID integratsiyasi hali ulanmagan.' }
-      : { ok: false, error: 'Google kirishi demo rejimida mavjud emas. Email yoki telefon orqali kiring.' };
-  },
-
-  async resendConfirmationEmail(email: string): Promise<AuthResult> {
-    if (isSupabaseConfigured) return supabaseResendConfirmation(email);
-    return { ok: true, successMessage: "Mock rejimida email tasdiqlash talab etilmaydi." };
-  },
-
-  async signOut(): Promise<void> {
-    if (isSupabaseConfigured) return supabaseSignOut();
-    return mockSignOut();
-  },
-
-  async restoreSession(): Promise<AuthUser | null> {
-    if (isSupabaseConfigured) return supabaseRestoreSession();
-    return mockGetCurrentUser();
-  },
-
-  async getUserProfile(userId: string): Promise<AuthUser | null> {
-    if (isSupabaseConfigured) return supabaseGetUserProfile(userId);
-    const users = getMockUsers();
-    for (const record of Object.values(users)) {
-      if (record.user.id === userId) return record.user;
-    }
-    return null;
-  },
-
-  async updateUser(fields: Partial<AuthUser>): Promise<AuthUser | null> {
-    if (isSupabaseConfigured) {
-      return supabaseUpdateUser(fields);
-    }
-
-    const current = getMockSession();
-    if (!current) return null;
-    const updated: AuthUser = { ...current, ...fields };
-    saveMockSession(updated);
-
-    const users = getMockUsers();
-    const key = updated.email.toLowerCase().trim();
-    if (users[key]) {
-      users[key].user = updated;
-      saveMockUsers(users);
-    }
-    return updated;
-  },
-
-  async deleteAccount(): Promise<void> {
-    if (isSupabaseConfigured) {
-      return supabaseDeleteAccount();
-    }
-    const current = getMockSession();
-    if (current) {
-      const users = getMockUsers();
-      delete users[current.email.toLowerCase().trim()];
-      saveMockUsers(users);
-      saveMockSession(null);
-    }
-  },
-
-  getCurrentUser(): AuthUser | null {
-    if (isSupabaseConfigured) return null;
-    return mockGetCurrentUser();
-  },
+  signUp,
+  signIn,
+  signInWithProvider,
+  resendConfirmationEmail,
+  signOut,
+  restoreSession,
+  updateUser,
+  deleteAccount,
 };

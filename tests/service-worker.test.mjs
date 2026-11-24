@@ -23,7 +23,7 @@ function worker(fetcher = async () => new Response('ok'), clients = {}) {
     },
     caches: {
       open: async () => cache,
-      keys: async () => ['onbozor-shell-v4', 'mollbazar-shell-v5', 'mollbazar-shell-v6', 'another-app'],
+      keys: async () => ['onbozor-shell-v4', 'mollbazar-shell-v6', 'mollbazar-shell-v7', 'another-app'],
       delete: async key => { deleted.push(key); },
     },
   });
@@ -71,7 +71,7 @@ test('Activation removes only obsolete MollBazar caches', async () => {
   let pending;
   handlers.activate({ waitUntil: promise => { pending = promise; } });
   await pending;
-  assert.deepEqual(deleted, ['onbozor-shell-v4', 'mollbazar-shell-v5']);
+  assert.deepEqual(deleted, ['onbozor-shell-v4', 'mollbazar-shell-v6']);
 });
 
 test('Old worker navigation recovers to the app and never poisons its cache', async () => {

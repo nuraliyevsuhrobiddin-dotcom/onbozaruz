@@ -17,7 +17,7 @@ dist-ssr
 .env.local
 .env.*.local
 .env.development
-.env.production
+# .env.production is committed on purpose: it may only hold public values.
 
 # Editor directories and files
 .vscode/*
@@ -36,3 +36,18 @@ dist-ssr
 
 # OS files
 Thumbs.db
+
+# Ahost PHP API — server-only secrets and runtime data
+public/api/_lib/config.php
+mollbazar_config.php
+public/api/_data/*
+!public/api/_data/.htaccess
+public/api/storage/*
+!public/api/storage/.htaccess
+
+# Build archives
+*.dist.zip
+mollbazar_dist.zip
+
+# Ready-to-upload package (contains the server secret) — never commit
+/deploy/

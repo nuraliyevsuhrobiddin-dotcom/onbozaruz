@@ -32,8 +32,10 @@ import {
   Hexagon,
 } from 'lucide-react';
 import { useCreatePostForm } from './create/useCreatePostForm';
-import { REGIONS } from '../data/mockAgroData';
-import { CONDITION_QUICK, DURATION_OPTIONS, MIN_ORDER_QUICK, PRICE_QUICK } from './create/constants';
+import { REGIONS } from '../data/catalog';
+import { CONDITION_QUICK, DURATION_OPTIONS, MIN_ORDER_QUICK } from './create/constants';
+import { PRICE_UNITS, formatPrice } from '../utils/price';
+import { regionFromPlace } from '../utils/region';
 import { VideoPlayer } from './ui/VideoPlayer';
 import { useAgroStore } from '../store/useAgroStore';
 import { categoriesForScope } from '../utils/categoryScope';
@@ -41,6 +43,8 @@ import { useEffect } from 'react';
 import { useOverlayNavigation } from '../hooks/useOverlayNavigation';
 import { lockBodyScroll, unlockBodyScroll } from '../utils/scrollLock';
 import { LocationPicker } from './ui/LocationPicker';
+
+const formatMb = (bytes: number) => `${(bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1 : 0)} MB`;
 
 const categoryIconMap = {
   apple: Apple,
@@ -100,6 +104,7 @@ export const CreatePostModal: React.FC = () => {
     setValue,
     selectedMediaUrl,
     mediaType,
+    videoPrepInfo,
     selectedRegion,
     setSelectedRegion,
     durationDays,
@@ -113,6 +118,9 @@ export const CreatePostModal: React.FC = () => {
     handleFileChange,
     removeMedia,
     handlePriceChange,
+    handlePriceUnit,
+    priceAmount,
+    priceUnit,
     handlePhoneChange,
     handleCategorySelect,
     handleDetectLocation,
@@ -339,7 +347,7 @@ export const CreatePostModal: React.FC = () => {
                             </div>
                           </div>
                           {/* Media type badge */}
-                          <div className="absolute top-3 left-3 bg-black/70 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5">
+                          <div className="absolute top-3 left-3 z-10 bg-black/70 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5">
                             {mediaType === 'video' ? (
                               <>
                                 <Video className="w-3.5 h-3.5" />
@@ -352,6 +360,27 @@ export const CreatePostModal: React.FC = () => {
                               </>
                             )}
                           </div>
+                          {/* Background video preparation (compression before upload) */}
+                          {mediaType === 'video' && videoPrepInfo && videoPrepInfo.status !== 'kept' && (
+                            <div
+                              role="status"
+                              className="pointer-events-none absolute bottom-3 left-3 right-3 z-10 flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur-sm"
+                            >
+                              {videoPrepInfo.status === 'working' ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                                  <span className="truncate">Video tayyorlanmoqda… {Math.round(videoPrepInfo.progress * 100)}%</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                                  <span className="truncate">
+                                    Video tayyor · {formatMb(videoPrepInfo.before)} → {formatMb(videoPrepInfo.after ?? videoPrepInfo.before)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          )}
                           {/* Remove media */}
                           <button
                             type="button"
@@ -359,7 +388,8 @@ export const CreatePostModal: React.FC = () => {
                               e.stopPropagation();
                               removeMedia();
                             }}
-                            className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/60 hover:bg-[#D84315] text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+                            aria-label="Mediani olib tashlash"
+                            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-[#D84315] text-white flex items-center justify-center backdrop-blur-sm transition-colors"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -548,25 +578,28 @@ export const CreatePostModal: React.FC = () => {
                         <DollarSign className="w-3.5 h-3.5 text-slate-400" />
                         Narx *
                       </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="5,000 so'm/kg"
-                        value={formValues.price}
-                        onChange={handlePriceChange}
-                        className={`${inputBase} ${errors.price ? inputError : inputOk}`}
-                      />
+                      {/* Only the amount is typed; the unit comes from the chips and stays when the amount changes. */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="Masalan: 5,000"
+                          aria-label="Narx (faqat raqam)"
+                          value={priceAmount}
+                          onChange={handlePriceChange}
+                          className={`${inputBase} pr-24 ${errors.price ? inputError : inputOk}`}
+                        />
+                        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[12px] font-bold text-slate-400">
+                          {priceUnit}
+                        </span>
+                      </div>
                       <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1">
-                        {PRICE_QUICK.map((suffix) => (
+                        {PRICE_UNITS.map((unit) => (
                           <QuickChip
-                            key={suffix}
-                            label={suffix}
-                            isActive={formValues.price.toLowerCase().endsWith(suffix.toLowerCase())}
-                            onPick={() => {
-                              const digits = formValues.price.replace(/[^0-9]/g, '');
-                              const next = digits ? `${Number(digits).toLocaleString('en-US')} ${suffix}` : suffix;
-                              setValue('price', next, { shouldValidate: true });
-                            }}
+                            key={unit}
+                            label={unit}
+                            isActive={unit === priceUnit}
+                            onPick={() => handlePriceUnit(unit)}
                           />
                         ))}
                       </div>
@@ -780,7 +813,7 @@ export const CreatePostModal: React.FC = () => {
                             <img src={selectedMediaUrl} alt="Preview" className="w-full h-full object-cover" />
                           )}
                           <div className="absolute top-3 left-3 bg-[#111111]/90 text-[#22C55E] px-3 py-1.5 rounded-full text-[12px] font-extrabold shadow-md">
-                            {formValues.price || 'Narx'}
+                            {formValues.price ? formatPrice(formValues.price) : 'Narx'}
                           </div>
                           <div className="absolute top-3 right-3 bg-[#D84315]/90 text-white px-2.5 py-1 rounded-full text-[11px] font-bold">
                             {categories.find((c) => c.id === formValues.category)?.name || 'Kategoriya'}
@@ -813,7 +846,9 @@ export const CreatePostModal: React.FC = () => {
                           <MapPin className="w-3.5 h-3.5 text-slate-400" />
                           <span>
                             {formValues.location
-                              ? `${formValues.location}, ${selectedRegion}`
+                              ? regionFromPlace(formValues.location)
+                                ? formValues.location
+                                : `${formValues.location}, ${selectedRegion}`
                               : "Joylashuv yo'q"}
                           </span>
                         </div>

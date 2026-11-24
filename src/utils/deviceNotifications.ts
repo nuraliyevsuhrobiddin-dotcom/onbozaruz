@@ -81,8 +81,8 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
 
   const options: ExtendedNotificationOptions = {
     body,
-    icon: '/logo.png',
-    badge: '/favicon.svg',
+    icon: '/logo.png?v=2',
+    badge: '/badge-96.png',
     tag,
     renotify: true,
     vibrate: [200, 100, 200, 100, 200],
@@ -106,8 +106,8 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
   try {
     const notif = new Notification(title, {
       body,
-      icon: '/logo.png',
-      badge: '/favicon.svg',
+      icon: '/logo.png?v=2',
+      badge: '/badge-96.png',
       tag,
       data: { url },
     });

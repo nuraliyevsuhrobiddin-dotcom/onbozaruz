@@ -1,5 +1,5 @@
-const CACHE_NAME = 'mollbazar-shell-v6';
-const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.png', '/favicon.svg', '/favicon.png', '/apple-touch-icon.png', '/icon-192.png', '/icon-512.png', '/notification.wav'];
+const CACHE_NAME = 'mollbazar-shell-v7';
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/logo.png?v=2', '/favicon.svg?v=2', '/favicon.png?v=2', '/apple-touch-icon.png?v=2', '/icon-192.png?v=2', '/icon-512.png?v=2', '/icon-maskable-512.png?v=2', '/badge-96.png', '/notification.wav'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -36,8 +36,10 @@ self.addEventListener('fetch', (event) => {
         const isHtml = (response.headers.get('content-type') || '').includes('text/html');
         const isAppPage = url.pathname === '/' || url.pathname === '/index.html'
           || !/\.[^/]+$/.test(url.pathname);
+        // Pages are cached only as HTML, files never as HTML (an app page served
+        // for a missing /assets file must not be stored under the file's name).
         if (response.ok && response.status === 200 && !response.redirected
-          && (!isNavigation || (isHtml && isAppPage))) {
+          && (isNavigation ? isHtml && isAppPage : !isHtml)) {
           const copy = response.clone();
           event.waitUntil(caches.open(CACHE_NAME)
             .then((cache) => cache.put(isNavigation ? '/index.html' : event.request, copy))
@@ -60,8 +62,8 @@ self.addEventListener('message', (event) => {
     const { title, options } = event.data;
     event.waitUntil(
       self.registration.showNotification(title || 'MollBazar', {
-        icon: '/logo.png',
-        badge: '/favicon.svg',
+        icon: '/logo.png?v=2',
+        badge: '/badge-96.png',
         vibrate: [200, 100, 200, 100, 200],
         ...options,
       })
@@ -83,8 +85,8 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/logo.png',
-    badge: '/favicon.svg',
+    icon: data.icon || '/logo.png?v=2',
+    badge: '/badge-96.png',
     vibrate: [200, 100, 200],
     data: { ...data.data, url: notificationUrl(data.data?.url) },
     tag: data.tag || 'mollbazar-push',

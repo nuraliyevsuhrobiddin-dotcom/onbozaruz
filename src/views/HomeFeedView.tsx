@@ -129,9 +129,18 @@ export const HomeFeedView: React.FC = () => {
                 : 'bg-rose-600 border-rose-600 text-white'
             }`}
           >
-            {/* Top progress line animation while uploading */}
+            {/* Top progress line: real progress when known, a pulse otherwise */}
             {uploadingPostStatus.isUploading && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#D84315] via-amber-400 to-emerald-400 animate-pulse" />
+              uploadingPostStatus.progress !== undefined ? (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-white/10">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#D84315] via-amber-400 to-emerald-400 transition-[width] duration-300"
+                    style={{ width: `${Math.round(Math.min(1, Math.max(0.03, uploadingPostStatus.progress)) * 100)}%` }}
+                  />
+                </div>
+              ) : (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#D84315] via-amber-400 to-emerald-400 animate-pulse" />
+              )
             )}
 
             <div className="flex items-center justify-between gap-3">
@@ -153,7 +162,11 @@ export const HomeFeedView: React.FC = () => {
                 <div className="min-w-0">
                   <p className="text-[12px] font-black leading-tight tracking-wide">
                     {uploadingPostStatus.isUploading
-                      ? "E'lon joylanmoqda..."
+                      ? uploadingPostStatus.stage === 'preparing'
+                        ? `Video tayyorlanmoqda… ${Math.round((uploadingPostStatus.progress || 0) * 100)}%`
+                        : uploadingPostStatus.stage === 'uploading' && uploadingPostStatus.progress !== undefined
+                          ? `Yuklanmoqda… ${Math.round(uploadingPostStatus.progress * 100)}%`
+                          : "E'lon joylanmoqda..."
                       : uploadingPostStatus.isSuccess
                       ? "E'lon muvaffaqiyatli joylandi! ✨"
                       : "E'lon joylashda xatolik yuz berdi"}

@@ -15,6 +15,8 @@ import { B2BContractView } from '../components/b2b/B2BContractView';
 import { B2BFinanceView } from '../components/b2b/B2BFinanceView';
 import { B2BStoresMapView } from '../components/b2b/B2BStoresMapView';
 import { B2BOffersView } from '../components/b2b/B2BOffersView';
+import { AgroRequestsView } from '../components/b2b/AgroRequestsView';
+import { AgroDealsView } from '../components/b2b/AgroDealsView';
 
 /**
  * B2B (ulgurji savdo) bo'limining ichki router qatlami.
@@ -53,6 +55,10 @@ export const B2BView: React.FC = () => {
         return <B2BStoresMapView />;
       case 'offers':
         return <B2BOffersView />;
+      case 'requests':
+        return <AgroRequestsView />;
+      case 'deals':
+        return <AgroDealsView />;
       case 'home':
       default:
         return <B2BHomeView />;

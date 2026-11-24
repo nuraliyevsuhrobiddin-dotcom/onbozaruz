@@ -3,7 +3,11 @@ import './utils/brandStorage'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { ensureServiceWorker } from './utils/serviceWorker'
+import { installImageFallback } from './utils/imageFallback'
+
+installImageFallback()
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -13,6 +17,8 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )

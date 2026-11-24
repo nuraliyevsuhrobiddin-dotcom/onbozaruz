@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Plus, Edit3, Trash2, AlertCircle } from 'lucide-react';
 import { adminRepository, CategoryItem } from '../../api/adminRepository';
-import { CATEGORIES } from '../../data/mockAgroData';
+import { CATEGORIES } from '../../data/catalog';
 import { useAgroStore } from '../../store/useAgroStore';
 import { mapCategoryItemsToCategories } from '../../utils/categoryScope';
 
@@ -45,9 +45,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({ onLogAct
       const cats = await adminRepository.getCategories();
       setCategories(cats.length > 0 ? cats : DEFAULT_CATS);
     } catch (error: any) {
-      console.error('Failed to load categories:', error);
-      // Error handled - use default categories
-      setCategories(DEFAULT_CATS);
+      setError(error?.message || "Kategoriyalarni yuklab bo'lmadi");
     } finally {
       setLoading(false);
     }

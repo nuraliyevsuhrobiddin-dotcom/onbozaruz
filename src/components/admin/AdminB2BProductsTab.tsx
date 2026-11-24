@@ -208,7 +208,7 @@ export const AdminB2BProductsTab: React.FC<AdminB2BProductsTabProps> = ({ onLogA
       ) : (
         <div className="space-y-2.5">
           {filtered.map((p) => {
-            const mainImg = p.images?.[0] || '/logo.png';
+            const mainImg = p.images?.[0] || '/logo.png?v=2';
 
             return (
               <div
